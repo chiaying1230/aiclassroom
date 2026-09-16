@@ -32,7 +32,12 @@
     return fetch(url, {
       method: 'POST',
       // 不自訂標頭，瀏覽器會用 text/plain 送出，才不會被 CORS 預檢擋下
-      body: JSON.stringify({ fn: fn, args: args }),
+      body: JSON.stringify({
+        fn: fn,
+        args: args,
+        // 教師頁面登入後才會有；學生頁面是空字串
+        token: window.TeacherAuth ? window.TeacherAuth.getToken() : ''
+      }),
       redirect: 'follow'
     })
       .catch(function () {
@@ -61,7 +66,16 @@
         }
 
         if (!data.ok) {
-          throw new Error(data.error || '發生未知錯誤');
+
+          const err = new Error(data.error || '發生未知錯誤');
+          err.code = data.code || '';
+
+          // 教師密碼過期或未登入，通知頁面顯示登入畫面
+          if (data.code === 'AUTH_REQUIRED') {
+            window.dispatchEvent(new Event('aiclassroom:auth-required'));
+          }
+
+          throw err;
         }
 
         return data.result;

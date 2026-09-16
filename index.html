@@ -13,6 +13,7 @@
       --navy: #27366d;
       --purple: #7756dc;
       --green: #168c56;
+      --orange: #df9225;
       --bg: #f4f7fc;
       --text: #253046;
     }
@@ -76,6 +77,7 @@
     .menu-button.navy { background: var(--navy); }
     .menu-button.purple { background: var(--purple); }
     .menu-button.green { background: var(--green); }
+    .menu-button.orange { background: var(--orange); }
 
     .menu-button.soon {
       background: #d7dce6;
@@ -108,8 +110,10 @@
       return '<span class="menu-button soon" aria-disabled="true">' + label + '（籌備中）</span>';
     }
 
+    const target = f.newTab ? ' target="_blank" rel="noopener"' : '';
+
     return '<a class="menu-button ' + escapeHtml(f.color || 'primary') + '" href="' +
-      escapeHtml(f.href) + '">' + label + '</a>';
+      escapeHtml(f.href) + '"' + target + '>' + label + '</a>';
   }).join('');
 
   function escapeHtml(value) {

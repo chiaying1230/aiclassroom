@@ -8,6 +8,7 @@
 
   <script src="config.js"></script>
   <script src="gas-bridge.js"></script>
+  <script src="teacher-auth.js"></script>
 
   <style>
     :root {
@@ -51,6 +52,14 @@
     }
 
     nav a.nav-home:hover { background: rgba(255, 255, 255, .15); }
+
+    nav button.sheet { background: var(--green); }
+
+    nav button.logout {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, .45);
+      margin-left: auto;
+    }
 
     .container { max-width: 1100px; margin: auto; padding: 30px 20px; }
 
@@ -172,7 +181,8 @@
 
     @media (max-width: 700px) {
       .grid2 { grid-template-columns: 1fr; }
-      nav button { flex: 1 1 100%; }
+      nav button, nav a.nav-home { flex: 1 1 100%; text-align: center; }
+      nav button.logout { margin-left: 0; }
     }
   </style>
 </head>
@@ -190,6 +200,8 @@
     <button type="button" data-section="answers" onclick="showSection('answers')">AI 批改／教師審核</button>
     <button type="button" data-section="settings" onclick="showSection('settings')">⚙️ AI 評語風格</button>
     <button type="button" class="discuss" onclick="openDiscuss('')">🗣 開啟課堂討論</button>
+    <button type="button" class="sheet" id="sheetButton" onclick="openSpreadsheet()" disabled>📊 開啟資料試算表</button>
+    <button type="button" class="logout" onclick="TeacherAuth.logout()">登出</button>
   </nav>
 </header>
 
@@ -295,16 +307,40 @@
   const answerCache = {};
 
 
+  let spreadsheetUrl = '';
+
+
   document.addEventListener('DOMContentLoaded', function() {
 
-    loadQuestions();
+    // 輸入教師密碼之後才載入資料
+    TeacherAuth.ready(function() {
 
-    google.script.run
-      .withSuccessHandler(function(url) {
-        appUrl = url || '';
-      })
-      .getAppUrl();
+      loadQuestions();
+
+      google.script.run
+        .withSuccessHandler(function(config) {
+          spreadsheetUrl = config && config.spreadsheetUrl ? config.spreadsheetUrl : '';
+          document.getElementById('sheetButton').disabled = !spreadsheetUrl;
+        })
+        .getTeacherConfig();
+    });
   });
+
+
+  function openSpreadsheet() {
+
+    if (!spreadsheetUrl) {
+      return;
+    }
+
+    const win = window.open(spreadsheetUrl, '_blank');
+
+    if (win) {
+      win.opener = null;
+    } else {
+      prompt('瀏覽器擋住了新視窗，請複製這個網址到新分頁開啟：', spreadsheetUrl);
+    }
+  }
 
 
   function showSection(id) {
