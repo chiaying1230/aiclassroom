@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>教師管理後台</title>
+
+  <script src="config.js"></script>
+  <script src="gas-bridge.js"></script>
+
+  <style>
+    :root {
+      --navy: #27366d;
+      --primary: #5268e8;
+      --green: #168c56;
+      --red: #d94b4b;
+      --orange: #df9225;
+      --purple: #6c4fd6;
+      --gray: #70798c;
+      --bg: #f4f6fb;
+      --border: #dfe4ee;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
+      background: var(--bg);
+      color: #263149;
+    }
+
+    header { background: var(--navy); color: white; padding: 28px; }
+    header h1 { margin: 0 0 8px; }
+
+    nav { margin-top: 18px; display: flex; gap: 8px; flex-wrap: wrap; }
+    nav button { background: rgba(255, 255, 255, .15); }
+    nav button.active { background: rgba(255, 255, 255, .34); }
+    nav button.discuss { background: #f0b429; color: var(--navy); font-weight: bold; }
+
+    .container { max-width: 1100px; margin: auto; padding: 30px 20px; }
+
+    .card {
+      background: white;
+      padding: 24px;
+      border-radius: 16px;
+      margin-bottom: 20px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, .07);
+    }
+
+    .section { display: none; }
+    .section.active { display: block; }
+
+    label { display: block; font-weight: bold; margin-top: 15px; margin-bottom: 6px; }
+
+    input, textarea, select {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      font-size: 16px;
+      font-family: inherit;
+    }
+
+    textarea { min-height: 120px; resize: vertical; line-height: 1.7; }
+    textarea.tall { min-height: 240px; }
+
+    button {
+      margin-top: 12px;
+      padding: 11px 18px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--primary);
+      color: white;
+      font-size: 15px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+      outline: 3px solid #f0b429;
+      outline-offset: 2px;
+    }
+
+    .green { background: var(--green); }
+    .red { background: var(--red); }
+    .gray { background: var(--gray); }
+    .orange { background: var(--orange); }
+    .purple { background: var(--purple); }
+
+    .question, .answer {
+      border: 1px solid #e1e5ec;
+      border-radius: 12px;
+      padding: 18px;
+      margin-top: 15px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #edf0ff;
+      color: #4658c9;
+      font-size: 13px;
+      margin-right: 5px;
+      margin-bottom: 5px;
+    }
+
+    .text-box {
+      background: #f7f8fb;
+      padding: 14px;
+      border-radius: 9px;
+      white-space: pre-wrap;
+      line-height: 1.7;
+      margin: 8px 0 14px;
+    }
+
+    .ai-box {
+      background: #f1efff;
+      border: 1px solid #d8d2ff;
+      padding: 15px;
+      border-radius: 10px;
+      margin-top: 15px;
+    }
+
+    .ai-box h4 { margin: 0 0 8px; }
+    .ai-box p { margin: 6px 0; }
+
+    .sub-title { font-weight: bold; margin-top: 14px; color: #4b3fa8; }
+
+    .teacher-voice { background: white; border: 1px dashed #b9adf5; }
+
+    .review-box {
+      background: #f7f9fc;
+      padding: 15px;
+      border-radius: 10px;
+      margin-top: 15px;
+    }
+
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    .success-message { color: var(--green); margin-top: 12px; font-weight: bold; }
+    .error-message { color: var(--red); font-weight: bold; margin-top: 12px; }
+    .hint { color: #6b7489; font-size: 14px; line-height: 1.7; }
+    .empty { text-align: center; padding: 30px; color: #777; }
+
+    .flash { animation: flash 1.2s ease; }
+
+    @keyframes flash {
+      from { background: #fff4c2; }
+      to { background: white; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .flash { animation: none; }
+    }
+
+    @media (max-width: 700px) {
+      .grid2 { grid-template-columns: 1fr; }
+      nav button { flex: 1 1 100%; }
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <h1>👩‍🏫 教師管理後台</h1>
+  <p>建立題目、AI 初步批改與教師最終審核</p>
+
+  <nav>
+    <button type="button" data-section="create" class="active" onclick="showSection('create')">＋ 新增題目</button>
+    <button type="button" data-section="questions" onclick="showSection('questions')">題目管理</button>
+    <button type="button" data-section="answers" onclick="showSection('answers')">AI 批改／教師審核</button>
+    <button type="button" data-section="settings" onclick="showSection('settings')">⚙️ AI 評語風格</button>
+    <button type="button" class="discuss" onclick="openDiscuss('')">🗣 開啟課堂討論</button>
+  </nav>
+</header>
+
+<main class="container">
+
+  <!-- 新增題目 -->
+  <section id="create" class="section active">
+    <div class="card">
+      <h2>＋ 新增題目</h2>
+
+      <label for="title">題目名稱</label>
+      <input id="title" placeholder="例如：閱讀理解第 1 題">
+
+      <label for="content">題目內容</label>
+      <textarea id="content" placeholder="請輸入要讓學生回答的問題"></textarea>
+
+      <label for="points">配分</label>
+      <input id="points" type="number" min="0" value="10">
+
+      <label for="referenceAnswer">參考答案</label>
+      <textarea id="referenceAnswer" placeholder="提供教師與 AI 批改參考"></textarea>
+
+      <label for="rubric">AI 評分規準</label>
+      <textarea id="rubric" placeholder="例如：
+內容正確 5 分
+理由完整 3 分
+表達清楚 2 分"></textarea>
+
+      <label for="enableAI">AI 批改</label>
+      <select id="enableAI">
+        <option value="true">啟用 AI 初步批改</option>
+        <option value="false">不啟用</option>
+      </select>
+
+      <label for="status">題目狀態</label>
+      <select id="status">
+        <option value="草稿">草稿</option>
+        <option value="發布">直接發布</option>
+      </select>
+
+      <button type="button" onclick="createQuestion()">儲存題目</button>
+      <div id="createMessage"></div>
+    </div>
+  </section>
+
+  <!-- 題目管理 -->
+  <section id="questions" class="section">
+    <div class="card">
+      <h2>📚 題目管理</h2>
+      <button type="button" class="gray" onclick="loadQuestions()">重新整理</button>
+      <div id="questionList"><div class="empty">載入中……</div></div>
+    </div>
+  </section>
+
+  <!-- 批改 -->
+  <section id="answers" class="section">
+    <div class="card">
+      <h2>🤖 AI 批改／教師審核</h2>
+
+      <label for="questionFilter">選擇題目</label>
+      <select id="questionFilter" onchange="loadAnswers()">
+        <option value="">全部題目</option>
+      </select>
+
+      <button type="button" class="gray" onclick="loadAnswers()">重新整理</button>
+
+      <div id="answerList"><div class="empty">目前尚未載入學生作答</div></div>
+    </div>
+  </section>
+
+  <!-- AI 評語風格 -->
+  <section id="settings" class="section">
+    <div class="card">
+      <h2>⚙️ AI 評語風格</h2>
+
+      <p class="hint">
+        AI 批改時會另外寫一段「教師口吻評語」，可以在審核區一鍵帶入。
+        這裡的設定會套用到之後的每一次 AI 批改，已經批改過的回答要重新按 AI 批改才會更新。
+      </p>
+
+      <label for="feedbackStyle">評語風格要求</label>
+      <textarea id="feedbackStyle" placeholder="例如：語氣溫暖但直接，先肯定再建議，60 到 100 字，不用驚嘆號，結尾給一個具體的下一步。"></textarea>
+
+      <label for="feedbackExamples">我寫過的評語範例</label>
+      <p class="hint">建議放 3 到 5 則真實寫過的評語，一則一段。有範例時，AI 模仿語氣的效果通常比只描述風格好很多。</p>
+      <textarea id="feedbackExamples" class="tall" placeholder="你有抓到主角改變的關鍵事件，這點很重要。如果能再引用一句原文當證據，你的說法會更有說服力。
+
+你的推理步驟很清楚，看得出有認真想過。第二段的結論跟前面的數據對不太起來，再檢查一次計算看看。"></textarea>
+
+      <p class="hint" id="modelInfo"></p>
+
+      <button type="button" class="green" onclick="saveSettings()">儲存設定</button>
+      <div id="settingsMessage"></div>
+    </div>
+  </section>
+
+</main>
+
+
+<script>
+
+  let appUrl = '';
+  const answerCache = {};
+
+
+  document.addEventListener('DOMContentLoaded', function() {
+
+    loadQuestions();
+
+    google.script.run
+      .withSuccessHandler(function(url) {
+        appUrl = url || '';
+      })
+      .getAppUrl();
+  });
+
+
+  function showSection(id) {
+
+    document.querySelectorAll('.section').forEach(function(section) {
+      section.classList.remove('active');
+    });
+
+    document.getElementById(id).classList.add('active');
+
+    document.querySelectorAll('nav button[data-section]').forEach(function(button) {
+      button.classList.toggle('active', button.dataset.section === id);
+    });
+
+    if (id === 'questions') loadQuestions();
+    if (id === 'answers') loadTeacherArea();
+    if (id === 'settings') loadSettings();
+  }
+
+
+  /* ==================================================
+     課堂討論
+  ================================================== */
+
+  function openDiscuss(questionId) {
+
+    let url;
+
+    if (window.GAS_API_URL) {
+
+      // 放在 GitHub Pages：討論頁就在同一個資料夾
+      url =
+        new URL('discuss.html', window.location.href).href +
+        (questionId ? '?questionId=' + encodeURIComponent(questionId) : '');
+
+    } else {
+
+      // 放在 Apps Script：用網址參數切換頁面
+      if (!appUrl) {
+        alert('正在取得網址，請稍等一下再按一次。如果一直出現這個訊息，請確認網頁應用程式已經部署。');
+        return;
+      }
+
+      url =
+        appUrl + '?page=discuss' +
+        (questionId ? '&questionId=' + encodeURIComponent(questionId) : '');
+    }
+
+    const win = window.open(url, '_blank');
+
+    if (!win) {
+      prompt('瀏覽器擋住了新視窗，請複製這個網址到新分頁開啟：', url);
+    }
+  }
+
+
+  /* ==================================================
+     載入教師批改區
+  ================================================== */
+
+  function loadTeacherArea() {
+
+    google.script.run
+      .withSuccessHandler(function(data) {
+        updateQuestionFilter(data);
+        loadAnswers();
+      })
+      .withFailureHandler(function(error) {
+        document.getElementById('answerList').innerHTML =
+          '<div class="error-message">' + escapeHtml(error.message) + '</div>';
+      })
+      .getTeacherQuestions();
+  }
+
+
+  /* ==================================================
+     新增題目
+  ================================================== */
+
+  function createQuestion() {
+
+    const data = {
+      title: document.getElementById('title').value.trim(),
+      content: document.getElementById('content').value.trim(),
+      points: Number(document.getElementById('points').value),
+      referenceAnswer: document.getElementById('referenceAnswer').value.trim(),
+      rubric: document.getElementById('rubric').value.trim(),
+      enableAI: document.getElementById('enableAI').value === 'true',
+      status: document.getElementById('status').value
+    };
+
+    if (!data.title || !data.content) {
+      alert('請輸入題目名稱與題目內容');
+      return;
+    }
+
+    const message = document.getElementById('createMessage');
+    message.className = '';
+    message.textContent = '儲存中……';
+
+    google.script.run
+      .withSuccessHandler(function() {
+
+        message.className = 'success-message';
+        message.textContent = '✓ 題目建立成功';
+
+        ['title', 'content', 'referenceAnswer', 'rubric'].forEach(function(id) {
+          document.getElementById(id).value = '';
+        });
+
+        loadQuestions();
+      })
+      .withFailureHandler(function(error) {
+        message.className = 'error-message';
+        message.textContent = '建立失敗：' + error.message;
+      })
+      .createQuestion(data);
+  }
+
+
+  /* ==================================================
+     題目管理
+  ================================================== */
+
+  function loadQuestions() {
+
+    google.script.run
+      .withSuccessHandler(function(data) {
+        renderQuestions(data);
+        updateQuestionFilter(data);
+      })
+      .withFailureHandler(function(error) {
+        document.getElementById('questionList').innerHTML =
+          '<div class="error-message">' + escapeHtml(error.message) + '</div>';
+      })
+      .getTeacherQuestions();
+  }
+
+
+  function renderQuestions(data) {
+
+    const box = document.getElementById('questionList');
+
+    if (!data || data.length === 0) {
+      box.innerHTML = '<div class="empty">目前沒有題目</div>';
+      return;
+    }
+
+    box.innerHTML = '';
+
+    data.forEach(function(q) {
+
+      const div = document.createElement('div');
+      div.className = 'question';
+
+      div.innerHTML = `
+        <h3>${escapeHtml(q.title)}</h3>
+
+        <span class="badge">${escapeHtml(q.status)}</span>
+        <span class="badge">作答：${escapeHtml(q.answerCount)}</span>
+        <span class="badge">待審核：${escapeHtml(q.pendingCount)}</span>
+
+        <div class="text-box">${escapeHtml(q.content)}</div>
+
+        <p>配分：${escapeHtml(q.points)} 分</p>
+        <p>AI：${q.enableAI ? '啟用' : '未啟用'}</p>
+
+        <button type="button" class="green" onclick="changeStatus('${q.id}','發布')">發布</button>
+        <button type="button" class="gray" onclick="changeStatus('${q.id}','草稿')">草稿</button>
+        <button type="button" class="red" onclick="changeStatus('${q.id}','關閉')">關閉</button>
+        <button type="button" onclick="openAnswers('${q.id}')">查看學生回答</button>
+        <button type="button" class="purple" onclick="openDiscuss('${q.id}')">🗣 課堂討論</button>
+        <button type="button" class="red" onclick="deleteQuestionConfirm('${q.id}')">🗑 刪除題目</button>
+      `;
+
+      box.appendChild(div);
+    });
+  }
+
+
+  function changeStatus(questionId, status) {
+
+    google.script.run
+      .withSuccessHandler(function() {
+        loadQuestions();
+      })
+      .withFailureHandler(function(error) {
+        alert(error.message);
+      })
+      .updateQuestionStatus(questionId, status);
+  }
+
+
+  function deleteQuestionConfirm(questionId) {
+
+    if (!confirm('確定要刪除這個題目嗎？\n\n這個題目的學生作答與課堂討論分類也會一起刪除，且無法復原。')) {
+      return;
+    }
+
+    if (!confirm('再次確認：真的要刪除嗎？')) {
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function() {
+        alert('題目已刪除');
+        loadQuestions();
+      })
+      .withFailureHandler(function(error) {
+        alert('刪除失敗：' + error.message);
+      })
+      .deleteQuestion(questionId);
+  }
+
+
+  function updateQuestionFilter(questions) {
+
+    const select = document.getElementById('questionFilter');
+    const current = select.value;
+
+    select.innerHTML = '<option value="">全部題目</option>';
+
+    if (!questions) {
+      return;
+    }
+
+    questions.forEach(function(q) {
+      const option = document.createElement('option');
+      option.value = q.id;
+      option.textContent = q.title;
+      select.appendChild(option);
+    });
+
+    const exists = Array.from(select.options).some(function(option) {
+      return option.value === current;
+    });
+
+    if (exists) {
+      select.value = current;
+    }
+  }
+
+
+  function openAnswers(questionId) {
+
+    showSectionOnly('answers');
+
+    google.script.run
+      .withSuccessHandler(function(data) {
+        updateQuestionFilter(data);
+        document.getElementById('questionFilter').value = questionId;
+        loadAnswers();
+      })
+      .withFailureHandler(function(error) {
+        alert(error.message);
+      })
+      .getTeacherQuestions();
+  }
+
+
+  function showSectionOnly(id) {
+
+    document.querySelectorAll('.section').forEach(function(section) {
+      section.classList.remove('active');
+    });
+
+    document.getElementById(id).classList.add('active');
+
+    document.querySelectorAll('nav button[data-section]').forEach(function(button) {
+      button.classList.toggle('active', button.dataset.section === id);
+    });
+  }
+
+
+  /* ==================================================
+     學生回答
+  ================================================== */
+
+  function loadAnswers() {
+
+    const questionId = document.getElementById('questionFilter').value;
+    const box = document.getElementById('answerList');
+
+    box.innerHTML = '<div class="empty">載入中……</div>';
+
+    google.script.run
+      .withSuccessHandler(renderAnswers)
+      .withFailureHandler(function(error) {
+        box.innerHTML =
+          '<div class="error-message">讀取失敗：' + escapeHtml(error.message) + '</div>';
+      })
+      .getTeacherAnswers(questionId);
+  }
+
+
+  function renderAnswers(data) {
+
+    const box = document.getElementById('answerList');
+
+    if (!data || data.length === 0) {
+      box.innerHTML = '<div class="empty">目前沒有學生回答</div>';
+      return;
+    }
+
+    box.innerHTML = '';
+
+    data.forEach(function(a) {
+
+      answerCache[a.answerId] = a;
+
+      const div = document.createElement('div');
+      div.className = 'answer';
+
+      const defaultScore =
+        a.teacherScore !== '' ? a.teacherScore :
+        a.aiScore !== '' ? a.aiScore : '';
+
+      div.innerHTML = `
+        <h3>${escapeHtml(a.questionTitle || '題目')}</h3>
+
+        <span class="badge" id="badge_${a.answerId}">${escapeHtml(a.status)}</span>
+
+        <p>
+          <strong>學生：</strong>
+          學號：${escapeHtml(a.studentId)}
+          &nbsp;&nbsp;
+          姓名：${escapeHtml(a.name)}
+        </p>
+
+        <p>送出時間：${escapeHtml(a.submittedAt)}</p>
+
+        <h4>題目</h4>
+        <div class="text-box">${escapeHtml(a.questionContent)}</div>
+
+        <h4>學生回答</h4>
+        <div class="text-box">${escapeHtml(a.answer)}</div>
+
+        ${
+          a.enableAI
+            ? `<button type="button" class="orange" id="ai_${a.answerId}" onclick="runAI('${a.answerId}')">
+                 ${a.aiScore !== '' ? '🤖 重新 AI 批改' : '🤖 AI 批改'}
+               </button>`
+            : '<p>本題未啟用 AI。</p>'
+        }
+
+        <div id="aiResult_${a.answerId}">${buildAIBox(a)}</div>
+
+        <div class="review-box">
+          <h4>👩‍🏫 教師最終審核</h4>
+
+          <div class="grid2">
+            <div>
+              <label for="score_${a.answerId}">教師分數</label>
+              <input id="score_${a.answerId}" type="number" min="0"
+                max="${escapeHtml(a.points)}" step="0.5"
+                value="${escapeHtml(defaultScore)}">
+            </div>
+
+            <div>
+              <label for="status_${a.answerId}">狀態</label>
+              <select id="status_${a.answerId}">
+                <option value="待教師審核">待教師審核</option>
+                <option value="已通過">已通過</option>
+                <option value="退回修改">退回修改</option>
+              </select>
+            </div>
+          </div>
+
+          <label for="feedback_${a.answerId}">教師評語</label>
+          <textarea id="feedback_${a.answerId}" placeholder="輸入正式給學生看的評語">${escapeHtml(a.teacherFeedback || '')}</textarea>
+
+          <button type="button" class="green" onclick="saveReview('${a.answerId}')">儲存教師審核</button>
+        </div>
+      `;
+
+      box.appendChild(div);
+
+      if (['待教師審核', '已通過', '退回修改'].includes(a.status)) {
+        document.getElementById('status_' + a.answerId).value = a.status;
+      }
+    });
+  }
+
+
+  function buildAIBox(a) {
+
+    if (a.aiScore === '' || a.aiScore == null) {
+      return '';
+    }
+
+    const voice = a.aiStudentFeedback
+      ? `<div class="text-box teacher-voice">${escapeHtml(a.aiStudentFeedback)}</div>`
+      : '<p class="hint">這份批改是舊版產生的，沒有教師口吻評語。可以重新 AI 批改，或直接帶入上面的批改說明。</p>';
+
+    return `
+      <div class="ai-box">
+        <h4>🤖 AI 初步批改</h4>
+
+        <p>
+          <strong>建議分數：</strong>${escapeHtml(a.aiScore)} / ${escapeHtml(a.points)}
+          &nbsp;&nbsp;
+          <strong>AI 信心：</strong>${escapeHtml(a.aiConfidence || '未提供')}
+        </p>
+
+        <div class="sub-title">給教師的批改說明</div>
+        <div class="text-box">${escapeHtml(a.aiFeedback || '（無）')}</div>
+
+        <div class="sub-title">教師口吻評語</div>
+        ${voice}
+
+        <button type="button" class="purple" onclick="applyAIFeedback('${a.answerId}')">
+          ⬇ 一鍵帶入分數與評語
+        </button>
+      </div>
+    `;
+  }
+
+
+  /* ==================================================
+     一鍵帶入
+  ================================================== */
+
+  function applyAIFeedback(answerId) {
+
+    const a = answerCache[answerId];
+
+    if (!a) {
+      return;
+    }
+
+    const text = a.aiStudentFeedback || a.aiFeedback || '';
+    const feedbackBox = document.getElementById('feedback_' + answerId);
+    const scoreBox = document.getElementById('score_' + answerId);
+
+    const currentFeedback = feedbackBox.value.trim();
+    const currentScore = scoreBox.value.trim();
+
+    const feedbackConflict = currentFeedback && currentFeedback !== text;
+    const scoreConflict =
+      currentScore && a.aiScore !== '' && Number(currentScore) !== Number(a.aiScore);
+
+    if (
+      (feedbackConflict || scoreConflict) &&
+      !confirm('教師審核欄已經有不同的內容，要用 AI 的分數與評語取代嗎？')
+    ) {
+      return;
+    }
+
+    feedbackBox.value = text;
+
+    if (a.aiScore !== '') {
+      scoreBox.value = a.aiScore;
+    }
+
+    feedbackBox.classList.remove('flash');
+    void feedbackBox.offsetWidth;
+    feedbackBox.classList.add('flash');
+    feedbackBox.focus();
+  }
+
+
+  /* ==================================================
+     AI 批改
+  ================================================== */
+
+  function runAI(answerId) {
+
+    const button = document.getElementById('ai_' + answerId);
+    const box = document.getElementById('aiResult_' + answerId);
+
+    button.disabled = true;
+    button.textContent = 'AI 批改中……';
+    box.innerHTML = '<div class="ai-box">AI 正在分析回答……</div>';
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+
+        button.disabled = false;
+        button.textContent = '🤖 重新 AI 批改';
+
+        const a = answerCache[answerId] || { answerId: answerId, points: result.maxScore };
+
+        a.aiScore = result.score;
+        a.aiFeedback = result.feedback;
+        a.aiStudentFeedback = result.studentFeedback;
+        a.aiConfidence = result.confidence;
+        a.status = result.status;
+        answerCache[answerId] = a;
+
+        box.innerHTML = buildAIBox(a);
+
+        const badge = document.getElementById('badge_' + answerId);
+        if (badge) badge.textContent = result.status;
+
+        const score = document.getElementById('score_' + answerId);
+        if (score && !score.value) score.value = result.score;
+      })
+      .withFailureHandler(function(error) {
+
+        button.disabled = false;
+        button.textContent = '🤖 AI 批改';
+
+        const a = answerCache[answerId];
+
+        box.innerHTML =
+          '<div class="error-message">AI 批改失敗：' + escapeHtml(error.message) + '</div>' +
+          (a ? buildAIBox(a) : '');
+      })
+      .runAIReview(answerId);
+  }
+
+
+  /* ==================================================
+     教師審核
+  ================================================== */
+
+  function saveReview(answerId) {
+
+    const score = document.getElementById('score_' + answerId).value.trim();
+    const feedback = document.getElementById('feedback_' + answerId).value;
+    const status = document.getElementById('status_' + answerId).value;
+    const a = answerCache[answerId];
+
+    if (score !== '') {
+
+      const value = Number(score);
+      const max = a ? Number(a.points) : 0;
+
+      if (isNaN(value) || value < 0) {
+        alert('教師分數必須是 0 以上的數字');
+        return;
+      }
+
+      if (max > 0 && value > max) {
+        alert('教師分數不能超過配分 ' + max + ' 分');
+        return;
+      }
+    }
+
+    google.script.run
+      .withSuccessHandler(function() {
+        alert('教師審核已儲存');
+        loadAnswers();
+      })
+      .withFailureHandler(function(error) {
+        alert(error.message);
+      })
+      .saveTeacherReview({
+        answerId: answerId,
+        teacherScore: score,
+        teacherFeedback: feedback,
+        status: status
+      });
+  }
+
+
+  /* ==================================================
+     AI 評語風格
+  ================================================== */
+
+  function loadSettings() {
+
+    const info = document.getElementById('modelInfo');
+    info.textContent = '讀取設定中……';
+
+    google.script.run
+      .withSuccessHandler(function(settings) {
+
+        document.getElementById('feedbackStyle').value = settings.feedbackStyle || '';
+        document.getElementById('feedbackExamples').value = settings.feedbackExamples || '';
+
+        info.textContent =
+          '目前模型：' + (settings.model || '尚未設定 AI_MODEL') +
+          '；API 金鑰：' + (settings.hasApiKey ? '已設定' : '尚未設定 GEMINI_API_KEY');
+      })
+      .withFailureHandler(function(error) {
+        info.textContent = '讀取失敗：' + error.message;
+      })
+      .getAISettings();
+  }
+
+
+  function saveSettings() {
+
+    const message = document.getElementById('settingsMessage');
+    message.className = '';
+    message.textContent = '儲存中……';
+
+    google.script.run
+      .withSuccessHandler(function() {
+        message.className = 'success-message';
+        message.textContent = '✓ 設定已儲存，之後的 AI 批改會套用';
+      })
+      .withFailureHandler(function(error) {
+        message.className = 'error-message';
+        message.textContent = '儲存失敗：' + error.message;
+      })
+      .saveAISettings({
+        feedbackStyle: document.getElementById('feedbackStyle').value,
+        feedbackExamples: document.getElementById('feedbackExamples').value
+      });
+  }
+
+
+  function escapeHtml(value) {
+
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+</script>
+
+</body>
+</html>

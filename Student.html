@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>課堂問答系統</title>
+
+  <script src="config.js"></script>
+  <script src="gas-bridge.js"></script>
+
+  <style>
+    :root {
+      --primary: #5268e8;
+      --primary-dark: #4053c8;
+      --bg: #f4f7fc;
+      --text: #253046;
+      --muted: #75809a;
+      --green: #168c56;
+      --red: #df5050;
+      --border: #e1e6ef;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    header {
+      padding: 42px 20px;
+      color: white;
+      text-align: center;
+      background: linear-gradient(135deg, #5268e8, #7756dc);
+    }
+
+    header h1 { margin: 0 0 8px; }
+
+    .container { max-width: 950px; margin: auto; padding: 25px 18px 60px; }
+
+    .card {
+      background: white;
+      border-radius: 17px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 7px 24px rgba(27, 39, 70, .07);
+    }
+
+    .student-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    label { display: block; margin: 14px 0 6px; font-weight: bold; }
+
+    input, textarea {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid var(--border);
+      border-radius: 9px;
+      font-size: 16px;
+      font-family: inherit;
+    }
+
+    textarea { min-height: 150px; resize: vertical; line-height: 1.7; }
+
+    button {
+      border: 0;
+      padding: 12px 18px;
+      background: var(--primary);
+      color: white;
+      border-radius: 9px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 10px;
+      font-family: inherit;
+    }
+
+    button:hover { background: var(--primary-dark); }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+
+    .secondary { background: #eef1ff; color: #4557c8; margin-left: 8px; }
+    .secondary:hover { background: #e2e7ff; }
+
+    .question-title { color: #4354c0; font-size: 22px; font-weight: bold; margin-bottom: 8px; }
+
+    .question-content {
+      background: #f7f8fc;
+      padding: 17px;
+      border-radius: 11px;
+      white-space: pre-wrap;
+      line-height: 1.8;
+      margin: 15px 0;
+    }
+
+    .meta { color: var(--muted); font-size: 14px; }
+
+    .message { margin-top: 12px; font-weight: bold; }
+    .success { color: var(--green); }
+    .error { color: var(--red); }
+
+    .empty { text-align: center; color: var(--muted); padding: 30px; }
+
+    .result-item { border: 1px solid var(--border); border-radius: 12px; padding: 17px; margin: 12px 0; }
+
+    .status {
+      display: inline-block;
+      background: #edf0ff;
+      color: #485bd1;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 13px;
+    }
+
+    .feedback {
+      background: #f6f8fb;
+      padding: 13px;
+      border-radius: 9px;
+      white-space: pre-wrap;
+      margin-top: 10px;
+    }
+
+    @media (max-width: 700px) {
+      .student-grid { grid-template-columns: 1fr; }
+      .secondary { margin-left: 0; }
+      button { width: 100%; }
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <h1>課堂問答</h1>
+  <p>閱讀老師的問題，用自己的想法回答</p>
+</header>
+
+<main class="container">
+
+  <section class="card">
+    <h2>👤 我的資料</h2>
+
+    <div class="student-grid">
+      <div>
+        <label for="studentId">學號</label>
+        <input id="studentId" autocomplete="username" placeholder="請輸入學號">
+      </div>
+
+      <div>
+        <label for="name">姓名</label>
+        <input id="name" autocomplete="name" placeholder="請輸入姓名">
+      </div>
+    </div>
+
+    <button type="button" onclick="saveIdentity()">儲存我的資料</button>
+    <button type="button" class="secondary" onclick="loadMyResults()">查看審核結果</button>
+    <button type="button" class="secondary" onclick="refreshStudentPage()">🔄 重新整理</button>
+  </section>
+
+  <section>
+    <h2>📝 老師的問題</h2>
+    <div id="questionList">
+      <div class="card empty">題目載入中……</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>✅ 我的作答紀錄</h2>
+    <div id="myResults">
+      <div class="empty">請輸入學號與姓名，再按「查看審核結果」</div>
+    </div>
+  </section>
+
+</main>
+
+
+<script>
+
+  document.addEventListener('DOMContentLoaded', function() {
+    restoreIdentity();
+    loadQuestions();
+  });
+
+
+  function refreshStudentPage() {
+
+    loadQuestions();
+
+    const identity = getIdentity();
+
+    if (identity.studentId && identity.name) {
+      loadMyResults();
+    }
+  }
+
+
+  function getIdentity() {
+    return {
+      studentId: document.getElementById('studentId').value.trim(),
+      name: document.getElementById('name').value.trim()
+    };
+  }
+
+
+  function saveIdentity() {
+
+    const data = getIdentity();
+
+    if (!data.studentId || !data.name) {
+      alert('請完整填寫學號與姓名');
+      return;
+    }
+
+    localStorage.setItem('classroom_identity', JSON.stringify(data));
+    alert('學生資料已儲存');
+  }
+
+
+  function restoreIdentity() {
+
+    const saved = localStorage.getItem('classroom_identity');
+
+    if (!saved) {
+      return;
+    }
+
+    try {
+      const data = JSON.parse(saved);
+      document.getElementById('studentId').value = data.studentId || '';
+      document.getElementById('name').value = data.name || '';
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+
+  function loadQuestions() {
+
+    const list = document.getElementById('questionList');
+    list.innerHTML = '<div class="card empty">題目載入中……</div>';
+
+    google.script.run
+      .withSuccessHandler(renderQuestions)
+      .withFailureHandler(function(error) {
+        list.innerHTML =
+          '<div class="card error">題目讀取失敗：' + escapeHtml(error.message) + '</div>';
+      })
+      .getPublishedQuestions();
+  }
+
+
+  function renderQuestions(questions) {
+
+    const list = document.getElementById('questionList');
+
+    if (!questions || questions.length === 0) {
+      list.innerHTML = '<div class="card empty">老師目前沒有發布題目。</div>';
+      return;
+    }
+
+    list.innerHTML = '';
+
+    questions.forEach(function(q) {
+
+      const card = document.createElement('div');
+      card.className = 'card';
+
+      card.innerHTML = `
+        <div class="question-title">${escapeHtml(q.title)}</div>
+        <div class="meta">配分：${escapeHtml(q.points)} 分</div>
+        <div class="question-content">${escapeHtml(q.content)}</div>
+
+        <label for="answer_${q.id}">我的回答</label>
+        <textarea id="answer_${q.id}" placeholder="請在這裡輸入你的回答……"></textarea>
+
+        <button type="button" id="submit_${q.id}" onclick="submitAnswer('${q.id}')">送出回答</button>
+
+        <div id="message_${q.id}" class="message"></div>
+      `;
+
+      list.appendChild(card);
+    });
+  }
+
+
+  function submitAnswer(questionId) {
+
+    const identity = getIdentity();
+
+    if (!identity.studentId || !identity.name) {
+      alert('請先輸入學號與姓名');
+      return;
+    }
+
+    const answer = document.getElementById('answer_' + questionId).value.trim();
+
+    if (!answer) {
+      alert('請先輸入回答');
+      return;
+    }
+
+    localStorage.setItem('classroom_identity', JSON.stringify(identity));
+
+    const button = document.getElementById('submit_' + questionId);
+    const message = document.getElementById('message_' + questionId);
+
+    button.disabled = true;
+    button.textContent = '送出中……';
+    message.textContent = '';
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        button.disabled = false;
+        button.textContent = '重新送出';
+        message.className = 'message success';
+        message.textContent = result.updated ? '✓ 回答已更新' : '✓ 回答已送出';
+      })
+      .withFailureHandler(function(error) {
+        button.disabled = false;
+        button.textContent = '送出回答';
+        message.className = 'message error';
+        message.textContent = '送出失敗：' + error.message;
+      })
+      .submitAnswer({
+        studentId: identity.studentId,
+        name: identity.name,
+        questionId: questionId,
+        answer: answer
+      });
+  }
+
+
+  function loadMyResults() {
+
+    const identity = getIdentity();
+
+    if (!identity.studentId || !identity.name) {
+      alert('請先輸入學號與姓名');
+      return;
+    }
+
+    const box = document.getElementById('myResults');
+    box.innerHTML = '<div class="empty">讀取中……</div>';
+
+    google.script.run
+      .withSuccessHandler(renderMyResults)
+      .withFailureHandler(function(error) {
+        box.innerHTML = '<div class="error">' + escapeHtml(error.message) + '</div>';
+      })
+      .getStudentResults(identity);
+  }
+
+
+  function renderMyResults(results) {
+
+    const box = document.getElementById('myResults');
+
+    if (!results || results.length === 0) {
+      box.innerHTML = '<div class="empty">找不到你的作答紀錄。</div>';
+      return;
+    }
+
+    box.innerHTML = '';
+
+    results.forEach(function(item) {
+
+      const div = document.createElement('div');
+      div.className = 'result-item';
+
+      let reviewHtml = '';
+
+      if (item.status === '已通過' || item.status === '退回修改') {
+
+        const scoreText =
+          item.teacherScore !== '' && item.teacherScore != null
+            ? escapeHtml(item.teacherScore) + ' / ' + escapeHtml(item.points)
+            : '尚未給分';
+
+        reviewHtml = `
+          <p><strong>教師分數：</strong>${scoreText}</p>
+          <div class="feedback">
+            <strong>教師評語</strong><br><br>
+            ${escapeHtml(item.teacherFeedback || '老師尚未留下評語')}
+          </div>
+        `;
+
+      } else {
+
+        reviewHtml = '<p>老師目前正在審核這份回答。</p>';
+      }
+
+      div.innerHTML = `
+        <h3>${escapeHtml(item.title)}</h3>
+        <div class="status">${escapeHtml(item.status)}</div>
+
+        <p><strong>我的回答</strong></p>
+        <div class="feedback">${escapeHtml(item.answer)}</div>
+
+        <p class="meta">送出時間：${escapeHtml(item.submittedAt)}</p>
+
+        ${reviewHtml}
+      `;
+
+      box.appendChild(div);
+    });
+  }
+
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+</script>
+
+</body>
+</html>

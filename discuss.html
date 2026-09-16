@@ -1,0 +1,1667 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>課堂討論</title>
+
+  <script src="config.js"></script>
+  <script src="gas-bridge.js"></script>
+
+  <style>
+    :root {
+      --navy: #27366d;
+      --primary: #5268e8;
+      --green: #168c56;
+      --red: #d94b4b;
+      --orange: #df9225;
+      --purple: #6c4fd6;
+      --gray: #70798c;
+      --yellow: #f0b429;
+      --bg: #f4f6fb;
+      --lane: #e9edf5;
+      --border: #dfe4ee;
+      --text: #263149;
+      --muted: #6b7489;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    body.no-scroll { overflow: hidden; }
+
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 9px 14px;
+      background: var(--primary);
+      color: white;
+      font-size: 14px;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    button:disabled { opacity: .5; cursor: not-allowed; }
+
+    button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible {
+      outline: 3px solid var(--yellow);
+      outline-offset: 2px;
+    }
+
+    .green { background: var(--green); }
+    .red { background: var(--red); }
+    .gray { background: var(--gray); }
+    .orange { background: var(--orange); }
+    .purple { background: var(--purple); }
+    .yellow { background: var(--yellow); color: var(--navy); font-weight: bold; }
+    .light { background: rgba(255, 255, 255, .16); }
+    .ghost { background: white; color: var(--navy); border: 1px solid var(--border); }
+    .mini { padding: 5px 9px; font-size: 13px; }
+
+    /* ---------- 頂部 ---------- */
+
+    .topbar {
+      background: var(--navy);
+      color: white;
+      padding: 14px 24px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px 14px;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+    .topbar h1 { margin: 0 auto 0 0; font-size: 21px; }
+
+    .topbar select {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 0;
+      font-size: 15px;
+      font-family: inherit;
+      max-width: 340px;
+    }
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .toggle input { width: 16px; height: 16px; }
+
+    .present-bar {
+      display: none;
+      position: fixed;
+      right: 18px;
+      top: 14px;
+      z-index: 30;
+      gap: 8px;
+    }
+
+    /* ---------- 版面 ---------- */
+
+    .container { padding: 20px 24px 60px; }
+
+    .card {
+      background: white;
+      border-radius: 14px;
+      padding: 20px 22px;
+      margin-bottom: 18px;
+      box-shadow: 0 4px 16px rgba(27, 39, 70, .06);
+    }
+
+    .question-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .question-head h2 { margin: 0; }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: #edf0ff;
+      color: #4658c9;
+      font-size: 13px;
+    }
+
+    .question-content {
+      white-space: pre-wrap;
+      line-height: 1.8;
+      margin: 12px 0 0;
+      font-size: 17px;
+      max-width: 60em;
+    }
+
+    .stats { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 14px; color: var(--muted); font-size: 14px; }
+    .stats b { color: var(--text); font-size: 16px; }
+
+    .tools-grid { display: grid; grid-template-columns: 3fr 2fr; gap: 28px; }
+    .tools-grid h3 { margin: 0 0 6px; }
+
+    .hint { color: var(--muted); font-size: 14px; line-height: 1.7; margin: 4px 0 8px; }
+
+    .button-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .button-stack { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+    .button-stack button { text-align: left; }
+
+    .message { margin-top: 10px; font-size: 14px; font-weight: bold; min-height: 1.4em; line-height: 1.6; }
+    .message.success { color: var(--green); }
+    .message.error { color: var(--red); }
+    .message.warn { color: #b26a00; }
+    .message.info { color: var(--primary); }
+
+    .error-message { color: var(--red); font-weight: bold; }
+    .empty { text-align: center; color: var(--muted); padding: 30px; }
+
+    /* ---------- 類別編輯 ---------- */
+
+    .editor-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-top: 8px;
+      background: #fafbfe;
+    }
+
+    .color-dot { width: 14px; height: 14px; border-radius: 50%; margin-top: 12px; flex: 0 0 14px; }
+
+    .editor-fields { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+
+    .editor-fields input, .editor-fields textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      font: inherit;
+      font-size: 15px;
+    }
+
+    .editor-fields input { font-weight: bold; }
+    .editor-fields textarea { min-height: 54px; resize: vertical; line-height: 1.6; }
+
+    .editor-actions { display: flex; flex-direction: column; gap: 4px; }
+
+    /* ---------- 看板 ---------- */
+
+    .board-hint { color: var(--muted); font-size: 14px; margin: 0 0 10px; }
+
+    .board {
+      display: flex;
+      gap: 16px;
+      overflow-x: auto;
+      align-items: flex-start;
+      padding: 2px 2px 16px;
+    }
+
+    .column {
+      flex: 0 0 310px;
+      background: var(--lane);
+      border-radius: 12px;
+      border-top: 6px solid var(--col);
+      padding: 12px;
+      outline: 2px dashed transparent;
+      outline-offset: -2px;
+    }
+
+    .column.solo { flex: 1 1 auto; }
+
+    .column.solo .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 10px;
+    }
+
+    .column.solo .answer-card { margin-top: 0; }
+
+    .column.drag-over { outline-color: var(--primary); background: #e1e7ff; }
+
+    .column-title { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    .column-title span:first-child { font-weight: bold; font-size: 17px; }
+
+    .count {
+      background: white;
+      border-radius: 999px;
+      padding: 1px 10px;
+      font-size: 14px;
+      font-weight: bold;
+      color: var(--col);
+    }
+
+    .column-desc { color: var(--muted); font-size: 13px; line-height: 1.6; margin-top: 4px; }
+
+    .column-buttons { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+
+    .summary-box {
+      background: white;
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-top: 10px;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .discussion-q { margin-top: 6px; color: #7a4f00; }
+
+    .answer-card {
+      background: white;
+      border-radius: 10px;
+      padding: 12px 12px 10px;
+      margin-top: 10px;
+      box-shadow: 0 1px 4px rgba(27, 39, 70, .08);
+      border-left: 5px solid #c7cdd9;
+      cursor: grab;
+    }
+
+    .answer-card.ai { border-left-color: var(--orange); }
+    .answer-card.confirmed { border-left-color: var(--green); }
+    .answer-card.representative { box-shadow: 0 0 0 2px var(--yellow); }
+    .answer-card.dragging { opacity: .4; }
+
+    .rep-label { font-size: 12px; font-weight: bold; color: #9a6b00; margin-bottom: 4px; }
+
+    .answer-text { white-space: pre-wrap; line-height: 1.7; word-break: break-word; }
+
+    .card-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; font-size: 12px; }
+
+    .student { color: var(--muted); }
+
+    .tag { border-radius: 999px; padding: 1px 8px; font-size: 12px; }
+    .tag.ai { background: #fff1d9; color: #9a5a00; }
+    .tag.ok { background: #dcf4e7; color: #11683f; }
+
+    .reason { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+
+    .card-controls { display: flex; gap: 6px; margin-top: 8px; }
+
+    .card-controls select {
+      flex: 1;
+      min-width: 0;
+      padding: 5px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      font: inherit;
+      font-size: 13px;
+    }
+
+    .card-controls button { flex: 0 0 auto; }
+
+    .drop-hint {
+      border: 2px dashed #c7cdd9;
+      border-radius: 10px;
+      padding: 18px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 10px;
+    }
+
+    /* ---------- 投影模式 ---------- */
+
+    body.present .teacher-only { display: none !important; }
+    body.present .present-bar { display: flex; }
+    body.present .container { padding-top: 24px; }
+    body.present .question-content { font-size: 24px; }
+    body.present .question-head h2 { font-size: 28px; }
+    body.present .column { flex-basis: 380px; }
+    body.present .column-title span:first-child { font-size: 22px; }
+    body.present .answer-text { font-size: 19px; }
+    body.present .summary-box { font-size: 17px; }
+    body.present .answer-card { cursor: default; }
+
+    /* ---------- 聚焦討論 ---------- */
+
+    .focus-overlay {
+      position: fixed;
+      inset: 0;
+      background: #1d2547;
+      color: white;
+      z-index: 100;
+      overflow: auto;
+      display: none;
+    }
+
+    .focus-overlay.open { display: block; }
+
+    .focus-inner { max-width: 1200px; margin: auto; padding: 24px 32px 60px; }
+
+    .focus-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+    .focus-question { opacity: .72; margin: 18px 0 8px; white-space: pre-wrap; font-size: 18px; line-height: 1.7; }
+
+    .focus-title {
+      font-size: 38px;
+      margin: 14px 0 6px;
+      border-left: 10px solid var(--col);
+      padding-left: 16px;
+    }
+
+    .focus-title small { font-size: 20px; opacity: .7; font-weight: normal; margin-left: 10px; }
+
+    .focus-desc { font-size: 18px; opacity: .8; margin: 6px 0 14px 26px; }
+
+    .focus-summary, .focus-discussion {
+      font-size: 23px;
+      line-height: 1.7;
+      background: rgba(255, 255, 255, .08);
+      border-radius: 12px;
+      padding: 14px 20px;
+      margin: 10px 0;
+    }
+
+    .focus-discussion { background: rgba(240, 180, 41, .2); }
+
+    .focus-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 14px;
+      margin-top: 22px;
+    }
+
+    .focus-card {
+      background: white;
+      color: var(--text);
+      border-radius: 12px;
+      padding: 16px 18px;
+      font-size: 20px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .focus-card.representative { box-shadow: 0 0 0 4px var(--yellow); }
+    .focus-card .student { display: block; font-size: 15px; margin-top: 8px; }
+
+    @media (max-width: 900px) {
+      .tools-grid { grid-template-columns: 1fr; }
+      .topbar h1 { flex-basis: 100%; }
+      .container { padding: 16px 12px 60px; }
+      .column { flex-basis: 270px; }
+    }
+  </style>
+</head>
+
+<body>
+
+<header class="topbar teacher-only">
+  <h1>🗣 課堂討論</h1>
+
+  <select id="questionSelect" aria-label="選擇題目" onchange="changeQuestion()">
+    <option value="">載入中……</option>
+  </select>
+
+  <label class="toggle"><input type="checkbox" id="showNames" onchange="rerender()"> 顯示姓名</label>
+  <label class="toggle"><input type="checkbox" id="confirmedOnly" onchange="rerender()"> 只顯示已確認的分類</label>
+  <label class="toggle"><input type="checkbox" id="autoRefresh" checked onchange="setupAutoRefresh()"> 每 10 秒自動更新</label>
+
+  <button type="button" class="light" onclick="loadBoard(false)">🔄 重新整理</button>
+  <button type="button" class="yellow" onclick="togglePresent()">📽 投影模式</button>
+</header>
+
+<div class="present-bar">
+  <button type="button" class="ghost" onclick="togglePresent()">✕ 離開投影模式</button>
+</div>
+
+<main class="container">
+
+  <section class="card">
+    <div id="questionInfo"><div class="empty">載入中……</div></div>
+    <div id="stats" class="stats"></div>
+  </section>
+
+  <section class="card teacher-only">
+    <div class="tools-grid">
+
+      <div>
+        <h3>設定類別</h3>
+        <p class="hint">
+          類別名稱會投影給全班看，建議使用中性的描述，例如「以速度來解釋」，避免「錯誤觀念」這類字眼。
+        </p>
+
+        <div id="categoryEditor"></div>
+
+        <div class="button-row">
+          <button type="button" class="gray ai-action" onclick="addCategoryRow()">＋ 新增類別</button>
+          <button type="button" class="purple ai-action" onclick="suggestCategories()">🤖 讓 AI 建議類別</button>
+          <button type="button" class="green ai-action" onclick="saveCategories()">儲存類別</button>
+        </div>
+
+        <div id="editorMessage" class="message"></div>
+      </div>
+
+      <div>
+        <h3>AI 分類與整理</h3>
+        <p class="hint">
+          卡片左邊是橘色代表「AI 建議」，教師移動卡片或按 ✓ 之後會變成綠色「已確認」。
+          重新分類時，已確認的卡片不會被改動。
+        </p>
+
+        <div class="button-stack">
+          <button type="button" class="ai-action" onclick="classifyUnclassified()">🤖 分類尚未分類的回答</button>
+          <button type="button" class="orange ai-action" onclick="reclassifyUnconfirmed()">🔄 重新分類未確認的回答</button>
+          <button type="button" class="green ai-action" onclick="confirmAll()">✓ 全部標為已確認</button>
+          <button type="button" class="purple ai-action" onclick="summarize()">📝 產生類別摘要與討論提問</button>
+        </div>
+
+        <div id="aiMessage" class="message"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <p class="board-hint teacher-only">
+    把卡片拖到其他類別，或用卡片下方的選單移動。按「聚焦討論」可以放大單一類別，方便投影帶討論。
+  </p>
+
+  <section id="board" class="board"></section>
+
+</main>
+
+<div id="focusOverlay" class="focus-overlay" role="dialog" aria-modal="true"></div>
+
+
+<script>
+
+  const PALETTE = [
+    '#5268e8', '#168c56', '#df9225', '#6c4fd6', '#d94b4b',
+    '#1d8fb3', '#b5559a', '#5f8a1f', '#c0772b', '#4a6378'
+  ];
+
+  const UNCLASSIFIED_COLOR = '#8a93a6';
+
+  const state = {
+    questionId: '',
+    board: null,
+    signature: '',
+    editorCats: [],
+    editorDirty: false,
+    busy: false,
+    dragging: false,
+    pendingOps: 0,
+    present: false,
+    timer: null,
+    focusCategoryId: null,
+    requestSeq: 0,
+    lastLoadedAt: ''
+  };
+
+
+  function $(id) {
+    return document.getElementById(id);
+  }
+
+
+  document.addEventListener('DOMContentLoaded', function() {
+
+    setupDragAndDrop();
+    setupAutoRefresh();
+
+    document.addEventListener('keydown', handleKeydown);
+
+    window.addEventListener('beforeunload', function(event) {
+      if (state.editorDirty) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    });
+
+    google.script.url.getLocation(function(location) {
+
+      const preferred =
+        location && location.parameter && location.parameter.questionId
+          ? location.parameter.questionId
+          : '';
+
+      loadQuestionList(preferred);
+    });
+  });
+
+
+  /* ==================================================
+     題目與資料載入
+  ================================================== */
+
+  function loadQuestionList(preferredId) {
+
+    google.script.run
+      .withSuccessHandler(function(questions) {
+
+        const select = $('questionSelect');
+        select.innerHTML = '';
+
+        if (!questions || !questions.length) {
+          select.innerHTML = '<option value="">（目前沒有題目）</option>';
+          $('questionInfo').innerHTML = '<div class="empty">目前沒有題目，請先到教師後台新增。</div>';
+          return;
+        }
+
+        questions.forEach(function(q) {
+          const option = document.createElement('option');
+          option.value = q.id;
+          option.textContent = q.title + '（' + q.status + '，' + q.answerCount + ' 份回答）';
+          select.appendChild(option);
+        });
+
+        const exists = questions.some(function(q) {
+          return q.id === preferredId;
+        });
+
+        select.value = exists ? preferredId : questions[0].id;
+        state.questionId = select.value;
+
+        loadBoard(false);
+      })
+      .withFailureHandler(function(error) {
+        $('questionInfo').innerHTML =
+          '<div class="error-message">題目讀取失敗：' + escapeHtml(error.message) + '</div>';
+      })
+      .getTeacherQuestions();
+  }
+
+
+  function changeQuestion() {
+
+    const select = $('questionSelect');
+
+    if (
+      state.editorDirty &&
+      !confirm('類別設定還沒儲存，切換題目會放棄這些修改。確定要切換嗎？')
+    ) {
+      select.value = state.questionId;
+      return;
+    }
+
+    state.questionId = select.value;
+    state.board = null;
+    state.signature = '';
+    state.editorDirty = false;
+    state.editorCats = [];
+
+    closeFocus();
+    showMessage('editorMessage', '', '');
+    showMessage('aiMessage', '', '');
+
+    loadBoard(false);
+  }
+
+
+  function loadBoard(silent) {
+
+    if (!state.questionId) {
+      return;
+    }
+
+    const seq = ++state.requestSeq;
+    const questionId = state.questionId;
+
+    if (!state.board) {
+      $('board').innerHTML = '<div class="empty">載入中……</div>';
+    }
+
+    google.script.run
+      .withSuccessHandler(function(board) {
+
+        // 只採用最新一次的請求結果，並且不打斷正在進行的拖曳或移動
+        if (seq !== state.requestSeq || questionId !== state.questionId) return;
+        if (state.pendingOps > 0 || state.dragging) return;
+
+        if (!board || !board.question) {
+          state.board = null;
+          $('questionInfo').innerHTML = '<div class="error-message">找不到這個題目，可能已經被刪除。</div>';
+          $('stats').innerHTML = '';
+          $('board').innerHTML = '';
+          return;
+        }
+
+        state.lastLoadedAt = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+
+        const signature = JSON.stringify(board);
+
+        if (signature === state.signature) {
+          renderStats();
+          return;
+        }
+
+        state.signature = signature;
+        state.board = board;
+
+        renderAll();
+      })
+      .withFailureHandler(function(error) {
+
+        if (seq !== state.requestSeq) return;
+
+        if (!silent || !state.board) {
+          $('board').innerHTML =
+            '<div class="error-message">讀取失敗：' + escapeHtml(error.message) + '</div>';
+        }
+      })
+      .getDiscussionBoard(questionId);
+  }
+
+
+  function setupAutoRefresh() {
+
+    if (state.timer) {
+      clearInterval(state.timer);
+      state.timer = null;
+    }
+
+    if (!$('autoRefresh').checked) {
+      return;
+    }
+
+    state.timer = setInterval(function() {
+
+      if (
+        document.hidden ||
+        state.busy ||
+        state.dragging ||
+        state.pendingOps > 0 ||
+        isUsingBoardControl()
+      ) {
+        return;
+      }
+
+      loadBoard(true);
+    }, 10000);
+  }
+
+
+  function isUsingBoardControl() {
+
+    const el = document.activeElement;
+
+    return !!(el && el.tagName === 'SELECT' && el.closest('#board'));
+  }
+
+
+  /* ==================================================
+     畫面
+  ================================================== */
+
+  function renderAll() {
+
+    renderQuestionInfo();
+
+    if (!state.editorDirty) {
+      state.editorCats = state.board.categories.map(function(c) {
+        return { id: c.id, name: c.name, description: c.description };
+      });
+      renderEditor();
+    }
+
+    renderStats();
+    renderBoard();
+    renderFocus();
+  }
+
+
+  function rerender() {
+
+    if (!state.board) {
+      return;
+    }
+
+    renderBoard();
+    renderFocus();
+  }
+
+
+  function renderQuestionInfo() {
+
+    const q = state.board.question;
+
+    $('questionInfo').innerHTML = `
+      <div class="question-head">
+        <h2>${escapeHtml(q.title)}</h2>
+        <span class="badge teacher-only">${escapeHtml(q.status)}</span>
+      </div>
+      <div class="question-content">${escapeHtml(q.content)}</div>
+    `;
+  }
+
+
+  function renderStats() {
+
+    if (!state.board) {
+      return;
+    }
+
+    const answers = state.board.answers;
+
+    const classified = answers.filter(function(a) { return a.classified; }).length;
+    const confirmed = answers.filter(function(a) { return a.confirmed; }).length;
+
+    $('stats').innerHTML = `
+      <span>回答 <b>${answers.length}</b></span>
+      <span>類別 <b>${state.board.categories.length}</b></span>
+      <span class="teacher-only">已分類 <b>${classified}</b></span>
+      <span class="teacher-only">已確認 <b>${confirmed}</b></span>
+      <span class="teacher-only">更新時間 ${escapeHtml(state.lastLoadedAt)}</span>
+    `;
+  }
+
+
+  function colorFor(index) {
+    return PALETTE[index % PALETTE.length];
+  }
+
+
+  function getColumns() {
+
+    const board = state.board;
+    const confirmedOnly = $('confirmedOnly').checked;
+    const map = {};
+
+    const columns = board.categories.map(function(c, index) {
+
+      const column = {
+        id: c.id,
+        name: c.name,
+        description: c.description,
+        summary: c.summary,
+        discussionQuestion: c.discussionQuestion,
+        representativeAnswerId: c.representativeAnswerId,
+        color: colorFor(index),
+        answers: [],
+        isUnclassified: false
+      };
+
+      map[c.id] = column;
+
+      return column;
+    });
+
+    const unclassified = {
+      id: '',
+      name: confirmedOnly ? '未分類／待確認' : '未分類',
+      description: '',
+      summary: '',
+      discussionQuestion: '',
+      representativeAnswerId: '',
+      color: UNCLASSIFIED_COLOR,
+      answers: [],
+      isUnclassified: true
+    };
+
+    board.answers.forEach(function(a) {
+
+      let target =
+        a.categoryId && map[a.categoryId] ? map[a.categoryId] : unclassified;
+
+      if (confirmedOnly && !a.confirmed) {
+        target = unclassified;
+      }
+
+      target.answers.push(a);
+    });
+
+    // 代表回答排在最前面
+    columns.forEach(function(column) {
+      column.answers.sort(function(a, b) {
+        return (
+          (b.answerId === column.representativeAnswerId) -
+          (a.answerId === column.representativeAnswerId)
+        );
+      });
+    });
+
+    columns.push(unclassified);
+
+    return columns;
+  }
+
+
+  function renderBoard() {
+
+    const boardEl = $('board');
+
+    if (!state.board) {
+      return;
+    }
+
+    if (!state.board.answers.length) {
+      boardEl.innerHTML = '<div class="card empty" style="flex:1">這一題還沒有學生回答。學生送出後，這裡會自動出現。</div>';
+      return;
+    }
+
+    const columns = getColumns().filter(function(column) {
+      return !(
+        column.isUnclassified &&
+        !column.answers.length &&
+        (state.present || state.board.categories.length === 0)
+      );
+    });
+
+    const solo = columns.length === 1;
+
+    boardEl.innerHTML = columns
+      .map(function(column) {
+        return renderColumn(column, solo);
+      })
+      .join('');
+  }
+
+
+  function renderColumn(column, solo) {
+
+    const hasSummary = column.summary || column.discussionQuestion;
+
+    return `
+      <div class="column ${solo ? 'solo' : ''}"
+           data-category-id="${escapeHtml(column.id)}"
+           style="--col:${column.color}">
+
+        <div class="column-title">
+          <span>${escapeHtml(column.name)}</span>
+          <span class="count">${column.answers.length}</span>
+        </div>
+
+        ${column.description ? `<div class="column-desc">${escapeHtml(column.description)}</div>` : ''}
+
+        ${
+          column.isUnclassified
+            ? ''
+            : `<div class="column-buttons">
+                 <button type="button" class="mini ghost" onclick="openFocus('${column.id}')">🔍 聚焦討論</button>
+                 <button type="button" class="mini ghost teacher-only" onclick="confirmCategory('${column.id}')">✓ 確認這一類</button>
+               </div>`
+        }
+
+        ${
+          hasSummary
+            ? `<div class="summary-box">
+                 ${column.summary ? `<div>💡 ${escapeHtml(column.summary)}</div>` : ''}
+                 ${column.discussionQuestion ? `<div class="discussion-q">❓ ${escapeHtml(column.discussionQuestion)}</div>` : ''}
+               </div>`
+            : ''
+        }
+
+        <div class="cards">
+          ${
+            column.answers.length
+              ? column.answers.map(function(a) { return renderCard(a, column); }).join('')
+              : '<div class="drop-hint teacher-only">把回答拖到這裡</div>'
+          }
+        </div>
+      </div>
+    `;
+  }
+
+
+  function renderCard(a, column) {
+
+    const showNames = $('showNames').checked;
+    const isRepresentative =
+      column.representativeAnswerId && column.representativeAnswerId === a.answerId;
+
+    const stateClass = a.confirmed ? 'confirmed' : (a.classified ? 'ai' : '');
+
+    let tag = '';
+
+    if (a.confirmed) {
+      tag = '<span class="tag ok teacher-only">✓ 已確認</span>';
+    } else if (a.classified) {
+      tag = '<span class="tag ai teacher-only">AI 建議' +
+        (a.confidence ? '・信心' + escapeHtml(a.confidence) : '') + '</span>';
+    }
+
+    const options = [{ id: '', name: '未分類' }]
+      .concat(state.board.categories)
+      .map(function(c) {
+        return `<option value="${escapeHtml(c.id)}" ${c.id === (a.categoryId || '') ? 'selected' : ''}>${escapeHtml(c.name)}</option>`;
+      })
+      .join('');
+
+    const canConfirm = a.classified && !a.confirmed;
+
+    return `
+      <div class="answer-card ${stateClass} ${isRepresentative ? 'representative' : ''}"
+           draggable="${state.present ? 'false' : 'true'}"
+           data-answer-id="${escapeHtml(a.answerId)}">
+
+        ${isRepresentative ? '<div class="rep-label">⭐ 代表回答</div>' : ''}
+
+        <div class="answer-text">${escapeHtml(a.answer)}</div>
+
+        <div class="card-meta">
+          ${showNames ? `<span class="student">${escapeHtml(a.name)}（${escapeHtml(a.studentId)}）</span>` : ''}
+          ${tag}
+        </div>
+
+        ${a.reason && !a.confirmed ? `<div class="reason teacher-only">AI 理由：${escapeHtml(a.reason)}</div>` : ''}
+
+        <div class="card-controls teacher-only">
+          <select aria-label="移動到類別" onchange="moveAnswer('${a.answerId}', this.value)">${options}</select>
+          ${canConfirm ? `<button type="button" class="mini green" title="確認這個分類" onclick="moveAnswer('${a.answerId}', '${a.categoryId}')">✓</button>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+
+  /* ==================================================
+     類別編輯
+  ================================================== */
+
+  function renderEditor() {
+
+    const box = $('categoryEditor');
+
+    if (!state.editorCats.length) {
+      box.innerHTML =
+        '<p class="hint">還沒有類別。可以手動新增，或按「讓 AI 建議類別」，AI 會先讀過全部回答再提出建議，你修改後再儲存。</p>';
+      return;
+    }
+
+    box.innerHTML = state.editorCats
+      .map(function(c, i) {
+        return `
+          <div class="editor-row">
+            <span class="color-dot" style="background:${colorFor(i)}"></span>
+
+            <div class="editor-fields">
+              <input value="${escapeHtml(c.name)}" maxlength="20"
+                placeholder="類別名稱" aria-label="類別名稱"
+                oninput="editCategory(${i}, 'name', this.value)">
+              <textarea placeholder="判斷特徵：什麼樣的回答屬於這一類" aria-label="類別說明"
+                oninput="editCategory(${i}, 'description', this.value)">${escapeHtml(c.description)}</textarea>
+            </div>
+
+            <div class="editor-actions">
+              <button type="button" class="mini gray" title="往上移" onclick="moveCategoryRow(${i}, -1)" ${i === 0 ? 'disabled' : ''}>↑</button>
+              <button type="button" class="mini gray" title="往下移" onclick="moveCategoryRow(${i}, 1)" ${i === state.editorCats.length - 1 ? 'disabled' : ''}>↓</button>
+              <button type="button" class="mini red" title="刪除類別" onclick="removeCategoryRow(${i})">✕</button>
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+  }
+
+
+  function markDirty() {
+    state.editorDirty = true;
+    showMessage('editorMessage', '⚠ 類別設定尚未儲存', 'warn');
+  }
+
+
+  function editCategory(index, field, value) {
+
+    if (!state.editorCats[index]) {
+      return;
+    }
+
+    state.editorCats[index][field] = value;
+    markDirty();
+  }
+
+
+  function addCategoryRow() {
+
+    if (state.editorCats.length >= 10) {
+      alert('類別最多 10 個');
+      return;
+    }
+
+    state.editorCats.push({ id: '', name: '', description: '' });
+    markDirty();
+    renderEditor();
+
+    const inputs = document.querySelectorAll('#categoryEditor input');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }
+
+
+  function removeCategoryRow(index) {
+    state.editorCats.splice(index, 1);
+    markDirty();
+    renderEditor();
+  }
+
+
+  function moveCategoryRow(index, delta) {
+
+    const target = index + delta;
+
+    if (target < 0 || target >= state.editorCats.length) {
+      return;
+    }
+
+    const item = state.editorCats.splice(index, 1)[0];
+    state.editorCats.splice(target, 0, item);
+
+    markDirty();
+    renderEditor();
+  }
+
+
+  function suggestCategories() {
+
+    if (state.busy || !state.board) {
+      return;
+    }
+
+    if (
+      state.editorCats.length &&
+      !confirm('AI 建議會取代編輯區目前的類別。按「儲存類別」之前，實際資料不會改變。要繼續嗎？')
+    ) {
+      return;
+    }
+
+    setBusy(true, 'AI 正在閱讀全部回答並歸納類別，大約需要 10 到 30 秒……', 'editorMessage');
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+
+        setBusy(false);
+
+        // 名稱和現有類別相同的，保留原本的類別與分類
+        const existingByName = {};
+
+        state.board.categories.forEach(function(c) {
+          existingByName[c.name] = c.id;
+        });
+
+        state.editorCats = result.categories.map(function(c) {
+          return {
+            id: existingByName[c.name] || '',
+            name: c.name,
+            description: c.description
+          };
+        });
+
+        state.editorDirty = true;
+        renderEditor();
+
+        let text =
+          '✓ AI 讀了 ' + result.analyzedCount + ' 份回答，建議 ' +
+          result.categories.length + ' 個類別。請檢查、修改後按「儲存類別」。';
+
+        if (result.analyzedCount < result.answerCount) {
+          text += '（共 ' + result.answerCount + ' 份，只分析了前 ' + result.analyzedCount + ' 份）';
+        }
+
+        showMessage('editorMessage', text, 'warn');
+      })
+      .withFailureHandler(function(error) {
+        setBusy(false);
+        showMessage('editorMessage', '建議失敗：' + error.message, 'error');
+      })
+      .suggestCategories(state.questionId);
+  }
+
+
+  function saveCategories() {
+
+    if (state.busy || !state.board) {
+      return;
+    }
+
+    const categories = state.editorCats.map(function(c) {
+      return { id: c.id, name: c.name.trim(), description: c.description.trim() };
+    });
+
+    if (categories.some(function(c) { return !c.name; })) {
+      alert('每個類別都需要名稱');
+      return;
+    }
+
+    const names = categories.map(function(c) { return c.name; });
+
+    if (new Set(names).size !== names.length) {
+      alert('類別名稱不能重複');
+      return;
+    }
+
+    const keepIds = new Set(categories.map(function(c) { return c.id; }).filter(Boolean));
+
+    const removed = state.board.categories.filter(function(c) {
+      return !keepIds.has(c.id);
+    });
+
+    const affected = state.board.answers.filter(function(a) {
+      return removed.some(function(c) { return c.id === a.categoryId; });
+    }).length;
+
+    if (
+      affected > 0 &&
+      !confirm(
+        '這次儲存會刪除 ' + removed.length + ' 個原有類別，裡面的 ' + affected +
+        ' 份回答會變回「未分類」（包含已確認的）。確定要儲存嗎？'
+      )
+    ) {
+      return;
+    }
+
+    setBusy(true, '儲存中……', 'editorMessage');
+
+    google.script.run
+      .withSuccessHandler(function() {
+        setBusy(false);
+        state.editorDirty = false;
+        showMessage('editorMessage', '✓ 類別已儲存', 'success');
+        loadBoard(true);
+      })
+      .withFailureHandler(function(error) {
+        setBusy(false);
+        showMessage('editorMessage', '儲存失敗：' + error.message, 'error');
+      })
+      .saveCategories(state.questionId, categories);
+  }
+
+
+  /* ==================================================
+     AI 分類
+  ================================================== */
+
+  function ensureReadyForAI() {
+
+    if (state.busy || !state.board) {
+      return false;
+    }
+
+    if (state.editorDirty) {
+      alert('類別設定還沒儲存，請先按「儲存類別」');
+      return false;
+    }
+
+    if (!state.board.categories.length) {
+      alert('請先建立並儲存類別');
+      return false;
+    }
+
+    return true;
+  }
+
+
+  function classifyUnclassified() {
+
+    if (!ensureReadyForAI()) {
+      return;
+    }
+
+    runClassifyLoop(0);
+  }
+
+
+  function reclassifyUnconfirmed() {
+
+    if (!ensureReadyForAI()) {
+      return;
+    }
+
+    if (!confirm('未確認的 AI 分類會清掉重新分類，已確認的卡片不會改動。要繼續嗎？')) {
+      return;
+    }
+
+    setBusy(true, '清除未確認的分類……', 'aiMessage');
+
+    google.script.run
+      .withSuccessHandler(function() {
+        runClassifyLoop(0);
+      })
+      .withFailureHandler(function(error) {
+        setBusy(false);
+        showMessage('aiMessage', '重新分類失敗：' + error.message, 'error');
+      })
+      .clearUnconfirmedClassifications(state.questionId);
+  }
+
+
+  /*
+   * 後端每次最多跑約 4.5 分鐘，還沒完成就自動再呼叫一次。
+   */
+  function runClassifyLoop(total) {
+
+    setBusy(true, 'AI 分類中，已完成 ' + total + ' 份……', 'aiMessage');
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+
+        total += result.processed;
+
+        if (!result.done && result.processed > 0) {
+          loadBoard(true);
+          runClassifyLoop(total);
+          return;
+        }
+
+        setBusy(false);
+
+        if (result.done) {
+          showMessage(
+            'aiMessage',
+            total === 0 ? '目前沒有需要分類的回答' : '✓ 分類完成，這次分類了 ' + total + ' 份回答',
+            'success'
+          );
+        } else {
+          showMessage(
+            'aiMessage',
+            '已分類 ' + total + ' 份，還有 ' + result.remaining + ' 份沒完成，可以再按一次繼續',
+            'warn'
+          );
+        }
+
+        loadBoard(true);
+      })
+      .withFailureHandler(function(error) {
+        setBusy(false);
+        showMessage('aiMessage', '分類中斷（已完成 ' + total + ' 份）：' + error.message, 'error');
+        loadBoard(true);
+      })
+      .classifyAnswers(state.questionId);
+  }
+
+
+  function confirmAll() {
+
+    if (state.busy || !state.board) {
+      return;
+    }
+
+    const count = state.board.answers.filter(function(a) {
+      return a.classified && !a.confirmed;
+    }).length;
+
+    if (!count) {
+      alert('目前沒有待確認的分類');
+      return;
+    }
+
+    if (!confirm('要把 ' + count + ' 份 AI 分類全部標為已確認嗎？')) {
+      return;
+    }
+
+    runConfirm('');
+  }
+
+
+  function confirmCategory(categoryId) {
+
+    if (state.busy || !state.board) {
+      return;
+    }
+
+    const count = state.board.answers.filter(function(a) {
+      return a.categoryId === categoryId && a.classified && !a.confirmed;
+    }).length;
+
+    if (!count) {
+      alert('這個類別沒有待確認的回答');
+      return;
+    }
+
+    runConfirm(categoryId);
+  }
+
+
+  function runConfirm(categoryId) {
+
+    setBusy(true, '確認中……', 'aiMessage');
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        setBusy(false);
+        showMessage('aiMessage', '✓ 已確認 ' + result.count + ' 份分類', 'success');
+        loadBoard(true);
+      })
+      .withFailureHandler(function(error) {
+        setBusy(false);
+        showMessage('aiMessage', '確認失敗：' + error.message, 'error');
+      })
+      .confirmClassifications(state.questionId, categoryId);
+  }
+
+
+  function summarize() {
+
+    if (!ensureReadyForAI()) {
+      return;
+    }
+
+    setBusy(true, 'AI 正在整理每個類別的摘要與討論提問……', 'aiMessage');
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        setBusy(false);
+        showMessage('aiMessage', '✓ 已更新 ' + result.updated + ' 個類別的摘要與討論提問', 'success');
+        loadBoard(true);
+      })
+      .withFailureHandler(function(error) {
+        setBusy(false);
+        showMessage('aiMessage', '產生失敗：' + error.message, 'error');
+      })
+      .summarizeCategories(state.questionId);
+  }
+
+
+  /* ==================================================
+     移動卡片
+  ================================================== */
+
+  function moveAnswer(answerId, categoryId) {
+
+    if (!state.board) {
+      return;
+    }
+
+    const a = state.board.answers.find(function(item) {
+      return item.answerId === answerId;
+    });
+
+    if (!a) {
+      return;
+    }
+
+    const previous = {
+      categoryId: a.categoryId,
+      confirmed: a.confirmed,
+      classified: a.classified,
+      reason: a.reason
+    };
+
+    // 先更新畫面，再寫回試算表
+    a.categoryId = categoryId || '';
+    a.confirmed = true;
+    a.classified = true;
+
+    state.pendingOps++;
+
+    renderStats();
+    renderBoard();
+    renderFocus();
+
+    google.script.run
+      .withSuccessHandler(function() {
+        state.pendingOps--;
+        if (state.pendingOps === 0) loadBoard(true);
+      })
+      .withFailureHandler(function(error) {
+        state.pendingOps--;
+        Object.assign(a, previous);
+        renderStats();
+        renderBoard();
+        renderFocus();
+        alert('移動失敗：' + error.message);
+      })
+      .setAnswerCategory(answerId, categoryId || '');
+  }
+
+
+  function setupDragAndDrop() {
+
+    const boardEl = $('board');
+
+    boardEl.addEventListener('dragstart', function(event) {
+
+      const card = event.target.closest && event.target.closest('.answer-card');
+
+      if (!card || state.present) {
+        return;
+      }
+
+      state.dragging = true;
+      event.dataTransfer.setData('text/plain', card.dataset.answerId);
+      event.dataTransfer.effectAllowed = 'move';
+      card.classList.add('dragging');
+    });
+
+    boardEl.addEventListener('dragend', function() {
+      state.dragging = false;
+      document.querySelectorAll('.dragging').forEach(function(el) {
+        el.classList.remove('dragging');
+      });
+      clearDragOver();
+    });
+
+    boardEl.addEventListener('dragover', function(event) {
+
+      const column = event.target.closest && event.target.closest('.column');
+
+      if (!column || !state.dragging) {
+        return;
+      }
+
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+
+      if (!column.classList.contains('drag-over')) {
+        clearDragOver();
+        column.classList.add('drag-over');
+      }
+    });
+
+    boardEl.addEventListener('drop', function(event) {
+
+      const column = event.target.closest && event.target.closest('.column');
+
+      if (!column) {
+        return;
+      }
+
+      event.preventDefault();
+      clearDragOver();
+      state.dragging = false;
+
+      const answerId = event.dataTransfer.getData('text/plain');
+      const categoryId = column.dataset.categoryId || '';
+
+      const a = state.board && state.board.answers.find(function(item) {
+        return item.answerId === answerId;
+      });
+
+      if (!a) {
+        return;
+      }
+
+      if (a.categoryId === categoryId && a.confirmed) {
+        renderBoard();
+        return;
+      }
+
+      moveAnswer(answerId, categoryId);
+    });
+  }
+
+
+  function clearDragOver() {
+    document.querySelectorAll('.drag-over').forEach(function(el) {
+      el.classList.remove('drag-over');
+    });
+  }
+
+
+  /* ==================================================
+     投影與聚焦
+  ================================================== */
+
+  function togglePresent() {
+
+    state.present = !state.present;
+    document.body.classList.toggle('present', state.present);
+
+    rerender();
+    window.scrollTo(0, 0);
+  }
+
+
+  function openFocus(categoryId) {
+
+    state.focusCategoryId = categoryId;
+
+    $('focusOverlay').classList.add('open');
+    document.body.classList.add('no-scroll');
+
+    renderFocus();
+  }
+
+
+  function closeFocus() {
+
+    state.focusCategoryId = null;
+
+    $('focusOverlay').classList.remove('open');
+    $('focusOverlay').innerHTML = '';
+    document.body.classList.remove('no-scroll');
+  }
+
+
+  function stepFocus(delta) {
+
+    if (state.focusCategoryId === null || !state.board) {
+      return;
+    }
+
+    const columns = getColumns().filter(function(c) { return !c.isUnclassified; });
+
+    const index = columns.findIndex(function(c) {
+      return c.id === state.focusCategoryId;
+    });
+
+    if (index < 0 || columns.length < 2) {
+      return;
+    }
+
+    state.focusCategoryId = columns[(index + delta + columns.length) % columns.length].id;
+    renderFocus();
+  }
+
+
+  function renderFocus() {
+
+    if (state.focusCategoryId === null || !state.board) {
+      return;
+    }
+
+    const columns = getColumns().filter(function(c) { return !c.isUnclassified; });
+
+    const column = columns.find(function(c) {
+      return c.id === state.focusCategoryId;
+    });
+
+    if (!column) {
+      closeFocus();
+      return;
+    }
+
+    const showNames = $('showNames').checked;
+    const position = columns.indexOf(column) + 1;
+
+    $('focusOverlay').innerHTML = `
+      <div class="focus-inner" style="--col:${column.color}">
+
+        <div class="focus-top">
+          <div>
+            <button type="button" class="ghost" onclick="stepFocus(-1)">← 上一類</button>
+            <button type="button" class="ghost" onclick="stepFocus(1)">下一類 →</button>
+            <span style="margin-left:10px;opacity:.7">${position} / ${columns.length}</span>
+          </div>
+          <button type="button" class="ghost" onclick="closeFocus()">✕ 關閉（Esc）</button>
+        </div>
+
+        <div class="focus-question">${escapeHtml(state.board.question.content)}</div>
+
+        <h2 class="focus-title">${escapeHtml(column.name)}<small>${column.answers.length} 份回答</small></h2>
+
+        ${column.description ? `<p class="focus-desc">${escapeHtml(column.description)}</p>` : ''}
+        ${column.summary ? `<div class="focus-summary">💡 ${escapeHtml(column.summary)}</div>` : ''}
+        ${column.discussionQuestion ? `<div class="focus-discussion">❓ ${escapeHtml(column.discussionQuestion)}</div>` : ''}
+
+        <div class="focus-cards">
+          ${
+            column.answers.length
+              ? column.answers.map(function(a) {
+                  const rep = a.answerId === column.representativeAnswerId;
+                  return `
+                    <div class="focus-card ${rep ? 'representative' : ''}">${rep ? '<div class="rep-label">⭐ 代表回答</div>' : ''}${escapeHtml(a.answer)}${showNames ? `<span class="student">— ${escapeHtml(a.name)}</span>` : ''}</div>
+                  `;
+                }).join('')
+              : '<p>這一類目前沒有回答。</p>'
+          }
+        </div>
+      </div>
+    `;
+  }
+
+
+  function handleKeydown(event) {
+
+    const tag = document.activeElement ? document.activeElement.tagName : '';
+    const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+
+    if (event.key === 'Escape') {
+      if (state.focusCategoryId !== null) {
+        closeFocus();
+      } else if (state.present) {
+        togglePresent();
+      }
+      return;
+    }
+
+    if (state.focusCategoryId !== null && !typing) {
+      if (event.key === 'ArrowRight') stepFocus(1);
+      if (event.key === 'ArrowLeft') stepFocus(-1);
+    }
+  }
+
+
+  /* ==================================================
+     小工具
+  ================================================== */
+
+  function setBusy(isBusy, text, messageId) {
+
+    state.busy = isBusy;
+
+    document.querySelectorAll('.ai-action').forEach(function(button) {
+      button.disabled = isBusy;
+    });
+
+    if (isBusy && text) {
+      showMessage(messageId, '⏳ ' + text, 'info');
+    }
+  }
+
+
+  function showMessage(id, text, type) {
+
+    const el = $(id);
+
+    if (!el) {
+      return;
+    }
+
+    el.className = 'message' + (type ? ' ' + type : '');
+    el.textContent = text;
+  }
+
+
+  function escapeHtml(value) {
+
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+</script>
+
+</body>
+</html>
