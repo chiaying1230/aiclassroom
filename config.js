@@ -3,4 +3,4 @@
  * 網址結尾必須是 /exec，例如：
  * https://script.google.com/macros/s/AKfycb.../exec
  */
-window.GAS_API_URL = '請貼上 Apps Script 網址';
+window.GAS_API_URL = https://script.google.com/macros/s/AKfycbwXXAGCAkQvisWo2_P0pKOYLYV-P4Fl5lRDDmJCkQkeZmdcg45uADVezCAieJhl0f12/exec
