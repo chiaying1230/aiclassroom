@@ -3,581 +3,114 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AI 課堂｜人工智慧（小教）</title>
-  <meta name="description" content="人工智慧（小教）課程的 AI 代理人互動平台：課堂問答、AI 輔助批改與課堂討論。">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📒</text></svg>">
-
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+  <title>AI 課堂</title>
 
   <script src="features.js"></script>
-  <script src="config.js"></script>
-  <script src="gas-bridge.js"></script>
 
   <style>
     :root {
-      --ink: #27366d;          /* 墨藍：和其他頁面的主色一致 */
-      --paper: #fdfdfb;        /* 聯絡簿紙面 */
-      --desk: #e8edf5;         /* 桌面底色 */
-      --rule: #cfdcec;         /* 橫格線 */
-      --margin: #e7a3a0;       /* 左側紅色邊線 */
-      --stamp: #c8372d;        /* 印章紅 */
-      --pencil: #5b6478;       /* 鉛筆灰 */
-
-      --hand: "LXGW WenKai TC", "Kaiti TC", "BiauKai", "DFKai-SB", "Noto Serif TC", serif;
-      --body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
-
-      --margin-x: 104px;
+      --primary: #5268e8;
+      --navy: #27366d;
+      --purple: #7756dc;
+      --green: #168c56;
+      --bg: #f4f7fc;
+      --text: #253046;
     }
 
     * { box-sizing: border-box; }
 
     body {
       margin: 0;
-      background: var(--desk);
-      color: var(--ink);
-      font-family: var(--body);
-      font-size: 16px;
-      line-height: 1.75;
+      font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
+      background: var(--bg);
+      color: var(--text);
     }
 
-    a { color: inherit; }
+    header {
+      padding: 42px 20px;
+      color: white;
+      text-align: center;
+      background: linear-gradient(135deg, #5268e8, #7756dc);
+    }
 
-    :focus-visible {
-      outline: 3px solid var(--stamp);
+    header h1 { margin: 0 0 8px; }
+    header p { margin: 0; }
+
+    .container {
+      max-width: 560px;
+      margin: auto;
+      padding: 30px 18px 60px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 17px;
+      padding: 24px;
+      box-shadow: 0 7px 24px rgba(27, 39, 70, .07);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .menu-button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 20px 18px;
+      border-radius: 12px;
+      color: white;
+      text-decoration: none;
+      font-size: 20px;
+      font-weight: bold;
+      background: var(--primary);
+    }
+
+    .menu-button:hover { filter: brightness(.92); }
+
+    .menu-button:focus-visible {
+      outline: 3px solid #f0b429;
       outline-offset: 3px;
     }
 
-    /* ---------- 紙張 ---------- */
+    .menu-button.navy { background: var(--navy); }
+    .menu-button.purple { background: var(--purple); }
+    .menu-button.green { background: var(--green); }
 
-    .sheet {
-      position: relative;
-      max-width: 980px;
-      margin: 40px auto 56px;
-      background: var(--paper);
-      border-radius: 4px;
-      box-shadow: 0 1px 0 #d5dce8, 0 18px 40px -24px rgba(39, 54, 109, .35);
-      padding: 44px 48px 36px var(--margin-x);
-      overflow: hidden;
-    }
-
-    /* 左側紅色邊線 */
-    .sheet::before {
-      content: "";
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      left: calc(var(--margin-x) - 22px);
-      width: 2px;
-      background: var(--margin);
-    }
-
-    /* ---------- 抬頭 ---------- */
-
-    .masthead {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 24px;
-    }
-
-    .course {
-      margin: 0;
-      color: var(--pencil);
-      font-size: 15px;
-      line-height: 1.6;
-    }
-
-    .course strong {
-      display: block;
-      color: var(--ink);
-      font-family: var(--hand);
-      font-size: 22px;
-      font-weight: 700;
-      letter-spacing: .04em;
-    }
-
-    .stamp {
-      flex: 0 0 auto;
-      width: 104px;
-      height: 104px;
-      border: 4px solid var(--stamp);
-      border-radius: 50%;
-      box-shadow: inset 0 0 0 3px var(--paper), inset 0 0 0 5px var(--stamp);
-      color: var(--stamp);
-      font-family: var(--hand);
-      font-weight: 700;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      line-height: 1.05;
-      transform: rotate(-9deg);
-      opacity: .88;
-      margin-top: -8px;
-      user-select: none;
-    }
-
-    .stamp span:first-child { font-size: 30px; letter-spacing: .06em; }
-    .stamp span:last-child { font-size: 22px; letter-spacing: .2em; margin-left: .2em; }
-
-    /* ---------- 標題 ---------- */
-
-    .hero { margin-top: 30px; }
-
-    .date {
-      margin: 0;
-      font-family: var(--hand);
-      font-size: 22px;
-      color: var(--pencil);
-    }
-
-    h1 {
-      margin: 2px 0 0;
-      font-family: var(--hand);
-      font-weight: 700;
-      font-size: clamp(42px, 7.2vw, 72px);
-      line-height: 1.15;
-      letter-spacing: .02em;
-    }
-
-    .lead {
-      margin: 14px 0 0;
-      max-width: 40em;
-      color: var(--pencil);
-    }
-
-    /* ---------- 身分切換 ---------- */
-
-    .roles {
-      display: flex;
-      gap: 28px;
-      margin-top: 30px;
-    }
-
-    .roles button {
-      appearance: none;
-      background: none;
-      border: 0;
-      padding: 4px 2px 6px;
-      font-family: var(--hand);
-      font-size: 22px;
-      color: var(--pencil);
-      cursor: pointer;
-      position: relative;
-    }
-
-    .roles button[aria-selected="true"] {
-      color: var(--ink);
-      font-weight: 700;
-    }
-
-    /* 被選到的身分畫上一條手寫感的底線 */
-    .roles button[aria-selected="true"]::after {
-      content: "";
-      position: absolute;
-      left: -4px;
-      right: -4px;
-      bottom: 0;
-      height: 4px;
-      border-radius: 4px;
-      background: var(--ink);
-      transform: rotate(-1.2deg);
-    }
-
-    /* ---------- 功能清單 ---------- */
-
-    .entries {
-      list-style: none;
-      margin: 18px 0 0;
-      padding: 0;
-      border-top: 2px solid var(--ink);
-    }
-
-    .entry {
-      position: relative;
-      display: grid;
-      grid-template-columns: 1fr auto;
-      align-items: center;
-      gap: 8px 28px;
-      padding: 24px 0 22px;
-      border-bottom: 1px solid var(--rule);
-    }
-
-    /* 對象寫在紅線左邊，像聯絡簿的欄位 */
-    .who {
-      position: absolute;
-      left: calc(-1 * var(--margin-x) + 20px);
-      top: 30px;
-      width: 60px;
-      font-family: var(--hand);
-      font-size: 17px;
-      color: var(--pencil);
-      text-align: center;
-    }
-
-    .entry h2 {
-      margin: 0;
-      font-family: var(--hand);
-      font-size: 30px;
-      font-weight: 700;
-      line-height: 1.3;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .icon { font-size: 26px; line-height: 1; }
-
-    .entry p {
-      margin: 6px 0 0;
-      max-width: 36em;
-      color: #3d4867;
-    }
-
-    .stat {
-      font-size: 14px;
-      color: var(--pencil) !important;
-    }
-
-    .stat.ready { color: var(--stamp) !important; font-weight: 500; }
-
-    .go {
-      display: inline-block;
-      min-width: 108px;
-      text-align: center;
-      text-decoration: none;
-      font-family: var(--hand);
-      font-size: 22px;
-      font-weight: 700;
-      padding: 8px 22px;
-      border: 2px solid var(--ink);
-      border-radius: 6px;
-      color: var(--ink);
-      background: var(--paper);
-      transition: background-color .15s ease, color .15s ease;
-    }
-
-    .go:hover,
-    .go:focus-visible {
-      background: var(--ink);
-      color: var(--paper);
-    }
-
-    .entry.soon h2,
-    .entry.soon p { color: #98a0b3; }
-
-    .soon-mark {
-      font-family: var(--hand);
-      font-size: 18px;
-      color: #98a0b3;
-      border: 2px dashed #b9c0cf;
-      border-radius: 6px;
-      padding: 6px 16px;
-      transform: rotate(-4deg);
-    }
-
-    .empty {
-      padding: 32px 0;
-      color: var(--pencil);
-      font-family: var(--hand);
-      font-size: 20px;
-      border-bottom: 1px solid var(--rule);
-    }
-
-    /* ---------- 頁尾 ---------- */
-
-    footer {
-      margin-top: 34px;
-      display: flex;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 8px 20px;
-      color: var(--pencil);
-      font-size: 14px;
-    }
-
-    footer a { text-underline-offset: 3px; }
-
-    @media (prefers-reduced-motion: reduce) {
-      .go { transition: none; }
-    }
-
-    @media (max-width: 720px) {
-      :root { --margin-x: 44px; }
-
-      .sheet {
-        margin: 0;
-        border-radius: 0;
-        padding: 28px 20px 28px var(--margin-x);
-      }
-
-      .sheet::before { left: 24px; }
-
-      .stamp { width: 76px; height: 76px; border-width: 3px; }
-      .stamp span:first-child { font-size: 22px; }
-      .stamp span:last-child { font-size: 16px; }
-
-      .roles { gap: 20px; }
-
-      .entry { grid-template-columns: 1fr; }
-
-      .who {
-        position: static;
-        width: auto;
-        text-align: left;
-        font-size: 16px;
-      }
-
-      .entry h2 { font-size: 26px; }
-
-      .go { justify-self: start; margin-top: 6px; }
+    .menu-button.soon {
+      background: #d7dce6;
+      color: #75809a;
+      cursor: not-allowed;
     }
   </style>
 </head>
 
 <body>
 
-<main class="sheet">
+<header>
+  <h1>AI 課堂</h1>
+  <p>人工智慧（小教）</p>
+</header>
 
-  <header class="masthead">
-    <p class="course" id="courseInfo">
-      <strong>AI 課堂</strong>
-      人工智慧（小教）課程的 AI 代理人互動平台
-    </p>
-
-    <div class="stamp" aria-hidden="true">
-      <span>AI</span>
-      <span>課堂</span>
-    </div>
-  </header>
-
-  <section class="hero">
-    <p class="date" id="today"></p>
-    <h1>今天要做什麼？</h1>
-    <p class="lead">選擇你的身分，再點選要使用的功能。學生不需要登入，輸入學號和姓名就能作答。</p>
-
-    <div class="roles" role="tablist" aria-label="選擇身分">
-      <button type="button" role="tab" data-role="all" aria-selected="true">全部</button>
-      <button type="button" role="tab" data-role="student" aria-selected="false">我是學生</button>
-      <button type="button" role="tab" data-role="teacher" aria-selected="false">我是老師</button>
-    </div>
-  </section>
-
-  <ul class="entries" id="entries" aria-live="polite"></ul>
-
-  <footer>
-    <span id="footerCourse">人工智慧（小教）課程作品</span>
-    <a id="repoLink" href="#" target="_blank" rel="noopener">在 GitHub 查看原始碼</a>
-  </footer>
-
+<main class="container">
+  <nav class="card" id="menu"></nav>
 </main>
-
 
 <script>
 
-  const AUDIENCE_LABEL = {
-    student: '學生',
-    teacher: '老師',
-    all: '大家'
-  };
-
-  const ROLE_KEY = 'aiclassroom_role';
-
   const features = Array.isArray(window.PLATFORM_FEATURES) ? window.PLATFORM_FEATURES : [];
-  const info = window.PLATFORM_INFO || {};
 
+  document.getElementById('menu').innerHTML = features.map(function(f) {
 
-  document.addEventListener('DOMContentLoaded', function() {
+    const label = escapeHtml((f.icon ? f.icon + ' ' : '') + f.title);
 
-    renderInfo();
-    renderDate();
-
-    const role = readRole();
-
-    setRole(role);
-    loadStats();
-
-    document.querySelectorAll('.roles button').forEach(function(button) {
-      button.addEventListener('click', function() {
-        setRole(button.dataset.role);
-        saveRole(button.dataset.role);
-      });
-    });
-  });
-
-
-  function renderInfo() {
-
-    if (info.name || info.course || info.tagline) {
-      document.getElementById('courseInfo').innerHTML =
-        '<strong>' + escapeHtml(info.name || 'AI 課堂') + '</strong>' +
-        escapeHtml((info.course ? info.course + '課程的 ' : '') + (info.tagline || ''));
+    if (f.status === 'soon') {
+      return '<span class="menu-button soon" aria-disabled="true">' + label + '（籌備中）</span>';
     }
 
-    if (info.course) {
-      document.getElementById('footerCourse').textContent = info.course + '課程作品';
-    }
-
-    const repo = document.getElementById('repoLink');
-
-    if (info.repoUrl) {
-      repo.href = info.repoUrl;
-    } else {
-      repo.remove();
-    }
-  }
-
-
-  function renderDate() {
-
-    const now = new Date();
-    const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
-
-    document.getElementById('today').textContent =
-      (now.getMonth() + 1) + ' 月 ' + now.getDate() + ' 日（' + weekdays[now.getDay()] + '）';
-  }
-
-
-  function setRole(role) {
-
-    if (['all', 'student', 'teacher'].indexOf(role) === -1) {
-      role = 'all';
-    }
-
-    document.querySelectorAll('.roles button').forEach(function(button) {
-      button.setAttribute('aria-selected', String(button.dataset.role === role));
-    });
-
-    renderEntries(role);
-  }
-
-
-  function renderEntries(role) {
-
-    const list = document.getElementById('entries');
-
-    const visible = features.filter(function(feature) {
-      return role === 'all' || feature.audience === role || feature.audience === 'all';
-    });
-
-    if (!visible.length) {
-      list.innerHTML = '<li class="empty">目前還沒有這個身分可以使用的功能。</li>';
-      return;
-    }
-
-    list.innerHTML = visible.map(function(feature) {
-
-      const live = feature.status !== 'soon';
-
-      const action = live
-        ? '<a class="go" href="' + escapeHtml(feature.href) + '">進入</a>'
-        : '<span class="soon-mark">籌備中</span>';
-
-      const stat = live && feature.stat
-        ? '<p class="stat" data-stat="' + escapeHtml(feature.stat) + '">正在查看最新狀態……</p>'
-        : '';
-
-      return (
-        '<li class="entry ' + (live ? 'live' : 'soon') + '">' +
-          '<span class="who">' + escapeHtml(AUDIENCE_LABEL[feature.audience] || '大家') + '</span>' +
-          '<div>' +
-            '<h2><span class="icon" aria-hidden="true">' + escapeHtml(feature.icon || '📄') + '</span>' +
-              escapeHtml(feature.title) + '</h2>' +
-            '<p>' + escapeHtml(feature.description) + '</p>' +
-            stat +
-          '</div>' +
-          action +
-        '</li>'
-      );
-    }).join('');
-
-    applyStats();
-  }
-
-
-  /* ---------- 即時資訊 ---------- */
-
-  const statText = {};
-
-  function loadStats() {
-
-    const needsPublished = features.some(function(feature) {
-      return feature.stat === 'publishedQuestions' && feature.status !== 'soon';
-    });
-
-    if (!needsPublished || !(window.google && google.script && google.script.run)) {
-      hideStats();
-      return;
-    }
-
-    google.script.run
-      .withSuccessHandler(function(questions) {
-
-        const count = Array.isArray(questions) ? questions.length : 0;
-
-        statText.publishedQuestions = count > 0
-          ? '目前有 ' + count + ' 題開放作答'
-          : '目前沒有開放作答的題目';
-
-        applyStats();
-      })
-      .withFailureHandler(function() {
-        statText.publishedQuestions = null;
-        hideStats();
-      })
-      .getPublishedQuestions();
-  }
-
-
-  function applyStats() {
-
-    document.querySelectorAll('.stat').forEach(function(el) {
-
-      const text = statText[el.dataset.stat];
-
-      if (text === null) {
-        el.remove();
-      } else if (text) {
-        el.textContent = text;
-        el.classList.add('ready');
-      }
-    });
-  }
-
-
-  function hideStats() {
-
-    Object.keys(statText).forEach(function(key) {
-      if (!statText[key]) statText[key] = null;
-    });
-
-    statText.publishedQuestions = statText.publishedQuestions || null;
-
-    applyStats();
-  }
-
-
-  /* ---------- 小工具 ---------- */
-
-  function readRole() {
-    try {
-      return localStorage.getItem(ROLE_KEY) || 'all';
-    } catch (error) {
-      return 'all';
-    }
-  }
-
-
-  function saveRole(role) {
-    try {
-      localStorage.setItem(ROLE_KEY, role);
-    } catch (error) {
-      // 無法記住也沒關係
-    }
-  }
-
+    return '<a class="menu-button ' + escapeHtml(f.color || 'primary') + '" href="' +
+      escapeHtml(f.href) + '">' + label + '</a>';
+  }).join('');
 
   function escapeHtml(value) {
     return String(value == null ? '' : value)
