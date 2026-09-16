@@ -1,408 +1,581 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>課堂問答系統</title>
+  <title>AI 課堂｜人工智慧（小教）</title>
+  <meta name="description" content="人工智慧（小教）課程的 AI 代理人互動平台：課堂問答、AI 輔助批改與課堂討論。">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📒</text></svg>">
 
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <script src="features.js"></script>
   <script src="config.js"></script>
   <script src="gas-bridge.js"></script>
 
   <style>
     :root {
-      --primary: #5268e8;
-      --primary-dark: #4053c8;
-      --bg: #f4f7fc;
-      --text: #253046;
-      --muted: #75809a;
-      --green: #168c56;
-      --red: #df5050;
-      --border: #e1e6ef;
+      --ink: #27366d;          /* 墨藍：和其他頁面的主色一致 */
+      --paper: #fdfdfb;        /* 聯絡簿紙面 */
+      --desk: #e8edf5;         /* 桌面底色 */
+      --rule: #cfdcec;         /* 橫格線 */
+      --margin: #e7a3a0;       /* 左側紅色邊線 */
+      --stamp: #c8372d;        /* 印章紅 */
+      --pencil: #5b6478;       /* 鉛筆灰 */
+
+      --hand: "LXGW WenKai TC", "Kaiti TC", "BiauKai", "DFKai-SB", "Noto Serif TC", serif;
+      --body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+
+      --margin-x: 104px;
     }
 
     * { box-sizing: border-box; }
 
     body {
       margin: 0;
-      font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
-      background: var(--bg);
-      color: var(--text);
-    }
-
-    header {
-      padding: 42px 20px;
-      color: white;
-      text-align: center;
-      background: linear-gradient(135deg, #5268e8, #7756dc);
-    }
-
-    header h1 { margin: 0 0 8px; }
-
-    .container { max-width: 950px; margin: auto; padding: 25px 18px 60px; }
-
-    .card {
-      background: white;
-      border-radius: 17px;
-      padding: 24px;
-      margin-bottom: 20px;
-      box-shadow: 0 7px 24px rgba(27, 39, 70, .07);
-    }
-
-    .student-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-
-    label { display: block; margin: 14px 0 6px; font-weight: bold; }
-
-    input, textarea {
-      width: 100%;
-      padding: 12px;
-      border: 2px solid var(--border);
-      border-radius: 9px;
+      background: var(--desk);
+      color: var(--ink);
+      font-family: var(--body);
       font-size: 16px;
-      font-family: inherit;
+      line-height: 1.75;
     }
 
-    textarea { min-height: 150px; resize: vertical; line-height: 1.7; }
+    a { color: inherit; }
 
-    button {
+    :focus-visible {
+      outline: 3px solid var(--stamp);
+      outline-offset: 3px;
+    }
+
+    /* ---------- 紙張 ---------- */
+
+    .sheet {
+      position: relative;
+      max-width: 980px;
+      margin: 40px auto 56px;
+      background: var(--paper);
+      border-radius: 4px;
+      box-shadow: 0 1px 0 #d5dce8, 0 18px 40px -24px rgba(39, 54, 109, .35);
+      padding: 44px 48px 36px var(--margin-x);
+      overflow: hidden;
+    }
+
+    /* 左側紅色邊線 */
+    .sheet::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: calc(var(--margin-x) - 22px);
+      width: 2px;
+      background: var(--margin);
+    }
+
+    /* ---------- 抬頭 ---------- */
+
+    .masthead {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 24px;
+    }
+
+    .course {
+      margin: 0;
+      color: var(--pencil);
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    .course strong {
+      display: block;
+      color: var(--ink);
+      font-family: var(--hand);
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: .04em;
+    }
+
+    .stamp {
+      flex: 0 0 auto;
+      width: 104px;
+      height: 104px;
+      border: 4px solid var(--stamp);
+      border-radius: 50%;
+      box-shadow: inset 0 0 0 3px var(--paper), inset 0 0 0 5px var(--stamp);
+      color: var(--stamp);
+      font-family: var(--hand);
+      font-weight: 700;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      line-height: 1.05;
+      transform: rotate(-9deg);
+      opacity: .88;
+      margin-top: -8px;
+      user-select: none;
+    }
+
+    .stamp span:first-child { font-size: 30px; letter-spacing: .06em; }
+    .stamp span:last-child { font-size: 22px; letter-spacing: .2em; margin-left: .2em; }
+
+    /* ---------- 標題 ---------- */
+
+    .hero { margin-top: 30px; }
+
+    .date {
+      margin: 0;
+      font-family: var(--hand);
+      font-size: 22px;
+      color: var(--pencil);
+    }
+
+    h1 {
+      margin: 2px 0 0;
+      font-family: var(--hand);
+      font-weight: 700;
+      font-size: clamp(42px, 7.2vw, 72px);
+      line-height: 1.15;
+      letter-spacing: .02em;
+    }
+
+    .lead {
+      margin: 14px 0 0;
+      max-width: 40em;
+      color: var(--pencil);
+    }
+
+    /* ---------- 身分切換 ---------- */
+
+    .roles {
+      display: flex;
+      gap: 28px;
+      margin-top: 30px;
+    }
+
+    .roles button {
+      appearance: none;
+      background: none;
       border: 0;
-      padding: 12px 18px;
-      background: var(--primary);
-      color: white;
-      border-radius: 9px;
+      padding: 4px 2px 6px;
+      font-family: var(--hand);
+      font-size: 22px;
+      color: var(--pencil);
       cursor: pointer;
-      font-size: 16px;
-      margin-top: 10px;
-      font-family: inherit;
+      position: relative;
     }
 
-    button:hover { background: var(--primary-dark); }
-    button:disabled { opacity: .55; cursor: not-allowed; }
-
-    .secondary { background: #eef1ff; color: #4557c8; margin-left: 8px; }
-    .secondary:hover { background: #e2e7ff; }
-
-    .question-title { color: #4354c0; font-size: 22px; font-weight: bold; margin-bottom: 8px; }
-
-    .question-content {
-      background: #f7f8fc;
-      padding: 17px;
-      border-radius: 11px;
-      white-space: pre-wrap;
-      line-height: 1.8;
-      margin: 15px 0;
+    .roles button[aria-selected="true"] {
+      color: var(--ink);
+      font-weight: 700;
     }
 
-    .meta { color: var(--muted); font-size: 14px; }
+    /* 被選到的身分畫上一條手寫感的底線 */
+    .roles button[aria-selected="true"]::after {
+      content: "";
+      position: absolute;
+      left: -4px;
+      right: -4px;
+      bottom: 0;
+      height: 4px;
+      border-radius: 4px;
+      background: var(--ink);
+      transform: rotate(-1.2deg);
+    }
 
-    .message { margin-top: 12px; font-weight: bold; }
-    .success { color: var(--green); }
-    .error { color: var(--red); }
+    /* ---------- 功能清單 ---------- */
 
-    .empty { text-align: center; color: var(--muted); padding: 30px; }
+    .entries {
+      list-style: none;
+      margin: 18px 0 0;
+      padding: 0;
+      border-top: 2px solid var(--ink);
+    }
 
-    .result-item { border: 1px solid var(--border); border-radius: 12px; padding: 17px; margin: 12px 0; }
+    .entry {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 8px 28px;
+      padding: 24px 0 22px;
+      border-bottom: 1px solid var(--rule);
+    }
 
-    .status {
+    /* 對象寫在紅線左邊，像聯絡簿的欄位 */
+    .who {
+      position: absolute;
+      left: calc(-1 * var(--margin-x) + 20px);
+      top: 30px;
+      width: 60px;
+      font-family: var(--hand);
+      font-size: 17px;
+      color: var(--pencil);
+      text-align: center;
+    }
+
+    .entry h2 {
+      margin: 0;
+      font-family: var(--hand);
+      font-size: 30px;
+      font-weight: 700;
+      line-height: 1.3;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .icon { font-size: 26px; line-height: 1; }
+
+    .entry p {
+      margin: 6px 0 0;
+      max-width: 36em;
+      color: #3d4867;
+    }
+
+    .stat {
+      font-size: 14px;
+      color: var(--pencil) !important;
+    }
+
+    .stat.ready { color: var(--stamp) !important; font-weight: 500; }
+
+    .go {
       display: inline-block;
-      background: #edf0ff;
-      color: #485bd1;
-      padding: 4px 10px;
-      border-radius: 999px;
-      font-size: 13px;
+      min-width: 108px;
+      text-align: center;
+      text-decoration: none;
+      font-family: var(--hand);
+      font-size: 22px;
+      font-weight: 700;
+      padding: 8px 22px;
+      border: 2px solid var(--ink);
+      border-radius: 6px;
+      color: var(--ink);
+      background: var(--paper);
+      transition: background-color .15s ease, color .15s ease;
     }
 
-    .feedback {
-      background: #f6f8fb;
-      padding: 13px;
-      border-radius: 9px;
-      white-space: pre-wrap;
-      margin-top: 10px;
+    .go:hover,
+    .go:focus-visible {
+      background: var(--ink);
+      color: var(--paper);
     }
 
-    @media (max-width: 700px) {
-      .student-grid { grid-template-columns: 1fr; }
-      .secondary { margin-left: 0; }
-      button { width: 100%; }
+    .entry.soon h2,
+    .entry.soon p { color: #98a0b3; }
+
+    .soon-mark {
+      font-family: var(--hand);
+      font-size: 18px;
+      color: #98a0b3;
+      border: 2px dashed #b9c0cf;
+      border-radius: 6px;
+      padding: 6px 16px;
+      transform: rotate(-4deg);
+    }
+
+    .empty {
+      padding: 32px 0;
+      color: var(--pencil);
+      font-family: var(--hand);
+      font-size: 20px;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    /* ---------- 頁尾 ---------- */
+
+    footer {
+      margin-top: 34px;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px 20px;
+      color: var(--pencil);
+      font-size: 14px;
+    }
+
+    footer a { text-underline-offset: 3px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .go { transition: none; }
+    }
+
+    @media (max-width: 720px) {
+      :root { --margin-x: 44px; }
+
+      .sheet {
+        margin: 0;
+        border-radius: 0;
+        padding: 28px 20px 28px var(--margin-x);
+      }
+
+      .sheet::before { left: 24px; }
+
+      .stamp { width: 76px; height: 76px; border-width: 3px; }
+      .stamp span:first-child { font-size: 22px; }
+      .stamp span:last-child { font-size: 16px; }
+
+      .roles { gap: 20px; }
+
+      .entry { grid-template-columns: 1fr; }
+
+      .who {
+        position: static;
+        width: auto;
+        text-align: left;
+        font-size: 16px;
+      }
+
+      .entry h2 { font-size: 26px; }
+
+      .go { justify-self: start; margin-top: 6px; }
     }
   </style>
 </head>
 
 <body>
 
-<header>
-  <h1>課堂問答</h1>
-  <p>閱讀老師的問題，用自己的想法回答</p>
-</header>
+<main class="sheet">
 
-<main class="container">
+  <header class="masthead">
+    <p class="course" id="courseInfo">
+      <strong>AI 課堂</strong>
+      人工智慧（小教）課程的 AI 代理人互動平台
+    </p>
 
-  <section class="card">
-    <h2>👤 我的資料</h2>
-
-    <div class="student-grid">
-      <div>
-        <label for="studentId">學號</label>
-        <input id="studentId" autocomplete="username" placeholder="請輸入學號">
-      </div>
-
-      <div>
-        <label for="name">姓名</label>
-        <input id="name" autocomplete="name" placeholder="請輸入姓名">
-      </div>
+    <div class="stamp" aria-hidden="true">
+      <span>AI</span>
+      <span>課堂</span>
     </div>
+  </header>
 
-    <button type="button" onclick="saveIdentity()">儲存我的資料</button>
-    <button type="button" class="secondary" onclick="loadMyResults()">查看審核結果</button>
-    <button type="button" class="secondary" onclick="refreshStudentPage()">🔄 重新整理</button>
-  </section>
+  <section class="hero">
+    <p class="date" id="today"></p>
+    <h1>今天要做什麼？</h1>
+    <p class="lead">選擇你的身分，再點選要使用的功能。學生不需要登入，輸入學號和姓名就能作答。</p>
 
-  <section>
-    <h2>📝 老師的問題</h2>
-    <div id="questionList">
-      <div class="card empty">題目載入中……</div>
+    <div class="roles" role="tablist" aria-label="選擇身分">
+      <button type="button" role="tab" data-role="all" aria-selected="true">全部</button>
+      <button type="button" role="tab" data-role="student" aria-selected="false">我是學生</button>
+      <button type="button" role="tab" data-role="teacher" aria-selected="false">我是老師</button>
     </div>
   </section>
 
-  <section class="card">
-    <h2>✅ 我的作答紀錄</h2>
-    <div id="myResults">
-      <div class="empty">請輸入學號與姓名，再按「查看審核結果」</div>
-    </div>
-  </section>
+  <ul class="entries" id="entries" aria-live="polite"></ul>
+
+  <footer>
+    <span id="footerCourse">人工智慧（小教）課程作品</span>
+    <a id="repoLink" href="#" target="_blank" rel="noopener">在 GitHub 查看原始碼</a>
+  </footer>
 
 </main>
 
 
 <script>
 
+  const AUDIENCE_LABEL = {
+    student: '學生',
+    teacher: '老師',
+    all: '大家'
+  };
+
+  const ROLE_KEY = 'aiclassroom_role';
+
+  const features = Array.isArray(window.PLATFORM_FEATURES) ? window.PLATFORM_FEATURES : [];
+  const info = window.PLATFORM_INFO || {};
+
+
   document.addEventListener('DOMContentLoaded', function() {
-    restoreIdentity();
-    loadQuestions();
+
+    renderInfo();
+    renderDate();
+
+    const role = readRole();
+
+    setRole(role);
+    loadStats();
+
+    document.querySelectorAll('.roles button').forEach(function(button) {
+      button.addEventListener('click', function() {
+        setRole(button.dataset.role);
+        saveRole(button.dataset.role);
+      });
+    });
   });
 
 
-  function refreshStudentPage() {
+  function renderInfo() {
 
-    loadQuestions();
+    if (info.name || info.course || info.tagline) {
+      document.getElementById('courseInfo').innerHTML =
+        '<strong>' + escapeHtml(info.name || 'AI 課堂') + '</strong>' +
+        escapeHtml((info.course ? info.course + '課程的 ' : '') + (info.tagline || ''));
+    }
 
-    const identity = getIdentity();
+    if (info.course) {
+      document.getElementById('footerCourse').textContent = info.course + '課程作品';
+    }
 
-    if (identity.studentId && identity.name) {
-      loadMyResults();
+    const repo = document.getElementById('repoLink');
+
+    if (info.repoUrl) {
+      repo.href = info.repoUrl;
+    } else {
+      repo.remove();
     }
   }
 
 
-  function getIdentity() {
-    return {
-      studentId: document.getElementById('studentId').value.trim(),
-      name: document.getElementById('name').value.trim()
-    };
+  function renderDate() {
+
+    const now = new Date();
+    const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+
+    document.getElementById('today').textContent =
+      (now.getMonth() + 1) + ' 月 ' + now.getDate() + ' 日（' + weekdays[now.getDay()] + '）';
   }
 
 
-  function saveIdentity() {
+  function setRole(role) {
 
-    const data = getIdentity();
+    if (['all', 'student', 'teacher'].indexOf(role) === -1) {
+      role = 'all';
+    }
 
-    if (!data.studentId || !data.name) {
-      alert('請完整填寫學號與姓名');
+    document.querySelectorAll('.roles button').forEach(function(button) {
+      button.setAttribute('aria-selected', String(button.dataset.role === role));
+    });
+
+    renderEntries(role);
+  }
+
+
+  function renderEntries(role) {
+
+    const list = document.getElementById('entries');
+
+    const visible = features.filter(function(feature) {
+      return role === 'all' || feature.audience === role || feature.audience === 'all';
+    });
+
+    if (!visible.length) {
+      list.innerHTML = '<li class="empty">目前還沒有這個身分可以使用的功能。</li>';
       return;
     }
 
-    localStorage.setItem('classroom_identity', JSON.stringify(data));
-    alert('學生資料已儲存');
+    list.innerHTML = visible.map(function(feature) {
+
+      const live = feature.status !== 'soon';
+
+      const action = live
+        ? '<a class="go" href="' + escapeHtml(feature.href) + '">進入</a>'
+        : '<span class="soon-mark">籌備中</span>';
+
+      const stat = live && feature.stat
+        ? '<p class="stat" data-stat="' + escapeHtml(feature.stat) + '">正在查看最新狀態……</p>'
+        : '';
+
+      return (
+        '<li class="entry ' + (live ? 'live' : 'soon') + '">' +
+          '<span class="who">' + escapeHtml(AUDIENCE_LABEL[feature.audience] || '大家') + '</span>' +
+          '<div>' +
+            '<h2><span class="icon" aria-hidden="true">' + escapeHtml(feature.icon || '📄') + '</span>' +
+              escapeHtml(feature.title) + '</h2>' +
+            '<p>' + escapeHtml(feature.description) + '</p>' +
+            stat +
+          '</div>' +
+          action +
+        '</li>'
+      );
+    }).join('');
+
+    applyStats();
   }
 
 
-  function restoreIdentity() {
+  /* ---------- 即時資訊 ---------- */
 
-    const saved = localStorage.getItem('classroom_identity');
+  const statText = {};
 
-    if (!saved) {
+  function loadStats() {
+
+    const needsPublished = features.some(function(feature) {
+      return feature.stat === 'publishedQuestions' && feature.status !== 'soon';
+    });
+
+    if (!needsPublished || !(window.google && google.script && google.script.run)) {
+      hideStats();
       return;
     }
-
-    try {
-      const data = JSON.parse(saved);
-      document.getElementById('studentId').value = data.studentId || '';
-      document.getElementById('name').value = data.name || '';
-    } catch (error) {
-      console.log(error);
-    }
-  }
-
-
-  function loadQuestions() {
-
-    const list = document.getElementById('questionList');
-    list.innerHTML = '<div class="card empty">題目載入中……</div>';
 
     google.script.run
-      .withSuccessHandler(renderQuestions)
-      .withFailureHandler(function(error) {
-        list.innerHTML =
-          '<div class="card error">題目讀取失敗：' + escapeHtml(error.message) + '</div>';
+      .withSuccessHandler(function(questions) {
+
+        const count = Array.isArray(questions) ? questions.length : 0;
+
+        statText.publishedQuestions = count > 0
+          ? '目前有 ' + count + ' 題開放作答'
+          : '目前沒有開放作答的題目';
+
+        applyStats();
+      })
+      .withFailureHandler(function() {
+        statText.publishedQuestions = null;
+        hideStats();
       })
       .getPublishedQuestions();
   }
 
 
-  function renderQuestions(questions) {
+  function applyStats() {
 
-    const list = document.getElementById('questionList');
+    document.querySelectorAll('.stat').forEach(function(el) {
 
-    if (!questions || questions.length === 0) {
-      list.innerHTML = '<div class="card empty">老師目前沒有發布題目。</div>';
-      return;
-    }
+      const text = statText[el.dataset.stat];
 
-    list.innerHTML = '';
-
-    questions.forEach(function(q) {
-
-      const card = document.createElement('div');
-      card.className = 'card';
-
-      card.innerHTML = `
-        <div class="question-title">${escapeHtml(q.title)}</div>
-        <div class="meta">配分：${escapeHtml(q.points)} 分</div>
-        <div class="question-content">${escapeHtml(q.content)}</div>
-
-        <label for="answer_${q.id}">我的回答</label>
-        <textarea id="answer_${q.id}" placeholder="請在這裡輸入你的回答……"></textarea>
-
-        <button type="button" id="submit_${q.id}" onclick="submitAnswer('${q.id}')">送出回答</button>
-
-        <div id="message_${q.id}" class="message"></div>
-      `;
-
-      list.appendChild(card);
-    });
-  }
-
-
-  function submitAnswer(questionId) {
-
-    const identity = getIdentity();
-
-    if (!identity.studentId || !identity.name) {
-      alert('請先輸入學號與姓名');
-      return;
-    }
-
-    const answer = document.getElementById('answer_' + questionId).value.trim();
-
-    if (!answer) {
-      alert('請先輸入回答');
-      return;
-    }
-
-    localStorage.setItem('classroom_identity', JSON.stringify(identity));
-
-    const button = document.getElementById('submit_' + questionId);
-    const message = document.getElementById('message_' + questionId);
-
-    button.disabled = true;
-    button.textContent = '送出中……';
-    message.textContent = '';
-
-    google.script.run
-      .withSuccessHandler(function(result) {
-        button.disabled = false;
-        button.textContent = '重新送出';
-        message.className = 'message success';
-        message.textContent = result.updated ? '✓ 回答已更新' : '✓ 回答已送出';
-      })
-      .withFailureHandler(function(error) {
-        button.disabled = false;
-        button.textContent = '送出回答';
-        message.className = 'message error';
-        message.textContent = '送出失敗：' + error.message;
-      })
-      .submitAnswer({
-        studentId: identity.studentId,
-        name: identity.name,
-        questionId: questionId,
-        answer: answer
-      });
-  }
-
-
-  function loadMyResults() {
-
-    const identity = getIdentity();
-
-    if (!identity.studentId || !identity.name) {
-      alert('請先輸入學號與姓名');
-      return;
-    }
-
-    const box = document.getElementById('myResults');
-    box.innerHTML = '<div class="empty">讀取中……</div>';
-
-    google.script.run
-      .withSuccessHandler(renderMyResults)
-      .withFailureHandler(function(error) {
-        box.innerHTML = '<div class="error">' + escapeHtml(error.message) + '</div>';
-      })
-      .getStudentResults(identity);
-  }
-
-
-  function renderMyResults(results) {
-
-    const box = document.getElementById('myResults');
-
-    if (!results || results.length === 0) {
-      box.innerHTML = '<div class="empty">找不到你的作答紀錄。</div>';
-      return;
-    }
-
-    box.innerHTML = '';
-
-    results.forEach(function(item) {
-
-      const div = document.createElement('div');
-      div.className = 'result-item';
-
-      let reviewHtml = '';
-
-      if (item.status === '已通過' || item.status === '退回修改') {
-
-        const scoreText =
-          item.teacherScore !== '' && item.teacherScore != null
-            ? escapeHtml(item.teacherScore) + ' / ' + escapeHtml(item.points)
-            : '尚未給分';
-
-        reviewHtml = `
-          <p><strong>教師分數：</strong>${scoreText}</p>
-          <div class="feedback">
-            <strong>教師評語</strong><br><br>
-            ${escapeHtml(item.teacherFeedback || '老師尚未留下評語')}
-          </div>
-        `;
-
-      } else {
-
-        reviewHtml = '<p>老師目前正在審核這份回答。</p>';
+      if (text === null) {
+        el.remove();
+      } else if (text) {
+        el.textContent = text;
+        el.classList.add('ready');
       }
-
-      div.innerHTML = `
-        <h3>${escapeHtml(item.title)}</h3>
-        <div class="status">${escapeHtml(item.status)}</div>
-
-        <p><strong>我的回答</strong></p>
-        <div class="feedback">${escapeHtml(item.answer)}</div>
-
-        <p class="meta">送出時間：${escapeHtml(item.submittedAt)}</p>
-
-        ${reviewHtml}
-      `;
-
-      box.appendChild(div);
     });
+  }
+
+
+  function hideStats() {
+
+    Object.keys(statText).forEach(function(key) {
+      if (!statText[key]) statText[key] = null;
+    });
+
+    statText.publishedQuestions = statText.publishedQuestions || null;
+
+    applyStats();
+  }
+
+
+  /* ---------- 小工具 ---------- */
+
+  function readRole() {
+    try {
+      return localStorage.getItem(ROLE_KEY) || 'all';
+    } catch (error) {
+      return 'all';
+    }
+  }
+
+
+  function saveRole(role) {
+    try {
+      localStorage.setItem(ROLE_KEY, role);
+    } catch (error) {
+      // 無法記住也沒關係
+    }
   }
 
 

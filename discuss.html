@@ -82,6 +82,17 @@
 
     .topbar h1 { margin: 0 auto 0 0; font-size: 21px; }
 
+    .home-link {
+      color: white;
+      text-decoration: none;
+      font-size: 14px;
+      padding: 6px 12px;
+      border: 1px solid rgba(255, 255, 255, .45);
+      border-radius: 8px;
+    }
+
+    .home-link:hover { background: rgba(255, 255, 255, .15); }
+
     .topbar select {
       padding: 8px 10px;
       border-radius: 8px;
@@ -397,6 +408,7 @@
 <body>
 
 <header class="topbar teacher-only">
+  <a class="home-link" href="index.html">回到首頁</a>
   <h1>🗣 課堂討論</h1>
 
   <select id="questionSelect" aria-label="選擇題目" onchange="changeQuestion()">
