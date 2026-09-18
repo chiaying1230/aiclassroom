@@ -217,7 +217,34 @@
 
       <label for="content">題目內容</label>
       <textarea id="content" placeholder="請輸入要讓學生回答的問題"></textarea>
+<div class="ai-box" style="margin-top:18px;">
 
+  <h3>📚 AI 自動搜尋教材｜測試版</h3>
+
+  <p class="hint">
+    根據上方輸入的題目，自動搜尋已核准教材，
+    並請 Gemini 解讀相關內容。
+    目前僅供教師預覽，不會修改題目或學生分數。
+  </p>
+
+  <button
+    type="button"
+    class="purple"
+    id="ragPreviewButton"
+    onclick="previewQuestionRAG()">
+    🔍 AI 搜尋教材並解讀
+  </button>
+
+  <div
+    id="ragPreviewResult"
+    class="text-box"
+    role="status"
+    aria-live="polite"
+    style="margin-top:15px;">
+    尚未執行教材搜尋。
+  </div>
+
+</div>
       <label for="points">配分</label>
       <input id="points" type="number" min="0" value="10">
 
@@ -419,7 +446,187 @@
   /* ==================================================
      新增題目
   ================================================== */
+/* ==================================================
+   RAG：教師題目教材預覽
+   只顯示結果，不儲存題目、不修改批改。
+================================================== */
 
+function previewQuestionRAG() {
+
+  const questionInput =
+    document.getElementById('content');
+
+  const button =
+    document.getElementById('ragPreviewButton');
+
+  const resultBox =
+    document.getElementById('ragPreviewResult');
+
+  const question = questionInput.value.trim();
+
+  if (!question) {
+    resultBox.textContent = '請先輸入題目內容。';
+    questionInput.focus();
+    return;
+  }
+
+  if (question.length > 1000) {
+    resultBox.textContent =
+      '測試題目請控制在 1000 字以內。';
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = '⏳ AI 搜尋與解讀中……';
+
+  resultBox.textContent =
+    '正在搜尋已核准教材，並請 Gemini 分析，請稍候。';
+
+  function finish() {
+    button.disabled = false;
+    button.textContent = '🔍 AI 搜尋教材並解讀';
+  }
+
+  google.script.run
+
+    .withSuccessHandler(function(data) {
+
+      finish();
+
+      // 避免教師在等待期間修改題目，
+      // 卻誤以為舊結果對應修改後的新題目。
+      if (questionInput.value.trim() !== question) {
+
+        resultBox.textContent =
+          '題目內容已經改變，這次結果是根據舊題目產生的。' +
+          '\n請重新按下「AI 搜尋教材並解讀」。';
+
+        return;
+      }
+
+      if (!data) {
+
+        resultBox.textContent =
+          '後端沒有回傳資料，請檢查 Apps Script 執行紀錄。';
+
+        return;
+      }
+
+      if (data.status === 'NO_MATCH') {
+
+        resultBox.textContent =
+          data.message || '目前找不到相關教材。';
+
+        return;
+      }
+
+      const analysis = data.analysis || {};
+
+      const candidates = Array.isArray(data.candidates)
+        ? data.candidates
+        : [];
+
+      const selectedIds =
+        Array.isArray(analysis.selectedChunkIds)
+          ? analysis.selectedChunkIds
+          : [];
+
+      const concepts =
+        Array.isArray(analysis.concepts)
+          ? analysis.concepts
+          : [];
+
+      const lines = [];
+
+      lines.push('【搜尋狀態】');
+      lines.push(data.message || data.status || '未提供');
+      lines.push('');
+
+      lines.push('【測試題目】');
+      lines.push(question);
+      lines.push('');
+
+      lines.push('【Gemini 教材解讀】');
+      lines.push(analysis.explanation || '目前沒有解讀內容。');
+      lines.push('');
+
+      lines.push('【相關概念】');
+      lines.push(
+        concepts.length ? concepts.join('、') : '未提供'
+      );
+      lines.push('');
+
+      lines.push('【AI 建議採用的 Chunk ID】');
+      lines.push(
+        selectedIds.length
+          ? selectedIds.join('\n')
+          : '目前沒有可確認的教材段落'
+      );
+
+      lines.push('');
+      lines.push('【候選教材內容】');
+
+      if (!candidates.length) {
+
+        lines.push('沒有候選教材。');
+
+      } else {
+
+        candidates.forEach(function(item, index) {
+
+          lines.push('');
+          lines.push('--------------------');
+
+          lines.push(
+            '教材 ' + (index + 1) + '：' +
+            (item.title || '未命名教材')
+          );
+
+          lines.push(
+            '教材 ID：' + (item.docId || '未提供')
+          );
+
+          lines.push(
+            'Chunk ID：' + (item.chunkId || '未提供')
+          );
+
+          lines.push('');
+
+          lines.push(
+            item.content || '沒有提供教材文字'
+          );
+
+        });
+
+      }
+
+      lines.push('');
+      lines.push('--------------------');
+      lines.push('※ 以上僅供教師預覽與確認。');
+      lines.push('※ 尚未儲存教材關聯，也尚未用於 AI 批改。');
+
+      // 不使用 innerHTML，避免教材文字被當成 HTML 執行。
+      resultBox.textContent = lines.join('\n');
+
+    })
+
+    .withFailureHandler(function(error) {
+
+      finish();
+
+      resultBox.textContent =
+        'RAG 測試失敗：' +
+        (
+          error && error.message
+            ? error.message
+            : String(error)
+        );
+
+    })
+
+    .previewRAGForTeacher(question);
+
+}
   function createQuestion() {
 
     const data = {
