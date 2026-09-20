@@ -1,0 +1,1474 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>教材庫與 AI 助理｜AI 課堂</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* 顏色集中在這裡；要和其他頁面一致，只要改這幾個值 */
+  :root {
+    --brand-a: #5b6cf0;
+    --brand-b: #7c4dcc;
+    --ink: #1f2340;
+    --ink-soft: #5a5f7d;
+    --paper: #f5f6fb;
+    --card: #ffffff;
+    --line: #dfe2ee;
+    --review: #a86a12;
+    --review-bg: #fdf3e1;
+    --active: #23794f;
+    --active-bg: #e3f4ea;
+    --failed: #b83232;
+    --failed-bg: #fbe6e6;
+    --muted-bg: #eceef4;
+    --radius-s: 6px;
+    --radius-m: 12px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { margin: 0; }
+
+  body {
+    font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    font-size: 16px;
+    line-height: 1.7;
+    color: var(--ink);
+    background: var(--paper);
+  }
+
+  button, input, textarea { font: inherit; color: inherit; }
+
+  button { cursor: pointer; }
+
+  :focus-visible {
+    outline: 3px solid var(--brand-a);
+    outline-offset: 2px;
+  }
+
+  /* ---------- 頁首 ---------- */
+
+  .top {
+    background: linear-gradient(120deg, var(--brand-a), var(--brand-b));
+    color: #fff;
+    padding: 18px 20px 0;
+  }
+
+  .top-inner {
+    max-width: 960px;
+    margin: 0 auto;
+  }
+
+  .top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .top h1 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  .top-links {
+    display: flex;
+    gap: 8px;
+  }
+
+  .top-links a,
+  .top-links button {
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    color: #fff;
+    text-decoration: none;
+    font-size: 0.875rem;
+    padding: 4px 12px;
+    border-radius: 999px;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-top: 16px;
+  }
+
+  .tab {
+    border: 0;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.82);
+    padding: 10px 18px;
+    border-radius: var(--radius-m) var(--radius-m) 0 0;
+    font-weight: 500;
+  }
+
+  .tab[aria-selected="true"] {
+    background: var(--paper);
+    color: var(--ink);
+  }
+
+  main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+
+  [hidden] { display: none !important; }
+
+  /* ---------- 共用按鈕與標籤 ---------- */
+
+  .btn {
+    border: 1px solid var(--line);
+    background: var(--card);
+    padding: 6px 14px;
+    border-radius: var(--radius-s);
+    font-size: 0.9375rem;
+  }
+
+  .btn:hover { border-color: var(--brand-a); }
+
+  .btn-primary {
+    background: var(--brand-a);
+    border-color: var(--brand-a);
+    color: #fff;
+  }
+
+  .btn-primary:hover { background: #4a5ae0; }
+
+  .btn-danger { color: var(--failed); }
+
+  .btn:disabled { opacity: 0.5; cursor: default; }
+
+  .badge {
+    display: inline-block;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    padding: 1px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  .badge-REVIEW { color: var(--review); background: var(--review-bg); }
+  .badge-ACTIVE { color: var(--active); background: var(--active-bg); }
+  .badge-FAILED { color: var(--failed); background: var(--failed-bg); }
+  .badge-ARCHIVED,
+  .badge-DISABLED { color: var(--ink-soft); background: var(--muted-bg); }
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    background: var(--ink);
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: var(--radius-s);
+    font-size: 0.9375rem;
+    max-width: calc(100% - 32px);
+    z-index: 50;
+  }
+
+  /* ---------- AI 助理 ---------- */
+
+  .chat {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 170px);
+  }
+
+  .chat-log {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding-bottom: 16px;
+  }
+
+  .chat-empty {
+    padding: 32px 0 8px;
+    max-width: 38em;
+  }
+
+  .chat-empty h2 {
+    margin: 0 0 6px;
+    font-size: 1.375rem;
+  }
+
+  .chat-empty p {
+    margin: 0 0 18px;
+    color: var(--ink-soft);
+  }
+
+  .suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .suggestion {
+    text-align: left;
+    border: 1px dashed #b9bfe0;
+    background: var(--card);
+    border-radius: var(--radius-s);
+    padding: 8px 12px;
+    font-size: 0.9375rem;
+    max-width: 100%;
+  }
+
+  .suggestion:hover { border-style: solid; border-color: var(--brand-a); }
+
+  .msg { max-width: 44em; }
+
+  .msg-user {
+    align-self: flex-end;
+    background: var(--brand-a);
+    color: #fff;
+    padding: 10px 14px;
+    border-radius: var(--radius-m) var(--radius-m) 4px var(--radius-m);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .msg-ai {
+    align-self: flex-start;
+    width: 100%;
+  }
+
+  .msg-ai .bubble {
+    background: var(--card);
+    border: 1px solid var(--line);
+    padding: 12px 16px;
+    border-radius: var(--radius-m) var(--radius-m) var(--radius-m) 4px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .msg-ai.pending .bubble { color: var(--ink-soft); }
+
+  .msg-ai.error .bubble {
+    border-color: #f0b4b4;
+    background: var(--failed-bg);
+    color: var(--failed);
+  }
+
+  .msg-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    margin-top: 8px;
+    font-size: 0.8125rem;
+    color: var(--ink-soft);
+  }
+
+  /* 引用教材：像夾在書頁上的書籤 */
+  .cite {
+    border: 0;
+    border-left: 4px solid var(--brand-b);
+    background: #efeafa;
+    color: #4a2f86;
+    padding: 2px 10px 2px 8px;
+    border-radius: 0 var(--radius-s) var(--radius-s) 0;
+    font-size: 0.8125rem;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cite[aria-expanded="true"] {
+    background: var(--brand-b);
+    color: #fff;
+  }
+
+  .cite-excerpt {
+    margin-top: 8px;
+    border-left: 4px solid var(--brand-b);
+    background: var(--card);
+    padding: 10px 14px;
+    font-size: 0.9375rem;
+    color: var(--ink-soft);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .cite-excerpt strong {
+    display: block;
+    color: var(--ink);
+    margin-bottom: 4px;
+  }
+
+  .no-source { color: var(--review); }
+
+  .link-btn {
+    border: 0;
+    background: none;
+    padding: 0;
+    color: var(--brand-a);
+    font-size: 0.8125rem;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .composer {
+    position: sticky;
+    bottom: 0;
+    background: var(--paper);
+    padding: 12px 0 8px;
+  }
+
+  .composer-box {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+    padding: 8px;
+  }
+
+  .composer-box:focus-within { border-color: var(--brand-a); }
+
+  .composer textarea {
+    flex: 1;
+    border: 0;
+    resize: none;
+    min-height: 44px;
+    max-height: 200px;
+    padding: 8px;
+    background: transparent;
+  }
+
+  .composer textarea:focus { outline: none; }
+
+  .composer-foot {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 0.8125rem;
+    color: var(--ink-soft);
+    margin-top: 6px;
+  }
+
+  /* ---------- 教材庫 ---------- */
+
+  .drop {
+    border: 2px dashed #b9bfe0;
+    background: var(--card);
+    border-radius: var(--radius-m);
+    padding: 24px;
+    text-align: center;
+  }
+
+  .drop.dragging {
+    border-color: var(--brand-a);
+    background: #eef0fe;
+  }
+
+  .drop p { margin: 0; }
+
+  .drop .hint {
+    margin-top: 6px;
+    font-size: 0.875rem;
+    color: var(--ink-soft);
+  }
+
+  .queue {
+    list-style: none;
+    margin: 12px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .queue li {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-s);
+    padding: 8px 12px;
+    font-size: 0.9375rem;
+  }
+
+  .queue .q-name { overflow-wrap: anywhere; }
+  .queue .q-state { color: var(--ink-soft); white-space: nowrap; }
+  .queue .q-ok { color: var(--active); }
+  .queue .q-bad { color: var(--failed); white-space: normal; text-align: right; }
+
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 24px 0 12px;
+  }
+
+  .filter {
+    border: 1px solid var(--line);
+    background: var(--card);
+    border-radius: 999px;
+    padding: 3px 14px;
+    font-size: 0.875rem;
+  }
+
+  .filter[aria-pressed="true"] {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: #fff;
+  }
+
+  .doc-list {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+  }
+
+  .doc {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px 16px;
+    padding: 14px 18px;
+    border-top: 1px solid var(--line);
+  }
+
+  .doc:first-child { border-top: 0; }
+
+  .doc-title {
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+
+  .doc-meta {
+    font-size: 0.875rem;
+    color: var(--ink-soft);
+  }
+
+  .doc-error {
+    grid-column: 1 / -1;
+    font-size: 0.875rem;
+    color: var(--failed);
+  }
+
+  .doc-side {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    grid-row: 1 / span 2;
+    grid-column: 2;
+  }
+
+  .empty-note {
+    padding: 28px 18px;
+    text-align: center;
+    color: var(--ink-soft);
+  }
+
+  /* ---------- 教材檢查面板 ---------- */
+
+  .scrim {
+    position: fixed;
+    inset: 0;
+    background: rgba(31, 35, 64, 0.35);
+    z-index: 20;
+  }
+
+  .drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(640px, 100%);
+    background: var(--paper);
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -8px 0 24px rgba(31, 35, 64, 0.18);
+  }
+
+  .drawer-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 20px;
+    background: var(--card);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .drawer-head h2 {
+    margin: 0;
+    font-size: 1.1875rem;
+    overflow-wrap: anywhere;
+  }
+
+  .drawer-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px 32px;
+  }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+    padding: 14px 16px;
+    margin-bottom: 16px;
+  }
+
+  .panel h3 {
+    margin: 0 0 10px;
+    font-size: 1rem;
+  }
+
+  .status-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .status-help {
+    margin: 8px 0 0;
+    font-size: 0.875rem;
+    color: var(--ink-soft);
+  }
+
+  .fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .fields label {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.875rem;
+    color: var(--ink-soft);
+  }
+
+  .fields label.wide { grid-column: 1 / -1; }
+
+  .fields input {
+    margin-top: 2px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-s);
+    padding: 6px 10px;
+    color: var(--ink);
+  }
+
+  .fields-actions {
+    margin-top: 10px;
+    text-align: right;
+  }
+
+  .chunks-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin: 20px 0 8px;
+  }
+
+  .chunks-head h3 { margin: 0; font-size: 1rem; }
+  .chunks-head span { font-size: 0.875rem; color: var(--ink-soft); }
+
+  .chunk {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-s);
+    padding: 10px 14px;
+    margin-bottom: 8px;
+  }
+
+  .chunk.is-disabled { background: #f7f7fa; }
+  .chunk.is-disabled .chunk-text { color: #9a9db3; text-decoration: line-through; }
+
+  .chunk-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.875rem;
+  }
+
+  .chunk-text {
+    margin: 6px 0 0;
+    font-size: 0.9375rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .chunk.open .chunk-text {
+    display: block;
+    -webkit-line-clamp: unset;
+  }
+
+  @media (max-width: 640px) {
+    .top h1 { font-size: 1.25rem; }
+    main { padding: 16px; }
+    .doc { grid-template-columns: 1fr; }
+    .doc-side { grid-column: 1; grid-row: auto; justify-content: space-between; }
+    .fields { grid-template-columns: 1fr; }
+    .composer-foot { flex-direction: column; gap: 2px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { scroll-behavior: auto !important; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="top-row">
+      <h1>教材庫與 AI 助理</h1>
+      <div class="top-links">
+        <a href="index.html">回到首頁</a>
+        <button type="button" id="logoutButton" hidden>登出</button>
+      </div>
+    </div>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tabChat" aria-controls="panelChat" aria-selected="true">AI 助理</button>
+      <button class="tab" role="tab" id="tabLibrary" aria-controls="panelLibrary" aria-selected="false">教材庫</button>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- AI 助理 -->
+  <section id="panelChat" role="tabpanel" aria-labelledby="tabChat" class="chat">
+
+    <div id="chatLog" class="chat-log" aria-live="polite"></div>
+
+    <form id="chatForm" class="composer">
+      <div class="composer-box">
+        <textarea id="chatInput" rows="1" maxlength="1500"
+          placeholder="例如：根據教材，設計三個讓學生討論的問題"
+          aria-label="要問 AI 助理的內容"></textarea>
+        <button type="submit" class="btn btn-primary" id="sendButton">送出</button>
+      </div>
+      <div class="composer-foot">
+        <span>Enter 送出，Shift + Enter 換行。對話只留在這個分頁，不會存到試算表。</span>
+        <button type="button" class="link-btn" id="clearChat">清除對話</button>
+      </div>
+    </form>
+
+  </section>
+
+  <!-- 教材庫 -->
+  <section id="panelLibrary" role="tabpanel" aria-labelledby="tabLibrary" hidden>
+
+    <div id="dropZone" class="drop">
+      <input type="file" id="fileInput" accept="application/pdf,.pdf" multiple hidden>
+      <p><strong>把 PDF 拖到這裡</strong>，或
+        <button type="button" class="btn" id="pickFile">選擇檔案</button></p>
+      <p class="hint">每份 10 MB 以內，可以一次選多份。上傳後會自動轉成文字並切成段落，每份約 30 秒到 1 分鐘。</p>
+    </div>
+
+    <ul id="uploadQueue" class="queue"></ul>
+
+    <div class="filters" id="filters"></div>
+
+    <div id="docList" class="doc-list">
+      <p class="empty-note">載入中……</p>
+    </div>
+
+  </section>
+
+</main>
+
+<!-- 教材檢查面板 -->
+<div id="scrim" class="scrim" hidden></div>
+<aside id="drawer" class="drawer" hidden role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+  <div class="drawer-head">
+    <h2 id="drawerTitle">教材</h2>
+    <button type="button" class="btn" id="closeDrawer">關閉</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</aside>
+
+<div id="toast" class="toast" hidden role="status"></div>
+
+<script src="config.js"></script>
+<script src="gas-bridge.js"></script>
+<script src="teacher-auth.js"></script>
+<script>
+(function () {
+
+  'use strict';
+
+  /* =====================================================
+     共用
+  ===================================================== */
+
+  const STATUS_TEXT = {
+    REVIEW: '待檢查',
+    ACTIVE: '使用中',
+    ARCHIVED: '已封存',
+    FAILED: '匯入失敗',
+    DISABLED: '不使用'
+  };
+
+  const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+  function $(id) { return document.getElementById(id); }
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  // 把 google.script.run 包成 Promise
+  function api(fn) {
+    const args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (resolve, reject) {
+      const runner = google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(function (error) {
+          reject(error instanceof Error ? error : new Error(String(error)));
+        });
+      runner[fn].apply(runner, args);
+    });
+  }
+
+  let toastTimer = null;
+
+  function toast(message) {
+    const el = $('toast');
+    el.textContent = message;
+    el.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.hidden = true; }, 3500);
+  }
+
+  function badge(status) {
+    return '<span class="badge badge-' + escapeHtml(status) + '">' +
+      escapeHtml(STATUS_TEXT[status] || status || '未知') + '</span>';
+  }
+
+  /* =====================================================
+     分頁切換
+  ===================================================== */
+
+  const TAB_KEY = 'aiclassroom_rag_tab';
+
+  function showTab(name) {
+
+    const isChat = name !== 'library';
+
+    $('tabChat').setAttribute('aria-selected', String(isChat));
+    $('tabLibrary').setAttribute('aria-selected', String(!isChat));
+    $('panelChat').hidden = !isChat;
+    $('panelLibrary').hidden = isChat;
+
+    try { localStorage.setItem(TAB_KEY, isChat ? 'chat' : 'library'); } catch (e) { /* 忽略 */ }
+
+    if (isChat) $('chatInput').focus();
+  }
+
+  $('tabChat').addEventListener('click', function () { showTab('chat'); });
+  $('tabLibrary').addEventListener('click', function () { showTab('library'); });
+
+  /* =====================================================
+     AI 助理
+  ===================================================== */
+
+  const CHAT_KEY = 'aiclassroom_rag_chat';
+
+  const SUGGESTIONS = [
+    '根據教材，設計三個讓學生分組討論的開放式問題',
+    '幫我整理教材中和「溝通與合作」有關的重點',
+    '教材裡哪些段落提到核心素養？',
+    '這個單元可以搭配什麼 15 分鐘的課堂活動？'
+  ];
+
+  // messages：{ role, text, citations, usedGeneralKnowledge, error }
+  let messages = [];
+  let sending = false;
+
+  function saveChat() {
+    try {
+      sessionStorage.setItem(CHAT_KEY, JSON.stringify(messages.slice(-40)));
+    } catch (e) { /* 忽略 */ }
+  }
+
+  function loadChat() {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(CHAT_KEY) || '[]');
+      if (Array.isArray(saved)) messages = saved;
+    } catch (e) {
+      messages = [];
+    }
+  }
+
+  function renderChat() {
+
+    const log = $('chatLog');
+
+    if (!messages.length) {
+      log.innerHTML =
+        '<div class="chat-empty">' +
+          '<h2>今天要準備什麼？</h2>' +
+          '<p>AI 助理會先查你在「教材庫」啟用的教材再回答，回答下方會列出引用的段落，方便你核對。</p>' +
+          '<div class="suggestions">' +
+            SUGGESTIONS.map(function (s) {
+              return '<button type="button" class="suggestion">' + escapeHtml(s) + '</button>';
+            }).join('') +
+          '</div>' +
+        '</div>';
+
+      log.querySelectorAll('.suggestion').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          $('chatInput').value = btn.textContent;
+          sendMessage();
+        });
+      });
+      return;
+    }
+
+    log.innerHTML = messages.map(renderMessage).join('');
+
+    log.querySelectorAll('.cite').forEach(function (btn) {
+      btn.addEventListener('click', toggleCitation);
+    });
+
+    log.querySelectorAll('[data-copy]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const msg = messages[Number(btn.dataset.copy)];
+        if (!msg) return;
+        copyText(msg.text);
+      });
+    });
+
+    window.scrollTo(0, document.body.scrollHeight);
+  }
+
+  function renderMessage(msg, index) {
+
+    if (msg.role === 'user') {
+      return '<div class="msg msg-user">' + escapeHtml(msg.text) + '</div>';
+    }
+
+    if (msg.pending) {
+      return '<div class="msg msg-ai pending"><div class="bubble">正在查教材並整理回答……</div></div>';
+    }
+
+    if (msg.error) {
+      return '<div class="msg msg-ai error"><div class="bubble">' + escapeHtml(msg.text) + '</div></div>';
+    }
+
+    const citations = Array.isArray(msg.citations) ? msg.citations : [];
+
+    let meta = '';
+
+    if (citations.length) {
+      meta += '<span>引用教材</span>' + citations.map(function (c, i) {
+        return '<button type="button" class="cite" aria-expanded="false" ' +
+          'data-msg="' + index + '" data-cite="' + i + '" title="' + escapeHtml(c.title) + '">' +
+          '[' + escapeHtml(c.ref) + '] ' + escapeHtml(c.title) + '</button>';
+      }).join('');
+    } else {
+      meta += '<span class="no-source">這則回答沒有引用教材，請自行確認內容</span>';
+    }
+
+    meta += '<button type="button" class="link-btn" data-copy="' + index + '">複製回答</button>';
+
+    return '<div class="msg msg-ai">' +
+      '<div class="bubble">' + escapeHtml(msg.text) + '</div>' +
+      '<div class="msg-meta">' + meta + '</div>' +
+      '<div class="cite-slot" id="citeSlot' + index + '"></div>' +
+    '</div>';
+  }
+
+  function toggleCitation(event) {
+
+    const btn = event.currentTarget;
+    const msgIndex = Number(btn.dataset.msg);
+    const cite = messages[msgIndex].citations[Number(btn.dataset.cite)];
+    const slot = $('citeSlot' + msgIndex);
+    const opening = btn.getAttribute('aria-expanded') !== 'true';
+
+    btn.parentNode.querySelectorAll('.cite').forEach(function (b) {
+      b.setAttribute('aria-expanded', 'false');
+    });
+
+    if (!opening) {
+      slot.innerHTML = '';
+      return;
+    }
+
+    btn.setAttribute('aria-expanded', 'true');
+
+    slot.innerHTML =
+      '<div class="cite-excerpt">' +
+        '<strong>' + escapeHtml(cite.title) + (cite.unit ? '｜' + escapeHtml(cite.unit) : '') + '</strong>' +
+        escapeHtml(cite.excerpt) + (cite.excerpt.length >= 400 ? '……' : '') +
+      '</div>';
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        function () { toast('已複製'); },
+        function () { toast('無法複製，請手動選取文字'); }
+      );
+    } else {
+      toast('這個瀏覽器不支援一鍵複製，請手動選取文字');
+    }
+  }
+
+  function sendMessage() {
+
+    const input = $('chatInput');
+    const text = input.value.trim();
+
+    if (!text || sending) return;
+
+    // 只把成功的對話送回後端當作上下文
+    const history = messages
+      .filter(function (m) { return !m.error && !m.pending; })
+      .map(function (m) { return { role: m.role, text: m.text }; });
+
+    messages.push({ role: 'user', text: text });
+    messages.push({ role: 'assistant', text: '', pending: true });
+
+    input.value = '';
+    autoGrow();
+    setSending(true);
+    renderChat();
+
+    api('ragChat', text, history)
+      .then(function (result) {
+        messages[messages.length - 1] = {
+          role: 'assistant',
+          text: result.answer,
+          citations: result.citations || [],
+          usedGeneralKnowledge: !!result.usedGeneralKnowledge
+        };
+      })
+      .catch(function (error) {
+        messages[messages.length - 1] = {
+          role: 'assistant',
+          text: error.message || '發生錯誤，請再試一次',
+          error: true
+        };
+      })
+      .then(function () {
+        setSending(false);
+        saveChat();
+        renderChat();
+        input.focus();
+      });
+  }
+
+  function setSending(value) {
+    sending = value;
+    $('sendButton').disabled = value;
+    $('sendButton').textContent = value ? '回答中' : '送出';
+  }
+
+  function autoGrow() {
+    const el = $('chatInput');
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+  }
+
+  $('chatForm').addEventListener('submit', function (event) {
+    event.preventDefault();
+    sendMessage();
+  });
+
+  $('chatInput').addEventListener('input', autoGrow);
+
+  $('chatInput').addEventListener('keydown', function (event) {
+    // 中文輸入法選字時按 Enter 不送出
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      sendMessage();
+    }
+  });
+
+  $('clearChat').addEventListener('click', function () {
+    if (sending) return;
+    if (messages.length && !confirm('要清除目前的對話嗎？')) return;
+    messages = [];
+    saveChat();
+    renderChat();
+  });
+
+  /* =====================================================
+     教材庫：清單
+  ===================================================== */
+
+  const FILTERS = [
+    { key: 'ALL', label: '全部' },
+    { key: 'REVIEW', label: '待檢查' },
+    { key: 'ACTIVE', label: '使用中' },
+    { key: 'FAILED', label: '匯入失敗' },
+    { key: 'ARCHIVED', label: '已封存' }
+  ];
+
+  let docs = [];
+  let currentFilter = 'ALL';
+
+  function loadDocs() {
+    return api('ragListDocuments')
+      .then(function (list) {
+        docs = Array.isArray(list) ? list : [];
+        renderDocs();
+      })
+      .catch(function (error) {
+        $('docList').innerHTML = '<p class="empty-note">無法載入教材：' + escapeHtml(error.message) + '</p>';
+      });
+  }
+
+  function renderDocs() {
+
+    $('filters').innerHTML = FILTERS.map(function (f) {
+      const count = f.key === 'ALL'
+        ? docs.length
+        : docs.filter(function (d) { return d.status === f.key; }).length;
+      return '<button type="button" class="filter" data-filter="' + f.key + '" aria-pressed="' +
+        (currentFilter === f.key) + '">' + f.label + ' ' + count + '</button>';
+    }).join('');
+
+    $('filters').querySelectorAll('.filter').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        currentFilter = btn.dataset.filter;
+        renderDocs();
+      });
+    });
+
+    const shown = docs.filter(function (d) {
+      return currentFilter === 'ALL' || d.status === currentFilter;
+    });
+
+    if (!shown.length) {
+      $('docList').innerHTML = '<p class="empty-note">' +
+        (docs.length ? '這個分類沒有教材。' : '還沒有教材。上傳第一份 PDF，AI 助理就能根據它回答。') +
+        '</p>';
+      return;
+    }
+
+    $('docList').innerHTML = shown.map(function (d) {
+
+      const where = [d.course, d.unit].filter(Boolean).join('／');
+      const chunkText = d.chunks.total
+        ? d.chunks.total + ' 段（使用中 ' + d.chunks.ACTIVE + '）'
+        : '沒有段落';
+
+      return '<div class="doc">' +
+        '<div class="doc-title">' + escapeHtml(d.title) + '</div>' +
+        '<div class="doc-side">' + badge(d.status) +
+          '<button type="button" class="btn" data-open="' + escapeHtml(d.docId) + '">' +
+            (d.status === 'REVIEW' ? '檢查' : '查看') + '</button>' +
+        '</div>' +
+        '<div class="doc-meta">' +
+          escapeHtml(where || '未填課程與單元') + '｜' + chunkText + '｜' + escapeHtml(d.updatedAt) +
+        '</div>' +
+        (d.status === 'FAILED' && d.errorMessage
+          ? '<div class="doc-error">' + escapeHtml(d.errorMessage) + '</div>'
+          : '') +
+      '</div>';
+    }).join('');
+
+    $('docList').querySelectorAll('[data-open]').forEach(function (btn) {
+      btn.addEventListener('click', function () { openDrawer(btn.dataset.open); });
+    });
+  }
+
+  /* =====================================================
+     教材庫：上傳
+  ===================================================== */
+
+  let uploading = false;
+  const queue = [];
+
+  $('pickFile').addEventListener('click', function () { $('fileInput').click(); });
+
+  $('fileInput').addEventListener('change', function (event) {
+    addFiles(event.target.files);
+    event.target.value = '';
+  });
+
+  const drop = $('dropZone');
+
+  ['dragenter', 'dragover'].forEach(function (type) {
+    drop.addEventListener(type, function (event) {
+      event.preventDefault();
+      drop.classList.add('dragging');
+    });
+  });
+
+  ['dragleave', 'drop'].forEach(function (type) {
+    drop.addEventListener(type, function (event) {
+      event.preventDefault();
+      drop.classList.remove('dragging');
+    });
+  });
+
+  drop.addEventListener('drop', function (event) {
+    addFiles(event.dataTransfer.files);
+  });
+
+  function addFiles(fileList) {
+
+    Array.prototype.forEach.call(fileList || [], function (file) {
+
+      const item = { file: file, state: '等待上傳', kind: '' };
+
+      if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') {
+        item.state = '不是 PDF，已略過';
+        item.kind = 'bad';
+        item.done = true;
+      } else if (file.size > MAX_UPLOAD_BYTES) {
+        item.state = '超過 10 MB，請分冊後再上傳';
+        item.kind = 'bad';
+        item.done = true;
+      }
+
+      queue.push(item);
+    });
+
+    renderQueue();
+    processQueue();
+  }
+
+  function renderQueue() {
+    $('uploadQueue').innerHTML = queue.map(function (item) {
+      const cls = item.kind === 'ok' ? ' q-ok' : item.kind === 'bad' ? ' q-bad' : '';
+      return '<li><span class="q-name">' + escapeHtml(item.file.name) + '</span>' +
+        '<span class="q-state' + cls + '">' + escapeHtml(item.state) + '</span></li>';
+    }).join('');
+  }
+
+  function readAsBase64(file) {
+    return new Promise(function (resolve, reject) {
+      const reader = new FileReader();
+      reader.onload = function () { resolve(String(reader.result).split(',')[1] || ''); };
+      reader.onerror = function () { reject(new Error('無法讀取檔案')); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function processQueue() {
+
+    if (uploading) return;
+
+    const item = queue.find(function (q) { return !q.done; });
+
+    if (!item) {
+      loadDocs();
+      return;
+    }
+
+    uploading = true;
+    item.state = '上傳並轉換中……';
+    renderQueue();
+
+    readAsBase64(item.file)
+      .then(function (data) { return api('ragUploadPdf', item.file.name, data); })
+      .then(function (result) {
+        if (result.status === 'FAILED') {
+          item.state = '匯入失敗：' + result.message;
+          item.kind = 'bad';
+        } else {
+          item.state = '完成，共 ' + result.chunks + ' 段，請到清單檢查';
+          item.kind = 'ok';
+        }
+      })
+      .catch(function (error) {
+        item.state = error.message;
+        item.kind = 'bad';
+      })
+      .then(function () {
+        item.done = true;
+        uploading = false;
+        renderQueue();
+        processQueue();
+      });
+  }
+
+  /* =====================================================
+     教材庫：檢查面板
+  ===================================================== */
+
+  let detail = null;
+  let lastFocus = null;
+
+  function openDrawer(docId) {
+
+    lastFocus = document.activeElement;
+
+    $('drawerTitle').textContent = '載入中……';
+    $('drawerBody').innerHTML = '';
+    $('scrim').hidden = false;
+    $('drawer').hidden = false;
+    document.body.style.overflow = 'hidden';
+    $('closeDrawer').focus();
+
+    api('ragGetDocumentDetail', docId)
+      .then(function (d) {
+        detail = d;
+        renderDrawer();
+      })
+      .catch(function (error) {
+        $('drawerTitle').textContent = '無法開啟';
+        $('drawerBody').innerHTML = '<p>' + escapeHtml(error.message) + '</p>';
+      });
+  }
+
+  function closeDrawer() {
+    $('scrim').hidden = true;
+    $('drawer').hidden = true;
+    document.body.style.overflow = '';
+    detail = null;
+    if (lastFocus) lastFocus.focus();
+  }
+
+  $('closeDrawer').addEventListener('click', closeDrawer);
+  $('scrim').addEventListener('click', closeDrawer);
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && !$('drawer').hidden) closeDrawer();
+  });
+
+  const STATUS_HELP = {
+    REVIEW: '還沒開放給 AI 助理使用。請看過下方段落，把目錄、版權頁或亂碼設成「不使用」，再按「開始使用」。',
+    ACTIVE: 'AI 助理回答時會參考這份教材中「使用中」的段落。',
+    ARCHIVED: 'AI 助理不會讀到這份教材。資料仍保留，可以隨時恢復。',
+    FAILED: '這份 PDF 沒有成功轉成文字。如果是掃描檔，可能需要先用有文字層的版本。'
+  };
+
+  function statusActions(status) {
+    switch (status) {
+      case 'REVIEW':
+        return '<button type="button" class="btn btn-primary" data-status="ACTIVE">開始使用</button>' +
+               '<button type="button" class="btn btn-danger" data-status="ARCHIVED">封存</button>';
+      case 'ACTIVE':
+        return '<button type="button" class="btn" data-status="REVIEW">暫停使用</button>' +
+               '<button type="button" class="btn btn-danger" data-status="ARCHIVED">封存</button>';
+      case 'ARCHIVED':
+        return '<button type="button" class="btn" data-status="REVIEW">恢復為待檢查</button>';
+      case 'FAILED':
+        return '<button type="button" class="btn btn-primary" data-retry="1">重試匯入</button>' +
+               '<button type="button" class="btn btn-danger" data-status="ARCHIVED">封存</button>';
+      default:
+        return '';
+    }
+  }
+
+  function renderDrawer() {
+
+    const d = detail;
+    const activeCount = d.chunks.filter(function (c) { return c.status === 'ACTIVE'; }).length;
+
+    $('drawerTitle').textContent = d.title;
+
+    $('drawerBody').innerHTML =
+      '<div class="panel">' +
+        '<div class="status-line">' + badge(d.status) + statusActions(d.status) +
+          (d.pdfUrl ? '<a class="link-btn" href="' + escapeHtml(d.pdfUrl) + '" target="_blank" rel="noopener">開啟原始 PDF</a>' : '') +
+        '</div>' +
+        '<p class="status-help">' + escapeHtml(STATUS_HELP[d.status] || '') + '</p>' +
+        (d.errorMessage ? '<p class="status-help" style="color:var(--failed)">' + escapeHtml(d.errorMessage) + '</p>' : '') +
+      '</div>' +
+
+      '<form class="panel" id="infoForm">' +
+        '<h3>教材資料</h3>' +
+        '<div class="fields">' +
+          '<label class="wide">教材名稱<input name="title" maxlength="100" required value="' + escapeHtml(d.title) + '"></label>' +
+          '<label>課程<input name="course" maxlength="100" placeholder="例如：綜合活動" value="' + escapeHtml(d.course) + '"></label>' +
+          '<label>單元<input name="unit" maxlength="100" placeholder="例如：第三單元 溝通與合作" value="' + escapeHtml(d.unit) + '"></label>' +
+        '</div>' +
+        '<div class="fields-actions"><button type="submit" class="btn">儲存教材資料</button></div>' +
+      '</form>' +
+
+      '<div class="chunks-head"><h3>段落內容</h3><span>共 ' + d.chunks.length + ' 段，使用中 ' + activeCount + ' 段</span></div>' +
+      (d.chunks.length
+        ? d.chunks.map(renderChunk).join('')
+        : '<p class="empty-note">沒有段落。</p>');
+
+    $('drawerBody').querySelectorAll('[data-status]').forEach(function (btn) {
+      btn.addEventListener('click', function () { changeDocStatus(btn.dataset.status, btn); });
+    });
+
+    const retry = $('drawerBody').querySelector('[data-retry]');
+    if (retry) retry.addEventListener('click', function () { retryDoc(retry); });
+
+    $('infoForm').addEventListener('submit', saveInfo);
+
+    $('drawerBody').querySelectorAll('[data-chunk-toggle]').forEach(function (btn) {
+      btn.addEventListener('click', function () { toggleChunk(btn.dataset.chunkToggle, btn); });
+    });
+
+    $('drawerBody').querySelectorAll('[data-chunk-open]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const box = btn.closest('.chunk');
+        const open = box.classList.toggle('open');
+        btn.textContent = open ? '收合' : '展開全文';
+      });
+    });
+  }
+
+  function renderChunk(c) {
+
+    const disabled = c.status === 'DISABLED';
+
+    return '<div class="chunk' + (disabled ? ' is-disabled' : '') + '">' +
+      '<div class="chunk-top">' +
+        '<span>第 ' + c.chunkIndex + ' 段 ' + badge(c.status) + '</span>' +
+        '<span>' +
+          '<button type="button" class="link-btn" data-chunk-open="1">展開全文</button>　' +
+          '<button type="button" class="link-btn" data-chunk-toggle="' + escapeHtml(c.chunkId) + '">' +
+            (disabled ? '恢復使用' : '不使用這段') + '</button>' +
+        '</span>' +
+      '</div>' +
+      '<p class="chunk-text">' + escapeHtml(c.content) + '</p>' +
+    '</div>';
+  }
+
+  function refreshDrawer() {
+    if (!detail) return Promise.resolve();
+    return api('ragGetDocumentDetail', detail.docId).then(function (d) {
+      detail = d;
+      renderDrawer();
+    });
+  }
+
+  function changeDocStatus(status, btn) {
+
+    if (status === 'ARCHIVED' && !confirm('封存後 AI 助理不會再讀到這份教材，確定要封存嗎？')) return;
+
+    btn.disabled = true;
+
+    api('ragSetDocumentStatus', detail.docId, status)
+      .then(function (result) {
+        toast(status === 'ACTIVE'
+          ? '已開始使用' + (result.activatedChunks ? '，啟用 ' + result.activatedChunks + ' 段' : '')
+          : '已改為「' + STATUS_TEXT[status] + '」');
+        return Promise.all([refreshDrawer(), loadDocs()]);
+      })
+      .catch(function (error) {
+        btn.disabled = false;
+        toast(error.message);
+      });
+  }
+
+  function retryDoc(btn) {
+
+    btn.disabled = true;
+    btn.textContent = '重新匯入中……';
+
+    const oldId = detail.docId;
+
+    api('ragRetryDocument', oldId)
+      .then(function (result) {
+        toast(result.status === 'FAILED' ? '仍然失敗：' + result.message : '匯入成功，共 ' + result.chunks + ' 段');
+        return loadDocs().then(function () { openDrawer(result.docId); });
+      })
+      .catch(function (error) {
+        btn.disabled = false;
+        btn.textContent = '重試匯入';
+        toast(error.message);
+      });
+  }
+
+  function saveInfo(event) {
+
+    event.preventDefault();
+
+    const form = event.currentTarget;
+    const button = form.querySelector('button[type="submit"]');
+
+    button.disabled = true;
+
+    api('ragUpdateDocumentInfo', detail.docId, {
+      // form.title 是表單本身的屬性，要用 elements 取欄位
+      title: form.elements.title.value,
+      course: form.elements.course.value,
+      unit: form.elements.unit.value
+    })
+      .then(function () {
+        toast('已儲存教材資料');
+        return Promise.all([refreshDrawer(), loadDocs()]);
+      })
+      .catch(function (error) {
+        button.disabled = false;
+        toast(error.message);
+      });
+  }
+
+  function toggleChunk(chunkId, btn) {
+
+    const chunk = detail.chunks.find(function (c) { return c.chunkId === chunkId; });
+    if (!chunk) return;
+
+    // 恢復時：教材使用中就直接使用，否則回到待檢查
+    const next = chunk.status === 'DISABLED'
+      ? (detail.status === 'ACTIVE' ? 'ACTIVE' : 'REVIEW')
+      : 'DISABLED';
+
+    btn.disabled = true;
+
+    api('ragSetChunkStatus', chunkId, next)
+      .then(function () {
+        chunk.status = next;
+        const scroll = $('drawerBody').scrollTop;
+        renderDrawer();
+        $('drawerBody').scrollTop = scroll;
+        loadDocs();
+      })
+      .catch(function (error) {
+        btn.disabled = false;
+        toast(error.message);
+      });
+  }
+
+  /* =====================================================
+     啟動
+  ===================================================== */
+
+  function start() {
+
+    loadChat();
+    renderChat();
+
+    let tab = 'chat';
+    try { tab = localStorage.getItem(TAB_KEY) || 'chat'; } catch (e) { /* 忽略 */ }
+    showTab(tab);
+
+    loadDocs();
+
+    if (window.TeacherAuth && typeof window.TeacherAuth.logout === 'function') {
+      $('logoutButton').hidden = false;
+      $('logoutButton').addEventListener('click', function () { window.TeacherAuth.logout(); });
+    }
+  }
+
+  if (window.TeacherAuth && typeof window.TeacherAuth.ready === 'function') {
+    window.TeacherAuth.ready(start);
+  } else {
+    document.addEventListener('DOMContentLoaded', start);
+  }
+
+})();
+</script>
+</body>
+</html>
