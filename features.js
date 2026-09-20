@@ -15,4 +15,13 @@ window.PLATFORM_FEATURES = [
   { title: '教師系統', href: 'teacher.html', icon: '👩‍🏫', color: 'navy', status: 'live' },
   { title: '討論平台', href: 'discuss.html', icon: '🗣', color: 'purple', status: 'live' },
   { title: '師大 Moodle', href: 'https://moodle3.ntnu.edu.tw/', icon: '🎓', color: 'orange', newTab: true, status: 'live' }
+  {
+    id: 'rag',
+    title: '教材庫與 AI 助理',
+    description: '上傳教材 PDF，讓 AI 助理根據你的教材回答問題、協助備課。',
+    audience: 'teacher',
+    href: 'rag.html',
+    icon: '📚',
+    status: 'live'
+  }
 ];
