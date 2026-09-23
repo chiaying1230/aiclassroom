@@ -112,6 +112,10 @@
     .orange { background: var(--orange); }
     .purple { background: var(--purple); }
 
+    .rubric-helper { margin: 4px 0 10px; }
+    .rubric-helper button { margin-top: 6px; }
+    .rubric-helper .hint { margin: 6px 0 0; }
+
     .question, .answer {
       border: 1px solid #e1e5ec;
       border-radius: 12px;
@@ -252,6 +256,15 @@
       <textarea id="referenceAnswer" placeholder="提供教師與 AI 批改參考"></textarea>
 
       <label for="rubric">AI 評分規準</label>
+      <div class="rubric-helper">
+        <button type="button" class="orange" onclick="openMagicSchoolForRubric()">
+          ✨ 用 MagicSchool 產生評分規準
+        </button>
+        <p class="hint" id="rubricHelperMessage">
+          先填好上面的題目、配分和參考答案再按。按下後會複製一段寫好的提示詞，並在新分頁開啟 MagicSchool 的 Raina。
+          在 Raina 貼上（Ctrl + V）送出，把產生的規準複製回下面這一格。
+        </p>
+      </div>
       <textarea id="rubric" placeholder="例如：
 內容正確 5 分
 理由完整 3 分
@@ -627,6 +640,95 @@ function previewQuestionRAG() {
     .previewRAGForTeacher(question);
 
 }
+  /* ==================================================
+     用 MagicSchool 產生評分規準
+     MagicSchool 沒有開放串接，所以做法是：
+     複製寫好的提示詞 → 開新分頁 → 老師貼上 → 把結果貼回來
+  ================================================== */
+
+  const MAGICSCHOOL_URL = 'https://app.magicschool.ai/raina';
+
+  function buildRubricPrompt() {
+
+    const value = function(id) {
+      return document.getElementById(id).value.trim();
+    };
+
+    const points = value('points') || '10';
+
+    return [
+      '請為以下題目設計評分規準，用繁體中文、台灣用語。',
+      '',
+      '題目名稱：' + (value('title') || '（未填）'),
+      '題目內容：' + (value('content') || '（未填）'),
+      '總分：' + points + ' 分',
+      '參考答案：' + (value('referenceAnswer') || '（未提供）'),
+      '',
+      '要求：',
+      '1. 分成 3 到 4 個評分面向，各面向的分數加起來剛好等於 ' + points + ' 分。',
+      '2. 每個面向寫出「得滿分、得部分分數、不得分」各是什麼樣的回答，寫成可以直接從答案中判斷的具體描述，不要用「表現良好」「大致正確」這類模糊字詞。',
+      '3. 列出學生常見的錯誤或迷思，以及遇到時如何扣分。',
+      '4. 用純文字條列，不要用表格，也不要加開場白或結語。'
+    ].join('\n');
+  }
+
+
+  function copyText(text) {
+
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    }
+
+    // 舊瀏覽器的備用做法
+    return new Promise(function(resolve, reject) {
+      const box = document.createElement('textarea');
+      box.value = text;
+      box.style.position = 'fixed';
+      box.style.opacity = '0';
+      document.body.appendChild(box);
+      box.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(box);
+      ok ? resolve() : reject(new Error('copy failed'));
+    });
+  }
+
+
+  function openMagicSchoolForRubric() {
+
+    const message = document.getElementById('rubricHelperMessage');
+    const content = document.getElementById('content').value.trim();
+
+    if (!content) {
+      alert('請先填寫題目內容，MagicSchool 才能依照題目設計規準');
+      document.getElementById('content').focus();
+      return;
+    }
+
+    const prompt = buildRubricPrompt();
+
+    // 先開新分頁（要在按下按鈕的當下開，才不會被瀏覽器擋掉）
+    const win = window.open(MAGICSCHOOL_URL, '_blank');
+
+    if (win) {
+      win.opener = null;
+    }
+
+    copyText(prompt).then(
+      function() {
+        message.textContent =
+          '✓ 提示詞已複製。請到 MagicSchool 的 Raina 貼上（Ctrl + V）送出，' +
+          '再把產生的規準複製回下面這一格，檢查各面向分數加總等於配分後儲存題目。' +
+          (win ? '' : '（新分頁被瀏覽器擋住了，請允許彈出視窗，或自行開啟 ' + MAGICSCHOOL_URL + '）');
+      },
+      function() {
+        // 無法自動複製時，把提示詞放進規準欄讓老師自己複製
+        window.prompt('無法自動複製，請按 Ctrl + C 複製下面的提示詞：', prompt.replace(/\n/g, ' '));
+      }
+    );
+  }
+
+
   function createQuestion() {
 
     const data = {
