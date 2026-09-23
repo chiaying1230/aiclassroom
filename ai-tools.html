@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<base target="_blank">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>教師 AI 工具研習筆記</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #e9eeec;
+    --paper: #ffffff;
+    --ink: #1c2623;
+    --muted: #56635f;
+    --line: #cbd5d1;
+    --board: #23413a;
+    --chalk: #eef3ea;
+    --c-overview: #56635f;
+    --c-perplexity: #2c6e8f;
+    --c-diffit: #7a4fa0;
+    --c-napkin: #a8750c;
+    --c-magic: #b2445a;
+    --c-brisk: #3c7d3e;
+    --c-flow: #23413a;
+    --sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    --serif: "Noto Serif TC", "PMingLiU", serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 17px;
+    line-height: 1.8;
+  }
+  a { color: var(--accent, var(--c-perplexity)); text-underline-offset: 3px; }
+  a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid #e2b93b; outline-offset: 2px; }
+  button { font: inherit; cursor: pointer; }
+
+  /* 刊頭 */
+  .mast { background: var(--board); color: var(--chalk); }
+  .mast-inner { max-width: 960px; margin: 0 auto; padding: 20px 24px 36px; }
+  .site-home { display: inline-block; color: #c9d6cf; font-size: 15px; margin-bottom: 18px; text-decoration: none; }
+  .site-home:hover { color: #fff; text-decoration: underline; }
+  .mast h1 {
+    font-family: var(--serif); font-weight: 900; margin: 0;
+    font-size: clamp(30px, 6vw, 52px); line-height: 1.2; letter-spacing: .02em;
+  }
+  .mast p { margin: 12px 0 0; max-width: 40em; color: #c9d6cf; }
+  .mast .home-link {
+    background: none; border: 0; color: inherit; padding: 0; text-align: left;
+  }
+
+  main { max-width: 960px; margin: 0 auto; padding: 32px 24px 64px; }
+
+  /* 首頁：流程 */
+  .flow { margin: 0 0 40px; }
+  .flow h2, .list h2 { font-family: var(--serif); font-size: 22px; margin: 0 0 14px; }
+  .flow ol {
+    list-style: none; margin: 0; padding: 0;
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;
+    counter-reset: step;
+  }
+  .flow li button {
+    width: 100%; height: 100%; text-align: left;
+    background: var(--paper); border: 1px solid var(--line); border-top: 5px solid var(--accent);
+    border-radius: 4px; padding: 12px 12px 14px; color: var(--ink);
+  }
+  .flow li button:hover { background: #f7faf9; }
+  .flow .n { font-family: var(--serif); font-weight: 900; font-size: 26px; color: var(--accent); line-height: 1; }
+  .flow .t { display: block; font-weight: 700; margin-top: 6px; }
+  .flow .d { display: block; font-size: 14px; color: var(--muted); line-height: 1.5; }
+
+  /* 首頁：文章列表 */
+  .list ul { list-style: none; margin: 0; padding: 0; }
+  .list li + li { margin-top: 12px; }
+  .post-link {
+    display: grid; grid-template-columns: 8px 1fr; width: 100%; text-align: left;
+    background: var(--paper); border: 1px solid var(--line); border-radius: 4px;
+    padding: 0; color: var(--ink); overflow: hidden;
+  }
+  .post-link:hover .pl-title { text-decoration: underline; text-underline-offset: 4px; }
+  .post-link .bar { background: var(--accent); }
+  .post-link .body { padding: 16px 20px 18px; }
+  .pl-meta { font-size: 14px; color: var(--muted); }
+  .pl-meta b { color: var(--accent); font-weight: 700; }
+  .pl-title { font-family: var(--serif); font-size: 21px; font-weight: 600; margin: 2px 0 4px; line-height: 1.45; }
+  .pl-sum { margin: 0; color: var(--muted); font-size: 15.5px; line-height: 1.7; }
+
+  /* 文章 */
+  article { background: var(--paper); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+  .tab { background: var(--accent); color: #fff; padding: 6px 24px; font-size: 14px; font-weight: 500; }
+  .art-inner { max-width: 760px; margin: 0 auto; padding: 28px 24px 40px; }
+  .back { background: none; border: 0; color: var(--muted); padding: 0; margin-bottom: 18px; font-size: 15px; }
+  .back:hover { color: var(--ink); text-decoration: underline; }
+  article h1 { font-family: var(--serif); font-size: clamp(26px, 4.6vw, 36px); line-height: 1.35; margin: 0 0 10px; }
+  .facts { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 15px; color: var(--muted); margin: 0 0 24px; padding: 0; list-style: none; }
+  .facts b { color: var(--ink); font-weight: 500; }
+  article h2 {
+    font-family: var(--serif); font-size: 22px; margin: 36px 0 10px;
+    padding-left: 12px; border-left: 5px solid var(--accent); line-height: 1.4;
+  }
+  article h3 { font-size: 18px; margin: 24px 0 6px; }
+  article p, article li { max-width: 40em; }
+  article ul { padding-left: 1.3em; }
+  .lead { font-size: 18.5px; }
+  .tool-link {
+    display: inline-block; margin: 6px 0 4px; padding: 8px 16px; border-radius: 4px;
+    background: var(--accent); color: #fff; text-decoration: none; font-weight: 500;
+  }
+  .tool-link:hover { filter: brightness(1.1); }
+  .note { background: #f4f6f5; border-left: 4px solid var(--muted); padding: 12px 16px; margin: 18px 0; border-radius: 0 4px 4px 0; }
+  .note.warn { background: #fdf4ec; border-left-color: #c26a1b; }
+  .prompt { background: #f4f6f5; border: 1px dashed var(--line); padding: 14px 16px; border-radius: 4px; margin: 12px 0; }
+
+  .table-wrap { overflow-x: auto; margin: 12px 0 8px; border: 1px solid var(--line); border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 15.5px; line-height: 1.6; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  th { background: #f4f6f5; font-weight: 700; white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+  td:first-child { white-space: nowrap; color: var(--accent); font-weight: 700; }
+  table.plain td:first-child { color: var(--ink); font-weight: 500; }
+
+  .check label { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .check input { width: 20px; height: 20px; margin-top: 5px; accent-color: var(--accent); flex: none; }
+  .progress { font-weight: 700; color: var(--accent); margin-top: 10px; }
+
+  .pager { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 40px; }
+  .pager button {
+    background: #f4f6f5; border: 1px solid var(--line); border-radius: 4px; padding: 12px 14px;
+    text-align: left; color: var(--ink); line-height: 1.5;
+  }
+  .pager button:hover { background: #eaefed; }
+  .pager .next { text-align: right; grid-column: 2; }
+  .pager small { display: block; color: var(--muted); }
+  .share { margin-top: 28px; font-size: 14px; color: var(--muted); }
+  .share input { width: 100%; font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; margin-top: 4px; color: var(--ink); background: #fafbfb; }
+
+  footer { max-width: 960px; margin: 0 auto; padding: 0 24px 40px; font-size: 14px; color: var(--muted); }
+
+  @media (max-width: 760px) {
+    body { font-size: 16px; }
+    .flow ol { grid-template-columns: 1fr; }
+    .flow li button { display: grid; grid-template-columns: 40px 1fr; column-gap: 6px; border-top-width: 1px; border-left: 5px solid var(--accent); }
+    .flow .n { grid-row: span 2; align-self: center; }
+    .flow .t { margin-top: 0; }
+    .pager { grid-template-columns: 1fr; }
+    .pager .next { grid-column: 1; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    #view { animation: none; }
+    #view.enter { animation: fade .25s ease-out; }
+    @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  }
+</style>
+</head>
+<body>
+
+<header class="mast">
+  <div class="mast-inner">
+    <a class="site-home" href="index.html" target="_self">回到 AI 課堂首頁</a><br>
+    <button class="home-link" type="button" onclick="go('')" aria-label="回到首頁">
+      <h1>教師 AI 工具研習筆記</h1>
+    </button>
+    <p>五個能直接用在備課、差異化教學與評量回饋的 AI 工具。每篇都依工作分析拆成可以照著做的步驟，並附上完成標準，方便自學或在研習中一起操作。</p>
+  </div>
+</header>
+
+<main id="view" aria-live="polite"></main>
+
+<footer>
+  工具的介面、功能與免費方案經常調整，操作時若按鈕名稱不同，請以工具官網為準。使用 AI 處理學生資料前，請先去識別化。
+</footer>
+
+<script>
+/* ===== 網站設定 ===== */
+// 部署網址，用來產生每篇文章的分享連結。若網址改變，只要改這一行。
+var SITE_URL = 'https://chiaying1230.github.io/aiclassroom/ai-tools.html';
+
+/* ===== 文章內容 ===== */
+var POSTS = [
+{
+  id: 'overview', color: 'var(--c-overview)', tab: '研習導讀',
+  title: '研習導讀：五個工具串成一條備課流程',
+  scene: '全部', time: '10 分鐘',
+  summary: '先看整體地圖：每個工具負責哪一段工作、要花多少時間、最後會做出什麼。',
+  body: ''
+  + '<p class="lead">這次研習介紹五個 AI 工具。它們各自處理教學工作的一段，串起來剛好是一個單元從備課到回饋的完整流程。</p>'
+  + '<h2>整體流程</h2>'
+  + '<p>查資料（Perplexity）→ 分級改寫（Diffit）→ 做成圖解（Napkin AI）→ 設計評量規準（MagicSchool）→ 批改回饋（Brisk Teaching）</p>'
+  + '<h2>課程總覽</h2>'
+  + '<div class="table-wrap"><table class="plain"><thead><tr><th>單元</th><th>工具</th><th>工作情境</th><th>時數</th><th>產出成果</th></tr></thead><tbody>'
+  + '<tr><td>一</td><td>Perplexity</td><td>備課查資料</td><td>50 分鐘</td><td>一份附來源的單元背景資料</td></tr>'
+  + '<tr><td>二</td><td>Diffit</td><td>差異化教學</td><td>50 分鐘</td><td>三種程度的閱讀學習單</td></tr>'
+  + '<tr><td>三</td><td>Napkin AI</td><td>備課視覺化</td><td>40 分鐘</td><td>兩張教學用圖解</td></tr>'
+  + '<tr><td>四</td><td>MagicSchool</td><td>差異化教學與評量設計</td><td>60 分鐘</td><td>一份評分規準與一份教學調整草稿</td></tr>'
+  + '<tr><td>五</td><td>Brisk Teaching</td><td>評量回饋</td><td>50 分鐘</td><td>對一份學生作品的回饋</td></tr>'
+  + '<tr><td>六</td><td>整合應用</td><td>完整單元備課</td><td>60 分鐘</td><td>一套完整的單元教材</td></tr>'
+  + '</tbody></table></div>'
+  + '<h2>每篇文章怎麼讀</h2>'
+  + '<p>每篇都用同樣的架構：工具簡介、學習目標、操作步驟與完成標準、教學應用情境、注意事項。「完成標準」是檢查自己有沒有做到這一步的依據，研習時可以兩人一組互相確認。</p>'
+  + '<h2>開始前要準備</h2>'
+  + '<ul><li>使用 Chrome 瀏覽器，並登入 Google 帳號。多數工具可以用 Google 帳號直接登入。</li>'
+  + '<li>這幾個工具介面多為英文。可以在網頁上按右鍵選「翻譯成中文」輔助操作。</li>'
+  + '<li>請 AI 產出內容時，記得加上「以繁體中文、台灣用語輸出」。</li></ul>'
+  + '<div class="note warn"><b>最重要的原則：</b>不要把學生姓名、學號、成績或輔導紀錄輸入任何 AI 工具。需要用到學生作品時，先改成「學生 A」並刪除可以辨識身分的內容。</div>'
+},
+{
+  id: 'perplexity', color: 'var(--c-perplexity)', tab: '單元一｜備課',
+  title: 'Perplexity：會附上來源的 AI 搜尋',
+  scene: '備課查資料', time: '50 分鐘',
+  summary: '查單元背景資料、時事與數據，每個回答都附上來源編號，可以點進去核對原文。',
+  body: ''
+  + '<p class="lead">Perplexity 結合搜尋引擎與 AI，每個回答都會標上來源編號，點下去就能看到原始網頁。適合查證資料、了解時事，以及準備課程背景知識。</p>'
+  + '<a class="tool-link" href="https://www.perplexity.ai">前往 Perplexity</a>'
+  + '<h2>學習目標</h2><p>能用 Perplexity 查詢單元相關資料，並透過點閱來源判斷資料可信度。</p>'
+  + '<h2>操作步驟</h2>'
+  + '<div class="table-wrap"><table><thead><tr><th>步驟</th><th>動作</th><th>完成標準</th></tr></thead><tbody>'
+  + '<tr><td>1</td><td>進入網站，用 Google 帳號登入</td><td>看到搜尋框</td></tr>'
+  + '<tr><td>2</td><td>輸入問題，例如「台灣近十年的能源結構變化，請用繁體中文回答並附數據」</td><td>取得附編號來源的回答</td></tr>'
+  + '<tr><td>3</td><td>點開 2～3 個來源編號，核對原始網頁內容</td><td>能判斷來源類型：政府、學術、媒體或個人部落格</td></tr>'
+  + '<tr><td>4</td><td>追問延伸問題，例如「有哪些適合國中生理解的例子？」</td><td>取得適合教學的內容</td></tr>'
+  + '<tr><td>5</td><td>上傳一份 PDF 講義，請它摘要重點</td><td>取得文件摘要</td></tr>'
+  + '<tr><td>6</td><td>建立「空間（Spaces）」，把同一單元的搜尋整理在一起</td><td>完成一個單元資料夾</td></tr>'
+  + '</tbody></table></div>'
+  + '<h2>教學應用情境</h2>'
+  + '<ul><li><b>社會科：</b>查詢時事議題的正反觀點與數據來源，準備議題討論課。</li>'
+  + '<li><b>自然科：</b>查詢最新科學新聞，作為上課的引起動機。</li>'
+  + '<li><b>所有科目：</b>設計「資料來源評估」活動，讓學生比較不同來源的可信度。</li></ul>'
+  + '<h2>注意事項</h2>'
+  + '<div class="note warn">有來源不代表內容正確。AI 可能誤讀來源，引用數據前一定要點進原始網頁確認。免費版的進階搜尋次數有限制。</div>'
+},
+{
+  id: 'diffit', color: 'var(--c-diffit)', tab: '單元二｜差異化教學',
+  title: 'Diffit：一篇文章，改寫成三種程度',
+  scene: '差異化教學', time: '50 分鐘',
+  summary: '輸入主題、網址、影片或文字，自動產生分級文章、詞彙表與題目，可匯出到 Google 文件。',
+  body: ''
+  + '<p class="lead">Diffit 可以把一個主題、網址、YouTube 影片或一段文字，改寫成指定程度的文章，並自動產生摘要、關鍵詞彙、選擇題、簡答題與開放式問題，還能匯出到 Google 文件或簡報。</p>'
+  + '<a class="tool-link" href="https://web.diffit.me">前往 Diffit</a>'
+  + '<h2>學習目標</h2><p>能將同一份教材產出不同程度的版本，照顧班上的學習落差。</p>'
+  + '<h2>操作步驟</h2>'
+  + '<div class="table-wrap"><table><thead><tr><th>步驟</th><th>動作</th><th>完成標準</th></tr></thead><tbody>'
+  + '<tr><td>1</td><td>進入網站，用 Google 帳號登入</td><td>看到輸入畫面</td></tr>'
+  + '<tr><td>2</td><td>選擇輸入方式：主題、網址、影片或貼上文字</td><td>完成輸入</td></tr>'
+  + '<tr><td>3</td><td>選擇年級程度與輸出語言（選中文）</td><td>設定完成</td></tr>'
+  + '<tr><td>4</td><td>產生內容，檢視改寫文章、詞彙與題目</td><td>取得完整學習單內容</td></tr>'
+  + '<tr><td>5</td><td>不滿意的題目或段落，個別重新產生或手動修改</td><td>內容經教師修正</td></tr>'
+  + '<tr><td>6</td><td>改選另一個年級，產出第二、第三種程度</td><td>取得三種程度版本</td></tr>'
+  + '<tr><td>7</td><td>匯出到 Google 文件或簡報</td><td>可列印或分享的學習單</td></tr>'
+  + '</tbody></table></div>'
+  + '<div class="note"><b>年級對照：</b>Diffit 用美國學制標示年級，Grade 7 大約是國一，Grade 4 大約是國小四年級。中文輸出不如英文穩定，務必檢查是否為繁體字與台灣用語。</div>'
+  + '<h2>教學應用情境</h2>'
+  + '<ul><li><b>國文、社會：</b>同一篇課外文章，閱讀較弱的學生拿簡化版，程度好的學生拿進階版，全班討論同一個主題。</li>'
+  + '<li><b>英文科：</b>這是 Diffit 最強的地方，可以把英文新聞改寫成學生讀得懂的程度。</li>'
+  + '<li><b>特教與資源班：</b>產出簡化文本與詞彙表。</li>'
+  + '<li><b>新住民學生：</b>產出雙語或較簡單的版本。</li></ul>'
+  + '<h2>注意事項</h2>'
+  + '<div class="note warn">免費方案有功能限制，部分匯出功能需要付費，研習前請先確認目前的免費範圍。改寫後可能漏掉重要概念，需要和原文比對。</div>'
+},
+{
+  id: 'napkin', color: 'var(--c-napkin)', tab: '單元三｜備課',
+  title: 'Napkin AI：把一段文字變成圖解',
+  scene: '備課視覺化', time: '40 分鐘',
+  summary: '貼上教材文字，自動產生流程圖、比較圖、時間軸等圖解，調整後匯出到簡報或學習單。',
+  body: ''
+  + '<p class="lead">貼上一段文字，Napkin 會分析內容，提供流程圖、比較圖、心智圖、時間軸等多種圖解選項。選好後可以調整顏色與圖示，再匯出成圖檔。</p>'
+  + '<a class="tool-link" href="https://www.napkin.ai">前往 Napkin AI</a>'
+  + '<h2>學習目標</h2><p>能將教材中的文字說明轉換成圖解，放進簡報或學習單。</p>'
+  + '<h2>操作步驟</h2>'
+  + '<div class="table-wrap"><table><thead><tr><th>步驟</th><th>動作</th><th>完成標準</th></tr></thead><tbody>'
+  + '<tr><td>1</td><td>進入網站，用 Google 帳號登入</td><td>看到文件編輯畫面</td></tr>'
+  + '<tr><td>2</td><td>建立新文件，貼上一段教材文字，例如「光合作用的過程」</td><td>文字出現在編輯區</td></tr>'
+  + '<tr><td>3</td><td>點段落旁的產生圖解按鈕（閃電圖示）</td><td>出現多種圖解選項</td></tr>'
+  + '<tr><td>4</td><td>選擇最適合的樣式：流程、比較、階層等</td><td>圖解插入文件中</td></tr>'
+  + '<tr><td>5</td><td>修改圖中文字、顏色與圖示</td><td>內容正確、配色清楚</td></tr>'
+  + '<tr><td>6</td><td>匯出為 PNG、SVG 或 PDF</td><td>取得圖檔</td></tr>'
+  + '<tr><td>7</td><td>把圖檔放進簡報或學習單</td><td>完成教材</td></tr>'
+  + '</tbody></table></div>'
+  + '<h2>讓圖解更準確的寫法</h2>'
+  + '<p>文字要有清楚的結構，例如「第一步、第二步」「A 與 B 的差異在於」「原因有三點」。結構越清楚，AI 越容易判斷該用哪一種圖。可以先把 Perplexity 或 Diffit 的成果整理成段落，再貼進 Napkin。</p>'
+  + '<h2>教學應用情境</h2>'
+  + '<ul><li><b>自然科：</b>實驗步驟流程圖、生態系食物鏈。</li>'
+  + '<li><b>社會科：</b>歷史事件時間軸、因果關係圖。</li>'
+  + '<li><b>國文科：</b>文章結構圖、人物關係圖。</li>'
+  + '<li><b>行政工作：</b>把活動流程或校務計畫做成一張圖放進簡報。</li></ul>'
+  + '<h2>注意事項</h2>'
+  + '<div class="note warn">中文圖解偶爾會出現文字過長或斷行不佳，需要手動調整。免費版每月有使用額度限制。</div>'
+},
+{
+  id: 'magicschool', color: 'var(--c-magic)', tab: '單元四｜差異化教學與評量',
+  title: 'MagicSchool：不用寫提示詞的教師工具箱',
+  scene: '差異化教學、評量設計', time: '60 分鐘',
+  summary: '數十種現成工具，填表單就能產出評分規準、教案、題目、IEP 目標草稿與親師信件。',
+  body: ''
+  + '<p class="lead">MagicSchool 是專為教師設計的平台，提供數十種現成工具。老師只要填寫表單，就能產出評分規準、教案、選擇題、IEP 目標草稿、親師信件與學生評語，不必自己寫提示詞。</p>'
+  + '<a class="tool-link" href="https://www.magicschool.ai">前往 MagicSchool</a>'
+  + '<h2>學習目標</h2><p>能找到適合的工具，完成評分規準設計與特殊需求學生的教學調整草稿。</p>'
+  + '<h2>操作步驟</h2>'
+  + '<div class="table-wrap"><table><thead><tr><th>步驟</th><th>動作</th><th>完成標準</th></tr></thead><tbody>'
+  + '<tr><td>1</td><td>以教師身分註冊，可以用 Google 帳號</td><td>進入工具總覽頁</td></tr>'
+  + '<tr><td>2</td><td>在設定中把輸出語言改為中文</td><td>輸出為中文</td></tr>'
+  + '<tr><td>3</td><td>在搜尋框找「Rubric Generator」（評分規準產生器）</td><td>開啟工具</td></tr>'
+  + '<tr><td>4</td><td>填入年級、作業說明、評分面向與等級數</td><td>產出評分規準表</td></tr>'
+  + '<tr><td>5</td><td>檢查規準是否具體、可以觀察，並手動修正</td><td>規準可實際使用</td></tr>'
+  + '<tr><td>6</td><td>試用「Text Leveler」或「IEP Generator」等差異化工具</td><td>取得教學調整草稿</td></tr>'
+  + '<tr><td>7</td><td>試用內建 AI 助理 Raina 詢問教學問題</td><td>取得建議</td></tr>'
+  + '<tr><td>8</td><td>匯出或複製到 Google 文件</td><td>保存成果</td></tr>'
+  + '</tbody></table></div>'
+  + '<h2>推薦給老師的工具</h2>'
+  + '<p>評分規準產生器、選擇題產生器、教案產生器、文本分級改寫、學生評語產生器、親師溝通信件、IEP 目標草擬、行為輔導策略建議。</p>'
+  + '<h2>教學應用情境</h2>'
+  + '<ul><li><b>專題報告、作文、實作評量：</b>快速產出評分規準，事先發給學生。</li>'
+  + '<li><b>特教與資源班：</b>擬定 IEP 目標初稿，再由特教團隊討論修正。</li>'
+  + '<li><b>導師工作：</b>期末學生評語草稿、給家長的通知信。</li>'
+  + '<li><b>教學研究會：</b>共同備課時快速產生教案初稿，當作討論的起點。</li></ul>'
+  + '<h2>注意事項</h2>'
+  + '<div class="note warn">填寫 IEP 或學生相關資料時，<b>絕對不要輸入真實姓名與可辨識的資訊</b>，改用「學生 A」，只描述學習需求。MagicSchool 依美國教育體制設計，IEP 格式和台灣的特教法規與格式不同，只能當作參考初稿。</div>'
+},
+{
+  id: 'brisk', color: 'var(--c-brisk)', tab: '單元五｜評量回饋',
+  title: 'Brisk Teaching：在 Google 文件上直接給回饋',
+  scene: '評量回饋', time: '50 分鐘',
+  summary: 'Chrome 擴充功能，在學生的 Google 文件上產生回饋草稿，也能從網頁或影片快速出題。',
+  body: ''
+  + '<p class="lead">Brisk 是 Chrome 擴充功能。安裝後，在 Google 文件、簡報、網頁、YouTube 和 PDF 的右下角會出現 Brisk 按鈕，可以直接在學生作品上產生回饋、依規準評分、調整文章難度，或從任何網頁產生測驗與教案。</p>'
+  + '<a class="tool-link" href="https://www.briskteaching.com">前往 Brisk Teaching</a>'
+  + '<p>由官網點選安裝，會帶你到 Chrome 線上應用程式商店。</p>'
+  + '<h2>學習目標</h2><p>能在學生的 Google 文件上產生回饋草稿，經過教師修改後提供給學生。</p>'
+  + '<h2>操作步驟</h2>'
+  + '<div class="table-wrap"><table><thead><tr><th>步驟</th><th>動作</th><th>完成標準</th></tr></thead><tbody>'
+  + '<tr><td>1</td><td>從官網點選安裝，加入 Chrome 擴充功能</td><td>瀏覽器右上角出現 Brisk 圖示</td></tr>'
+  + '<tr><td>2</td><td>用 Google 帳號登入 Brisk</td><td>登入成功</td></tr>'
+  + '<tr><td>3</td><td>開啟一份去識別化的學生作品 Google 文件</td><td>右下角出現 Brisk 按鈕</td></tr>'
+  + '<tr><td>4</td><td>點「Give Feedback」，選擇回饋方式，例如優點與建議、依規準評分</td><td>設定完成</td></tr>'
+  + '<tr><td>5</td><td>貼上單元四產出的評分規準，指定年級與中文輸出</td><td>產生回饋</td></tr>'
+  + '<tr><td>6</td><td>修改回饋的語氣與內容</td><td>回饋符合教師判斷</td></tr>'
+  + '<tr><td>7</td><td>將回饋插入文件留言或註解</td><td>學生看得到回饋</td></tr>'
+  + '<tr><td>8</td><td>延伸試用：在新聞網頁上用 Brisk 產生測驗，或調整文章難度</td><td>完成一項延伸功能</td></tr>'
+  + '</tbody></table></div>'
+  + '<h2>教學應用情境</h2>'
+  + '<ul><li><b>作文、報告批改：</b>先用 Brisk 產生回饋初稿，老師修改後再給學生，節省大量時間。</li>'
+  + '<li><b>閱讀課：</b>看到好的網路文章，直接用 Brisk 產生閱讀測驗。</li>'
+  + '<li><b>影片教學：</b>在 YouTube 影片上產生觀看學習單。</li>'
+  + '<li><b>寫作過程：</b>利用檢視寫作過程的功能，了解學生怎麼寫出這份作品。</li></ul>'
+  + '<h2>注意事項</h2>'
+  + '<div class="note warn">學校若由資訊組統一管理 Chrome，可能無法自行安裝擴充功能，請先向資訊組確認。分數與回饋<b>一定要由老師最後判斷</b>，不要把 AI 回饋原封不動交給學生。</div>'
+},
+{
+  id: 'workflow', color: 'var(--c-flow)', tab: '單元六｜整合應用',
+  title: '整合應用：用五個工具完成一個單元',
+  scene: '完整單元備課', time: '60 分鐘',
+  summary: '以國中自然「水資源與氣候變遷」為例，從查資料一路做到學生回饋。',
+  body: ''
+  + '<p class="lead">學完五個工具後，實際串起來做一次。以下用國中自然「水資源與氣候變遷」示範，你也可以換成自己任教的單元。</p>'
+  + '<h2>學習目標</h2><p>能串接五個工具，獨立完成一個單元的教材準備。</p>'
+  + '<h2>操作步驟</h2>'
+  + '<div class="table-wrap"><table><thead><tr><th>步驟</th><th>工具</th><th>動作</th><th>完成標準</th></tr></thead><tbody>'
+  + '<tr><td>1</td><td>Perplexity</td><td>查詢台灣水資源現況與最新數據</td><td>取得附來源的背景資料</td></tr>'
+  + '<tr><td>2</td><td>人工</td><td>核對來源，整理成一篇約 500 字的教材</td><td>內容正確</td></tr>'
+  + '<tr><td>3</td><td>Diffit</td><td>把教材改寫成三種程度並產生題目</td><td>三份分級學習單</td></tr>'
+  + '<tr><td>4</td><td>Napkin AI</td><td>把「水循環」「缺水成因」段落轉成圖解</td><td>兩張圖解放入學習單</td></tr>'
+  + '<tr><td>5</td><td>MagicSchool</td><td>為單元總結報告設計評分規準</td><td>一份四等級規準表</td></tr>'
+  + '<tr><td>6</td><td>Brisk Teaching</td><td>依規準對學生報告產生回饋草稿</td><td>教師修正後的回饋</td></tr>'
+  + '</tbody></table></div>'
+  + '<h2>研習進行建議</h2>'
+  + '<p>讓同事分組，每組選一個自己任教科目的單元實際做一次，最後互相分享成果。親手做過的效果，會比只看示範好很多。</p>'
+  + '<div class="note">每一步的產出都是下一步的材料。如果某一步結果不理想，回到前一步修改，比在後面補救更省時間。</div>'
+},
+{
+  id: 'checklist', color: 'var(--c-overview)', tab: '研習檢核',
+  title: '研習成果檢核表與課前準備',
+  scene: '研習前後', time: '10 分鐘',
+  summary: '可以直接勾選的成果檢核表，以及辦研習前需要先確認的事項。',
+  body: ''
+  + '<p class="lead">研習結束前，用這張表確認自己完成了哪些項目。勾選結果只存在這個頁面，重新整理後會清除。</p>'
+  + '<h2>研習成果檢核表</h2>'
+  + '<div class="check" id="checklist">'
+  + '<label><input type="checkbox">能用 Perplexity 查資料，並點閱來源判斷可信度</label>'
+  + '<label><input type="checkbox">能用 Diffit 產出至少兩種程度的學習單</label>'
+  + '<label><input type="checkbox">能用 Napkin AI 把一段文字轉成圖解並匯出</label>'
+  + '<label><input type="checkbox">能用 MagicSchool 產出一份評分規準</label>'
+  + '<label><input type="checkbox">能安裝 Brisk，並在 Google 文件上產生回饋</label>'
+  + '<label><input type="checkbox">能說明輸入學生資料時如何去識別化</label>'
+  + '<label><input type="checkbox">能串接至少三個工具完成一份教材</label>'
+  + '</div><p class="progress" id="progress">已完成 0／7 項</p>'
+  + '<h2>辦研習前要確認</h2>'
+  + '<ul><li>學校網路沒有封鎖這些網站。</li>'
+  + '<li>向資訊組確認能否安裝 Chrome 擴充功能（單元五需要）。</li>'
+  + '<li>準備一份去識別化的學生作品範例，給單元五使用。</li>'
+  + '<li>準備一篇約 500 字的範例文章，給單元二與單元三使用。</li>'
+  + '<li>自己先完整操作一次並截圖，因為工具的介面與免費方案經常調整。</li></ul>'
+  + '<h2>工具連結一覽</h2>'
+  + '<ul><li><a href="https://www.perplexity.ai">Perplexity</a>：附來源的 AI 搜尋</li>'
+  + '<li><a href="https://web.diffit.me">Diffit</a>：文章分級改寫與學習單</li>'
+  + '<li><a href="https://www.napkin.ai">Napkin AI</a>：文字轉圖解</li>'
+  + '<li><a href="https://www.magicschool.ai">MagicSchool</a>：教師專用 AI 工具箱</li>'
+  + '<li><a href="https://www.briskteaching.com">Brisk Teaching</a>：Google 文件上的回饋工具</li></ul>'
+}
+];
+
+var FLOW = ['perplexity', 'diffit', 'napkin', 'magicschool', 'brisk'];
+var FLOW_TEXT = {
+  perplexity: ['查資料', 'Perplexity'],
+  diffit: ['分級改寫', 'Diffit'],
+  napkin: ['做成圖解', 'Napkin AI'],
+  magicschool: ['設計規準', 'MagicSchool'],
+  brisk: ['批改回饋', 'Brisk Teaching']
+};
+
+/* ===== 畫面 ===== */
+var view = document.getElementById('view');
+
+function findPost(id) {
+  for (var i = 0; i < POSTS.length; i++) if (POSTS[i].id === id) return i;
+  return -1;
+}
+
+function renderHome() {
+  var flow = '<section class="flow"><h2>一個單元的備課流程</h2><ol>';
+  FLOW.forEach(function (id, i) {
+    var p = POSTS[findPost(id)];
+    flow += '<li><button type="button" style="--accent:' + p.color + '" onclick="go(\'' + id + '\')">'
+      + '<span class="n">' + (i + 1) + '</span>'
+      + '<span class="t">' + FLOW_TEXT[id][0] + '</span>'
+      + '<span class="d">' + FLOW_TEXT[id][1] + '</span></button></li>';
+  });
+  flow += '</ol></section>';
+
+  var list = '<section class="list"><h2>全部文章</h2><ul>';
+  POSTS.forEach(function (p) {
+    list += '<li><button type="button" class="post-link" style="--accent:' + p.color + '" onclick="go(\'' + p.id + '\')">'
+      + '<span class="bar"></span><span class="body">'
+      + '<span class="pl-meta"><b>' + p.tab + '</b>　約 ' + p.time + '</span>'
+      + '<span class="pl-title" style="display:block">' + p.title + '</span>'
+      + '<span class="pl-sum" style="display:block">' + p.summary + '</span>'
+      + '</span></button></li>';
+  });
+  list += '</ul></section>';
+
+  view.innerHTML = flow + list;
+  document.title = '教師 AI 工具研習筆記';
+}
+
+function renderPost(i) {
+  var p = POSTS[i];
+  var prev = POSTS[i - 1], next = POSTS[i + 1];
+  var pager = '<nav class="pager" aria-label="上一篇與下一篇">';
+  if (prev) pager += '<button type="button" onclick="go(\'' + prev.id + '\')"><small>上一篇</small>' + prev.title + '</button>';
+  if (next) pager += '<button type="button" class="next" onclick="go(\'' + next.id + '\')"><small>下一篇</small>' + next.title + '</button>';
+  pager += '</nav>';
+
+  view.innerHTML = '<article style="--accent:' + p.color + '">'
+    + '<div class="tab">' + p.tab + '</div>'
+    + '<div class="art-inner">'
+    + '<button type="button" class="back" onclick="go(\'\')">回到文章列表</button>'
+    + '<h1>' + p.title + '</h1>'
+    + '<ul class="facts"><li>工作情境：<b>' + p.scene + '</b></li><li>建議時間：<b>' + p.time + '</b></li></ul>'
+    + p.body
+    + pager
+    + '<div class="share"><label>本篇分享網址（點一下即可全選複製）'
+    + '<input type="text" readonly value="' + SITE_URL + '?post=' + p.id + '" onclick="this.select()"></label></div>'
+    + '</div></article>';
+  document.title = p.title + '｜教師 AI 工具研習筆記';
+
+  if (p.id === 'checklist') bindChecklist();
+}
+
+function bindChecklist() {
+  var boxes = document.querySelectorAll('#checklist input');
+  var out = document.getElementById('progress');
+  function update() {
+    var n = 0;
+    boxes.forEach(function (b) { if (b.checked) n++; });
+    out.textContent = '已完成 ' + n + '／' + boxes.length + ' 項' + (n === boxes.length ? '，全部完成！' : '');
+  }
+  boxes.forEach(function (b) { b.addEventListener('change', update); });
+}
+
+function render(id) {
+  var i = findPost(id || '');
+  if (i >= 0) renderPost(i); else renderHome();
+  view.classList.remove('enter'); void view.offsetWidth; view.classList.add('enter');
+  window.scrollTo(0, 0);
+}
+
+/* ===== 網址與上一頁 =====
+   點文章時網址會變成 ai-tools.html?post=文章代號，
+   可以直接分享，瀏覽器的上一頁也能用。 */
+function go(id) {
+  render(id);
+  try {
+    history.pushState({ post: id || '' }, '', id ? '?post=' + id : location.pathname);
+  } catch (e) {}
+}
+
+window.addEventListener('popstate', function (e) {
+  render(e.state ? e.state.post : new URLSearchParams(location.search).get('post'));
+});
+
+render(new URLSearchParams(location.search).get('post'));
+</script>
+</body>
+</html>

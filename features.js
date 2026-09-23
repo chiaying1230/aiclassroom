@@ -17,6 +17,7 @@ window.PLATFORM_FEATURES = [
   { title: '教師系統', href: 'teacher.html', icon: '👩‍🏫', color: 'navy', status: 'live' },
   { title: '討論平台', href: 'discuss.html', icon: '🗣', color: 'purple', status: 'live' },
   { title: '教材庫與 AI 助理', href: 'rag.html', icon: '📚', color: 'green', status: 'live' },
+  { title: '教師 AI 工具研習', href: 'ai-tools.html', icon: '🧰', color: 'navy', status: 'live' },
   { title: '師大 Moodle', href: 'https://moodle3.ntnu.edu.tw/', icon: '🎓', color: 'orange', newTab: true, status: 'live' }
 ];
 
