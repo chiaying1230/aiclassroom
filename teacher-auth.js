@@ -82,52 +82,62 @@
         position: fixed;
         inset: 0;
         z-index: 1000;
-        background: #f4f6fb;
+        background: #16233a;
         display: flex;
         align-items: center;
         justify-content: center;
         padding: 20px;
-        font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
+        font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
       }
 
       .auth-card {
         width: 100%;
         max-width: 380px;
-        background: white;
-        border-radius: 16px;
+        background: #ffffff;
+        border-radius: 14px;
         overflow: hidden;
-        box-shadow: 0 6px 20px rgba(0, 0, 0, .08);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, .35);
       }
 
       .auth-card header {
-        background: #27366d;
-        color: white;
-        padding: 22px 24px;
+        background: #ffffff;
+        color: #1a2433;
+        padding: 28px 28px 0;
       }
 
       .auth-card header h1 {
         margin: 0;
-        font-size: 22px;
+        font-family: "Noto Serif TC", "PMingLiU", serif;
+        font-weight: 900;
+        font-size: 26px;
+        letter-spacing: .02em;
       }
 
-      .auth-body { padding: 22px 24px 24px; }
+      .auth-body { padding: 18px 28px 26px; }
 
       .auth-body label {
         display: block;
-        font-weight: bold;
+        font-weight: 700;
+        font-size: 15px;
         margin-bottom: 6px;
-        color: #263149;
+        color: #1a2433;
       }
 
       .auth-body input {
         width: 100%;
         box-sizing: border-box;
-        padding: 12px;
-        border: 2px solid #dfe4ee;
+        padding: 12px 14px;
+        border: 1px solid #c3ccd9;
         border-radius: 8px;
         font-size: 18px;
         font-family: inherit;
         letter-spacing: .2em;
+      }
+
+      .auth-body input:focus {
+        outline: none;
+        border-color: #2f5bd3;
+        box-shadow: 0 0 0 3px #e8eefc;
       }
 
       .auth-body button {
@@ -136,27 +146,28 @@
         padding: 12px;
         border: 0;
         border-radius: 8px;
-        background: #5268e8;
+        background: #2f5bd3;
         color: white;
         font-size: 16px;
+        font-weight: 500;
         font-family: inherit;
         cursor: pointer;
       }
 
+      .auth-body button:hover { background: #2549ad; }
       .auth-body button:disabled { opacity: .55; cursor: not-allowed; }
 
-      .auth-body input:focus-visible,
       .auth-body button:focus-visible,
       .auth-body a:focus-visible {
-        outline: 3px solid #f0b429;
+        outline: 3px solid #f2c230;
         outline-offset: 2px;
       }
 
       .auth-message {
         min-height: 1.5em;
         margin-top: 10px;
-        color: #d94b4b;
-        font-weight: bold;
+        color: #c0392b;
+        font-weight: 700;
         font-size: 14px;
       }
 
@@ -164,7 +175,7 @@
         display: block;
         margin-top: 6px;
         text-align: center;
-        color: #70798c;
+        color: #4f5b6d;
         font-size: 14px;
       }
     `;

@@ -9,181 +9,275 @@
   <script src="config.js"></script>
   <script src="gas-bridge.js"></script>
 
+  <link rel="stylesheet" href="theme.css">
+  <script src="features.js"></script>
+  <script src="shell.js" defer></script>
+
   <style>
-    :root {
-      --primary: #5268e8;
-      --primary-dark: #4053c8;
-      --bg: #f4f7fc;
-      --text: #253046;
-      --muted: #75809a;
-      --green: #168c56;
-      --red: #df5050;
-      --border: #e1e6ef;
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
-      background: var(--bg);
-      color: var(--text);
-    }
-
-    header {
-      padding: 42px 20px;
-      color: white;
-      text-align: center;
-      background: linear-gradient(135deg, #5268e8, #7756dc);
-    }
-
-    header { position: relative; }
-    header h1 { margin: 0 0 8px; }
-
-    .home-link {
-      position: absolute;
-      left: 18px;
-      top: 14px;
-      color: white;
-      text-decoration: none;
-      font-size: 14px;
-      padding: 4px 12px;
-      border: 1px solid rgba(255, 255, 255, .55);
-      border-radius: 999px;
-    }
-
-    .home-link:hover { background: rgba(255, 255, 255, .15); }
-
-    .container { max-width: 950px; margin: auto; padding: 25px 18px 60px; }
+    :root { --page-width: 960px; }
 
     .card {
-      background: white;
-      border-radius: 17px;
-      padding: 24px;
-      margin-bottom: 20px;
-      box-shadow: 0 7px 24px rgba(27, 39, 70, .07);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 22px 24px;
+      margin-bottom: 16px;
     }
 
-    .student-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-
-    label { display: block; margin: 14px 0 6px; font-weight: bold; }
+    label { display: block; margin: 0 0 6px; font-weight: 700; font-size: 14px; color: var(--ink-2); }
 
     input, textarea {
       width: 100%;
-      padding: 12px;
-      border: 2px solid var(--border);
-      border-radius: 9px;
+      padding: 10px 13px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-s);
+      background: var(--surface);
+      font: inherit;
       font-size: 16px;
-      font-family: inherit;
+      color: var(--ink);
     }
 
-    textarea { min-height: 150px; resize: vertical; line-height: 1.7; }
+    input { height: 44px; }
+
+    input:focus, textarea:focus {
+      outline: none;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px var(--blue-soft);
+    }
+
+    textarea { min-height: 170px; resize: vertical; line-height: 1.8; }
 
     button {
-      border: 0;
-      padding: 12px 18px;
-      background: var(--primary);
-      color: white;
-      border-radius: 9px;
+      border: 1px solid transparent;
+      padding: 0 20px;
+      height: 44px;
+      background: var(--blue);
+      color: #fff;
+      border-radius: var(--radius-s);
       cursor: pointer;
-      font-size: 16px;
-      margin-top: 10px;
-      font-family: inherit;
+      font: inherit;
+      font-size: 15px;
+      font-weight: 500;
+      white-space: nowrap;
+      transition: background .15s;
     }
 
-    button:hover { background: var(--primary-dark); }
+    button:hover { background: var(--blue-dark); }
     button:disabled { opacity: .55; cursor: not-allowed; }
 
-    .secondary { background: #eef1ff; color: #4557c8; margin-left: 8px; }
-    .secondary:hover { background: #e2e7ff; }
+    .secondary { background: var(--surface); color: var(--ink); border-color: var(--line-strong); }
+    .secondary:hover { background: var(--surface-2); }
 
-    .question-title { color: #4354c0; font-size: 22px; font-weight: bold; margin-bottom: 8px; }
-
-    .question-content {
-      background: #f7f8fc;
-      padding: 17px;
-      border-radius: 11px;
-      white-space: pre-wrap;
-      line-height: 1.8;
-      margin: 15px 0;
+    /* ---------- 我的資料（橫條） ---------- */
+    .identity {
+      display: grid;
+      grid-template-columns: auto 1fr 1fr auto;
+      gap: 16px;
+      align-items: end;
+      padding: 20px 22px;
+      margin-bottom: 28px;
     }
 
-    .meta { color: var(--muted); font-size: 14px; }
+    .identity-head { align-self: center; padding-right: 8px; }
+    .identity-head strong { display: block; font-size: 17px; }
+    .identity-head span { display: block; font-size: 13px; color: var(--ink-2); line-height: 1.5; }
 
-    .message { margin-top: 12px; font-weight: bold; }
+    .identity-actions { display: flex; gap: 8px; }
+
+    .icon-button { width: 44px; padding: 0; font-size: 17px; }
+
+    /* ---------- 分頁 ---------- */
+    [hidden] { display: none !important; }
+
+    /* ---------- 題目卡 ---------- */
+    .q-card { padding: 0; overflow: hidden; }
+
+    .q-head {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 22px 24px 0;
+    }
+
+    .q-num {
+      flex: 0 0 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--blue-soft);
+      color: var(--blue-dark);
+      font-weight: 700;
+    }
+
+    .q-titles { flex: 1; min-width: 0; }
+
+    .question-title {
+      font-family: var(--serif);
+      font-size: 22px;
+      font-weight: 700;
+      line-height: 1.4;
+    }
+
+    .points {
+      flex: none;
+      padding: 3px 12px;
+      border-radius: 999px;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      font-size: 13px;
+      color: var(--ink-2);
+      white-space: nowrap;
+    }
+
+    .question-content {
+      margin: 14px 24px 0 74px;
+      white-space: pre-wrap;
+      line-height: 1.9;
+      font-size: 17px;
+    }
+
+    .q-answer {
+      margin-top: 20px;
+      padding: 18px 24px 20px;
+      background: var(--surface-2);
+      border-top: 1px solid var(--line);
+    }
+
+    .q-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .q-foot .message { margin: 0; }
+
+    .meta { color: var(--ink-2); font-size: 14px; }
+    .message { margin-top: 12px; font-weight: 700; }
     .success { color: var(--green); }
     .error { color: var(--red); }
+    .empty { text-align: center; color: var(--ink-2); padding: 36px 16px; }
 
-    .empty { text-align: center; color: var(--muted); padding: 30px; }
+    /* ---------- 作答紀錄 ---------- */
+    .result-item {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
 
-    .result-item { border: 1px solid var(--border); border-radius: 12px; padding: 17px; margin: 12px 0; }
+    .r-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .r-head h3 { margin: 0; font-size: 18px; }
 
     .status {
       display: inline-block;
-      background: #edf0ff;
-      color: #485bd1;
-      padding: 4px 10px;
+      background: var(--blue-soft);
+      color: var(--blue-dark);
+      padding: 2px 12px;
       border-radius: 999px;
       font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
     }
 
-    .feedback {
-      background: #f6f8fb;
-      padding: 13px;
-      border-radius: 9px;
-      white-space: pre-wrap;
-      margin-top: 10px;
+    .status[data-status="已通過"] { background: var(--green-soft); color: var(--green); }
+    .status[data-status="退回修改"] { background: var(--orange-soft); color: var(--orange); }
+
+    .r-body { display: grid; grid-template-columns: 1fr 1fr; }
+    .r-body > div { padding: 16px 22px 20px; min-width: 0; }
+    .r-body > div + div { border-left: 1px solid var(--line); background: var(--surface-2); }
+
+    .r-label { font-size: 13px; font-weight: 700; color: var(--ink-2); margin-bottom: 6px; }
+
+    .feedback { white-space: pre-wrap; line-height: 1.8; }
+
+    .score { font-family: var(--serif); font-size: 30px; font-weight: 700; line-height: 1.2; margin-bottom: 10px; }
+    .score small { font-family: var(--sans); font-size: 15px; color: var(--ink-2); font-weight: 400; }
+
+    .waiting { color: var(--ink-2); margin: 0; }
+
+    @media (max-width: 1023px) {
+      .identity { grid-template-columns: 1fr 1fr; }
+      .identity-head { grid-column: 1 / -1; }
+      .identity-actions { grid-column: 1 / -1; }
+      .identity-actions button:not(.icon-button) { flex: 1; }
     }
 
-    @media (max-width: 700px) {
-      .student-grid { grid-template-columns: 1fr; }
-      .secondary { margin-left: 0; }
-      button { width: 100%; }
+    @media (max-width: 640px) {
+      .identity { grid-template-columns: 1fr; }
+      .question-content { margin-left: 24px; }
+      .r-body { grid-template-columns: 1fr; }
+      .r-body > div + div { border-left: 0; border-top: 1px solid var(--line); }
+      .q-foot { flex-direction: column-reverse; align-items: stretch; }
     }
   </style>
 </head>
 
 <body>
 
-<header>
-  <a class="home-link" href="index.html">回到首頁</a>
-  <h1>課堂問答</h1>
-  <p>閱讀老師的問題，用自己的想法回答</p>
-</header>
+<main class="page">
 
-<main class="container">
+  <header class="page-header">
+    <div>
+      <h1>課堂問答</h1>
+      <p>閱讀老師的問題，用自己的想法回答</p>
+    </div>
+  </header>
 
-  <section class="card">
-    <h2>👤 我的資料</h2>
-
-    <div class="student-grid">
-      <div>
-        <label for="studentId">學號</label>
-        <input id="studentId" autocomplete="username" placeholder="請輸入學號">
-      </div>
-
-      <div>
-        <label for="name">姓名</label>
-        <input id="name" autocomplete="name" placeholder="請輸入姓名">
-      </div>
+  <section class="card identity" aria-label="我的資料">
+    <div class="identity-head">
+      <strong>我的資料</strong>
+      <span>填一次就會記住</span>
     </div>
 
-    <button type="button" onclick="saveIdentity()">儲存我的資料</button>
-    <button type="button" class="secondary" onclick="loadMyResults()">查看審核結果</button>
-    <button type="button" class="secondary" onclick="refreshStudentPage()">🔄 重新整理</button>
+    <div class="student-grid-item">
+      <label for="studentId">學號</label>
+      <input id="studentId" autocomplete="username" placeholder="請輸入學號">
+    </div>
+
+    <div class="student-grid-item">
+      <label for="name">姓名</label>
+      <input id="name" autocomplete="name" placeholder="請輸入姓名">
+    </div>
+
+    <div class="identity-actions">
+      <button type="button" onclick="saveIdentity()">儲存</button>
+      <button type="button" class="secondary" id="viewResultsButton" onclick="loadMyResults()">查看審核結果</button>
+      <button type="button" class="secondary icon-button" onclick="refreshStudentPage()" title="重新整理" aria-label="重新整理">🔄</button>
+    </div>
   </section>
 
-  <section>
-    <h2>📝 老師的問題</h2>
+  <div class="line-tabs" role="tablist">
+    <button type="button" role="tab" id="tabQuestions" aria-controls="panelQuestions" aria-selected="true">
+      老師的問題<span class="tab-count" id="questionCount" hidden></span>
+    </button>
+    <button type="button" role="tab" id="tabResults" aria-controls="panelResults" aria-selected="false">
+      我的作答紀錄
+    </button>
+  </div>
+
+  <section id="panelQuestions" role="tabpanel" aria-labelledby="tabQuestions">
     <div id="questionList">
       <div class="card empty">題目載入中……</div>
     </div>
   </section>
 
-  <section class="card">
-    <h2>✅ 我的作答紀錄</h2>
+  <section id="panelResults" role="tabpanel" aria-labelledby="tabResults" hidden>
     <div id="myResults">
-      <div class="empty">請輸入學號與姓名，再按「查看審核結果」</div>
+      <div class="card empty">請輸入學號與姓名，再按「查看審核結果」</div>
     </div>
   </section>
 
@@ -276,22 +370,28 @@
 
     list.innerHTML = '';
 
-    questions.forEach(function(q) {
+    questions.forEach(function(q, index) {
 
       const card = document.createElement('div');
-      card.className = 'card';
+      card.className = 'card q-card';
 
       card.innerHTML = `
-        <div class="question-title">${escapeHtml(q.title)}</div>
-        <div class="meta">配分：${escapeHtml(q.points)} 分</div>
+        <div class="q-head">
+          <span class="q-num">${index + 1}</span>
+          <div class="q-titles"><div class="question-title">${escapeHtml(q.title)}</div></div>
+          <span class="points">${escapeHtml(q.points)} 分</span>
+        </div>
         <div class="question-content">${escapeHtml(q.content)}</div>
 
-        <label for="answer_${q.id}">我的回答</label>
-        <textarea id="answer_${q.id}" placeholder="請在這裡輸入你的回答……"></textarea>
+        <div class="q-answer">
+          <label for="answer_${q.id}">我的回答</label>
+          <textarea id="answer_${q.id}" placeholder="請在這裡輸入你的回答……"></textarea>
 
-        <button type="button" id="submit_${q.id}" onclick="submitAnswer('${q.id}')">送出回答</button>
-
-        <div id="message_${q.id}" class="message"></div>
+          <div class="q-foot">
+            <div id="message_${q.id}" class="message"></div>
+            <button type="button" id="submit_${q.id}" onclick="submitAnswer('${q.id}')">送出回答</button>
+          </div>
+        </div>
       `;
 
       list.appendChild(card);
@@ -356,12 +456,12 @@
     }
 
     const box = document.getElementById('myResults');
-    box.innerHTML = '<div class="empty">讀取中……</div>';
+    box.innerHTML = '<div class="card empty">讀取中……</div>';
 
     google.script.run
       .withSuccessHandler(renderMyResults)
       .withFailureHandler(function(error) {
-        box.innerHTML = '<div class="error">' + escapeHtml(error.message) + '</div>';
+        box.innerHTML = '<div class="card error">' + escapeHtml(error.message) + '</div>';
       })
       .getStudentResults(identity);
   }
@@ -372,7 +472,7 @@
     const box = document.getElementById('myResults');
 
     if (!results || results.length === 0) {
-      box.innerHTML = '<div class="empty">找不到你的作答紀錄。</div>';
+      box.innerHTML = '<div class="card empty">找不到你的作答紀錄。</div>';
       return;
     }
 
@@ -393,28 +493,31 @@
             : '尚未給分';
 
         reviewHtml = `
-          <p><strong>教師分數：</strong>${scoreText}</p>
-          <div class="feedback">
-            <strong>教師評語</strong><br><br>
-            ${escapeHtml(item.teacherFeedback || '老師尚未留下評語')}
-          </div>
+          <div class="r-label">教師分數</div>
+          <div class="score">${scoreText}</div>
+          <div class="r-label">教師評語</div>
+          <div class="feedback">${escapeHtml(item.teacherFeedback || '老師尚未留下評語')}</div>
         `;
 
       } else {
 
-        reviewHtml = '<p>老師目前正在審核這份回答。</p>';
+        reviewHtml = '<div class="r-label">教師回饋</div><p class="waiting">老師目前正在審核這份回答。</p>';
       }
 
       div.innerHTML = `
-        <h3>${escapeHtml(item.title)}</h3>
-        <div class="status">${escapeHtml(item.status)}</div>
+        <div class="r-head">
+          <h3>${escapeHtml(item.title)}</h3>
+          <span class="status" data-status="${escapeHtml(item.status)}">${escapeHtml(item.status)}</span>
+        </div>
 
-        <p><strong>我的回答</strong></p>
-        <div class="feedback">${escapeHtml(item.answer)}</div>
-
-        <p class="meta">送出時間：${escapeHtml(item.submittedAt)}</p>
-
-        ${reviewHtml}
+        <div class="r-body">
+          <div>
+            <div class="r-label">我的回答</div>
+            <div class="feedback">${escapeHtml(item.answer)}</div>
+            <p class="meta">送出時間：${escapeHtml(item.submittedAt)}</p>
+          </div>
+          <div>${reviewHtml}</div>
+        </div>
       `;
 
       box.appendChild(div);
@@ -431,6 +534,48 @@
       .replace(/'/g, '&#39;');
   }
 
+</script>
+
+<script>
+  /* ===== 分頁切換（只負責畫面） ===== */
+  (function() {
+
+    const tabs = {
+      questions: { tab: document.getElementById('tabQuestions'), panel: document.getElementById('panelQuestions') },
+      results: { tab: document.getElementById('tabResults'), panel: document.getElementById('panelResults') }
+    };
+
+    function show(name) {
+      Object.keys(tabs).forEach(function(key) {
+        tabs[key].tab.setAttribute('aria-selected', String(key === name));
+        tabs[key].panel.hidden = key !== name;
+      });
+    }
+
+    tabs.questions.tab.addEventListener('click', function() { show('questions'); });
+
+    // 切到作答紀錄時，已經填好資料就直接讀取
+    tabs.results.tab.addEventListener('click', function() {
+      show('results');
+      const identity = getIdentity();
+      if (identity.studentId && identity.name) loadMyResults();
+    });
+
+    document.getElementById('viewResultsButton').addEventListener('click', function() {
+      show('results');
+    });
+
+    // 題目數量
+    const list = document.getElementById('questionList');
+    const count = document.getElementById('questionCount');
+
+    new MutationObserver(function() {
+      const n = list.querySelectorAll('.q-card').length;
+      count.textContent = n;
+      count.hidden = n === 0;
+    }).observe(list, { childList: true });
+
+  })();
 </script>
 
 </body>

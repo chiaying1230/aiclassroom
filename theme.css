@@ -1,0 +1,359 @@
+/*
+ * AI 課堂：全站共用的顏色、字型與版面框架
+ *
+ * 想換整個網站的顏色，只要改 :root 裡的值。
+ * 左側選單由 shell.js 依照 features.js 自動產生。
+ */
+
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700;900&display=swap");
+
+:root {
+  --bg: #eef1f5;
+  --surface: #ffffff;
+  --surface-2: #f6f8fb;
+  --line: #d9dfe8;
+  --line-strong: #c3ccd9;
+  --ink: #1a2433;
+  --ink-2: #4f5b6d;
+
+  --head: #16233a;
+  --head-2: #22344f;
+  --head-text: #e9eef6;
+  --head-soft: #a9b7cb;
+
+  --blue: #2f5bd3;
+  --blue-dark: #2549ad;
+  --blue-soft: #e8eefc;
+  --navy: #1f3556;
+  --green: #1c7a52;
+  --green-soft: #e3f3eb;
+  --purple: #6446c0;
+  --purple-soft: #efebfa;
+  --orange: #b35f0c;
+  --orange-soft: #fcf0e2;
+  --red: #c0392b;
+  --red-soft: #fbe9e7;
+  --gray: #5f6b7c;
+  --yellow: #f2c230;
+
+  --radius: 12px;
+  --radius-s: 8px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, .06);
+  --shadow-lift: 0 8px 24px rgba(16, 24, 40, .10);
+
+  --sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --serif: "Noto Serif TC", "PMingLiU", "Songti TC", serif;
+
+  --side-w: 256px;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+h1, h2, h3, h4 { line-height: 1.35; }
+a { color: var(--blue); text-underline-offset: 3px; }
+
+:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
+
+/* =====================================================
+   左側選單（shell.js 產生）
+===================================================== */
+
+body.has-shell { padding-left: var(--side-w); transition: padding-left .2s; }
+body.shell-collapsed { --side-w: 76px; }
+
+.shell-side {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--side-w);
+  background: var(--head);
+  color: var(--head-text);
+  display: flex;
+  flex-direction: column;
+  z-index: 60;
+  transition: width .2s, transform .2s;
+}
+
+.shell-brand {
+  display: block;
+  padding: 24px 22px 20px;
+  color: #fff;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255, 255, 255, .08);
+}
+
+.shell-brand b {
+  display: block;
+  font-family: var(--serif);
+  font-weight: 900;
+  font-size: 26px;
+  line-height: 1.2;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+
+.shell-brand small {
+  display: block;
+  margin-top: 4px;
+  color: var(--head-soft);
+  font-size: 13px;
+}
+
+.shell-nav { flex: 1; overflow-y: auto; padding: 14px 12px; }
+.shell-nav > ul { list-style: none; margin: 0; padding: 0; }
+.shell-nav > ul > li + li { margin-top: 2px; }
+
+.shell-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius-s);
+  color: var(--head-soft);
+  text-decoration: none;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.shell-link:hover { background: rgba(255, 255, 255, .06); color: #fff; }
+
+.shell-link.current {
+  background: rgba(255, 255, 255, .10);
+  color: #fff;
+  font-weight: 700;
+}
+
+.shell-icon {
+  flex: 0 0 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .07);
+  font-size: 16px;
+}
+
+.shell-link.current .shell-icon { background: rgba(242, 194, 48, .22); }
+
+.shell-text { flex: 1; min-width: 0; }
+.shell-ext { font-size: 11px; color: var(--head-soft); opacity: .8; }
+
+/* 頁面自己的子選單（例如教師系統的四個功能） */
+.shell-side .shell-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 6px 0 10px 26px;
+  padding-left: 14px;
+  border-left: 1px solid rgba(255, 255, 255, .14);
+}
+
+.shell-side .shell-sub button {
+  margin: 0;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--head-soft);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+  filter: none;
+}
+
+.shell-side .shell-sub button:hover { background: rgba(255, 255, 255, .06); color: #fff; }
+
+.shell-side .shell-sub button.active {
+  background: rgba(255, 255, 255, .10);
+  color: #fff;
+  font-weight: 700;
+}
+
+.shell-foot { padding: 12px; border-top: 1px solid rgba(255, 255, 255, .08); }
+
+.shell-side .shell-toggle {
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--head-soft);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  filter: none;
+}
+
+.shell-side .shell-toggle:hover { background: rgba(255, 255, 255, .06); color: #fff; }
+
+.shell-toggle .shell-icon { background: transparent; font-size: 18px; }
+
+/* 收合時只留圖示 */
+body.shell-collapsed .shell-text,
+body.shell-collapsed .shell-brand small,
+body.shell-collapsed .shell-side .shell-sub { display: none; }
+
+body.shell-collapsed .shell-brand { padding: 22px 0 18px; text-align: center; }
+body.shell-collapsed .shell-brand b { font-size: 20px; letter-spacing: 0; }
+body.shell-collapsed .shell-link,
+body.shell-collapsed .shell-side .shell-toggle { justify-content: center; padding: 8px 0; }
+
+/* 手機上方列 */
+.shell-bar { display: none; }
+
+.shell-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 16, 28, .45);
+  z-index: 55;
+}
+
+@media (max-width: 1023px) {
+  body.has-shell { padding-left: 0; --side-w: 272px; }
+
+  .shell-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--head);
+    color: #fff;
+    padding: 10px 14px;
+  }
+
+  .shell-bar .shell-menu {
+    margin: 0;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, .18);
+    border-radius: var(--radius-s);
+    background: transparent;
+    color: #fff;
+    font-size: 18px;
+    cursor: pointer;
+    filter: none;
+  }
+
+  .shell-bar a {
+    color: #fff;
+    text-decoration: none;
+    font-family: var(--serif);
+    font-weight: 900;
+    font-size: 20px;
+    letter-spacing: .04em;
+  }
+
+  .shell-side { transform: translateX(-100%); box-shadow: none; }
+  .shell-side.open { transform: none; box-shadow: 8px 0 30px rgba(0, 0, 0, .3); }
+  .shell-foot { display: none; }
+}
+
+/* =====================================================
+   內容區的共用元件
+===================================================== */
+
+.page {
+  max-width: var(--page-width, 1180px);
+  margin: 0 auto;
+  padding: 36px 40px 80px;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 24px;
+  flex-wrap: wrap;
+  margin-bottom: 26px;
+}
+
+.page-header h1 {
+  font-family: var(--serif);
+  font-weight: 900;
+  font-size: clamp(28px, 3.4vw, 38px);
+  line-height: 1.2;
+  letter-spacing: .02em;
+  margin: 0;
+}
+
+.page-header p { margin: 6px 0 0; color: var(--ink-2); }
+
+.page-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* 底線式分頁 */
+.line-tabs {
+  display: flex;
+  gap: 28px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 22px;
+  overflow-x: auto;
+}
+
+.line-tabs button,
+.line-tabs .tab {
+  margin: 0 0 -1px;
+  padding: 10px 2px 12px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  filter: none;
+}
+
+.line-tabs button:hover { color: var(--ink); background: transparent; filter: none; }
+
+.line-tabs button[aria-selected="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--blue);
+  font-weight: 700;
+}
+
+.tab-count {
+  display: inline-block;
+  min-width: 22px;
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  line-height: 20px;
+  text-align: center;
+  color: var(--ink-2);
+}
+
+@media (max-width: 1023px) {
+  .page { padding: 24px 18px 64px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

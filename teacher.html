@@ -10,331 +10,526 @@
   <script src="gas-bridge.js"></script>
   <script src="teacher-auth.js"></script>
 
+  <link rel="stylesheet" href="theme.css">
+  <script src="features.js"></script>
+  <script src="shell.js" defer></script>
+
   <style>
-    :root {
-      --navy: #27366d;
-      --primary: #5268e8;
-      --green: #168c56;
-      --red: #d94b4b;
-      --orange: #df9225;
-      --purple: #6c4fd6;
-      --gray: #70798c;
-      --bg: #f4f6fb;
-      --border: #dfe4ee;
-    }
+    :root { --page-width: 1200px; }
 
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
-      background: var(--bg);
-      color: #263149;
-    }
-
-    header { background: var(--navy); color: white; padding: 28px; }
-    header h1 { margin: 0 0 8px; }
-
-    nav { margin-top: 18px; display: flex; gap: 8px; flex-wrap: wrap; }
-    nav button { background: rgba(255, 255, 255, .15); }
-    nav button.active { background: rgba(255, 255, 255, .34); }
-    nav button.discuss { background: #f0b429; color: var(--navy); font-weight: bold; }
-
-    nav a.nav-home {
-      margin-top: 12px;
-      padding: 11px 18px;
-      border-radius: 8px;
-      background: transparent;
-      border: 1px solid rgba(255, 255, 255, .45);
-      color: white;
-      text-decoration: none;
-      font-size: 15px;
-    }
-
-    nav a.nav-home:hover { background: rgba(255, 255, 255, .15); }
-
-    nav button.sheet { background: var(--green); }
-
-    nav button.logout {
-      background: transparent;
-      border: 1px solid rgba(255, 255, 255, .45);
-      margin-left: auto;
-    }
-
-    .container { max-width: 1100px; margin: auto; padding: 30px 20px; }
+    h2 { font-size: 21px; margin: 0; }
+    h3 { font-size: 18px; }
+    h4 { font-size: 15px; margin: 16px 0 6px; color: var(--ink-2); }
 
     .card {
-      background: white;
-      padding: 24px;
-      border-radius: 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 24px 26px;
       margin-bottom: 20px;
-      box-shadow: 0 6px 20px rgba(0, 0, 0, .07);
     }
+
+    .card > h2:first-child { margin-bottom: 4px; }
 
     .section { display: none; }
     .section.active { display: block; }
 
-    label { display: block; font-weight: bold; margin-top: 15px; margin-bottom: 6px; }
+    .section-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .section-top p { margin: 2px 0 0; color: var(--ink-2); font-size: 14px; }
+    .section-top button { margin: 0; }
+
+    /* ---------- 表單 ---------- */
+    label { display: block; font-weight: 700; font-size: 14px; color: var(--ink-2); margin-top: 18px; margin-bottom: 6px; }
 
     input, textarea, select {
       width: 100%;
-      padding: 12px;
-      border: 2px solid var(--border);
-      border-radius: 8px;
+      padding: 10px 12px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-s);
+      background: var(--surface);
+      font: inherit;
       font-size: 16px;
-      font-family: inherit;
+      color: var(--ink);
     }
 
-    textarea { min-height: 120px; resize: vertical; line-height: 1.7; }
-    textarea.tall { min-height: 240px; }
+    input, select { height: 44px; }
+
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px var(--blue-soft);
+    }
+
+    textarea { min-height: 120px; resize: vertical; line-height: 1.75; }
+    textarea.tall { min-height: 260px; }
 
     button {
       margin-top: 12px;
-      padding: 11px 18px;
-      border: 0;
-      border-radius: 8px;
-      background: var(--primary);
-      color: white;
+      padding: 9px 18px;
+      border: 1px solid transparent;
+      border-radius: var(--radius-s);
+      background: var(--blue);
+      color: #fff;
+      font: inherit;
       font-size: 15px;
+      font-weight: 500;
       cursor: pointer;
-      font-family: inherit;
+      transition: filter .15s, background .15s;
     }
 
-    button:disabled { opacity: .5; cursor: not-allowed; }
-    button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
-      outline: 3px solid #f0b429;
-      outline-offset: 2px;
-    }
+    button:hover { filter: brightness(.92); }
+    button:disabled { opacity: .5; cursor: not-allowed; filter: none; }
 
-    .green { background: var(--green); }
-    .red { background: var(--red); }
-    .gray { background: var(--gray); }
+    .green  { background: var(--green); }
+    .red    { background: var(--red); }
+    .gray   { background: var(--gray); }
     .orange { background: var(--orange); }
     .purple { background: var(--purple); }
+    .yellow { background: var(--yellow); color: var(--head); font-weight: 700; }
+    .ghost  { background: var(--surface); color: var(--ink); border-color: var(--line-strong); }
 
-    .rubric-helper { margin: 4px 0 10px; }
-    .rubric-helper button { margin-top: 6px; }
-    .rubric-helper .hint { margin: 6px 0 0; }
+    .page-actions button { margin: 0; }
 
-    .question, .answer {
-      border: 1px solid #e1e5ec;
-      border-radius: 12px;
-      padding: 18px;
-      margin-top: 15px;
+    .hint { color: var(--ink-2); font-size: 14px; line-height: 1.75; }
+    .empty { text-align: center; padding: 40px 16px; color: var(--ink-2); }
+    .success-message { color: var(--green); margin-top: 12px; font-weight: 700; }
+    .error-message { color: var(--red); font-weight: 700; margin-top: 12px; }
+
+    /* ---------- 新增題目 ---------- */
+    .create-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 24px;
+      align-items: start;
     }
+
+    .create-side { position: sticky; top: 24px; display: flex; flex-direction: column; gap: 16px; }
+    .create-side .ai-box { margin-top: 0; }
+    .create-side h3 { margin: 0 0 4px; font-size: 17px; }
+
+    .form-block + .form-block { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--line); }
+    .form-block-title { margin: 0; font-size: 16px; }
+    .form-block-title + label { margin-top: 12px; }
+
+    .field-row { display: grid; grid-template-columns: 140px 1fr 1fr; gap: 14px; }
+
+    .form-actions {
+      position: sticky;
+      bottom: 0;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin: 26px -26px -24px;
+      padding: 16px 26px;
+      background: var(--surface);
+      border-top: 1px solid var(--line);
+      border-radius: 0 0 var(--radius) var(--radius);
+      box-shadow: 0 -8px 18px rgba(16, 24, 40, .06);
+      z-index: 2;
+    }
+
+    .form-actions button { margin: 0; }
+    .form-actions > div > * { margin: 0; }
+
+    .rubric-helper {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin: 0 0 10px;
+      padding: 12px 14px;
+      background: var(--orange-soft);
+      border-radius: var(--radius-s);
+    }
+
+    .rubric-helper button { margin: 0; flex: none; }
+    .rubric-helper .hint { margin: 0; font-size: 13px; }
+
+    .tips { margin: 0; padding-left: 1.2em; font-size: 14px; color: var(--ink-2); line-height: 1.8; }
+
+    /* ---------- 題目管理 ---------- */
+    #questionList {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+      gap: 16px;
+    }
+
+    #questionList > .empty,
+    #questionList > .error-message { grid-column: 1 / -1; }
+
+    .question {
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .q-body { padding: 20px 22px 16px; flex: 1; }
+
+    .q-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .q-top h3 { margin: 0; font-family: var(--serif); font-size: 20px; line-height: 1.4; }
+
+    .q-stats { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 8px 0 12px; font-size: 14px; color: var(--ink-2); }
+    .q-stats b { color: var(--ink); }
+    .q-stats .pending b { color: var(--orange); }
+
+    .clamp {
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      margin: 0;
+    }
+
+    .q-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 12px 22px;
+      background: var(--surface-2);
+      border-top: 1px solid var(--line);
+    }
+
+    .q-actions button { margin: 0; padding: 7px 14px; font-size: 14px; }
+
+    .seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--radius-s); overflow: hidden; margin-left: auto; }
+
+    .seg button {
+      border: 0;
+      border-radius: 0;
+      background: var(--surface);
+      color: var(--ink-2);
+      padding: 7px 12px;
+    }
+
+    .seg button + button { border-left: 1px solid var(--line-strong); }
+    .seg button.on { background: var(--ink); color: #fff; font-weight: 700; }
+
+    .danger-link { background: transparent; color: var(--red); padding: 7px 8px; }
+    .danger-link:hover { background: var(--red-soft); filter: none; }
 
     .badge {
       display: inline-block;
-      padding: 4px 10px;
+      padding: 2px 11px;
       border-radius: 999px;
-      background: #edf0ff;
-      color: #4658c9;
+      background: var(--blue-soft);
+      color: var(--blue-dark);
       font-size: 13px;
-      margin-right: 5px;
-      margin-bottom: 5px;
+      font-weight: 700;
+      white-space: nowrap;
     }
+
+    .badge[data-status="發布"], .badge[data-status="已通過"] { background: var(--green-soft); color: var(--green); }
+    .badge[data-status="草稿"] { background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line); }
+    .badge[data-status="關閉"] { background: var(--red-soft); color: var(--red); }
+    .badge[data-status="退回修改"], .badge[data-status="待教師審核"] { background: var(--orange-soft); color: var(--orange); }
 
     .text-box {
-      background: #f7f8fb;
-      padding: 14px;
-      border-radius: 9px;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      padding: 12px 14px;
+      border-radius: var(--radius-s);
       white-space: pre-wrap;
-      line-height: 1.7;
-      margin: 8px 0 14px;
+      line-height: 1.75;
+      margin: 6px 0 14px;
     }
+
+    /* ---------- 批改：左邊學生作答，右邊 AI 與教師審核 ---------- */
+    .filter-bar {
+      display: flex;
+      align-items: flex-end;
+      gap: 12px;
+      padding: 16px 20px;
+    }
+
+    .filter-bar > div { flex: 1; max-width: 520px; }
+    .filter-bar label { margin-top: 0; }
+    .filter-bar button { margin: 0; height: 44px; }
+
+    .answer {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin-top: 18px;
+      overflow: hidden;
+    }
+
+    .a-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .a-head h3 { margin: 0; font-family: var(--serif); font-size: 20px; }
+    .a-meta { font-size: 14px; color: var(--ink-2); margin-top: 2px; }
+    .a-meta span + span { margin-left: 14px; }
+
+    .a-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .a-left, .a-right { padding: 6px 22px 22px; min-width: 0; }
+    .a-right { background: var(--surface-2); border-left: 1px solid var(--line); padding-top: 18px; }
+    .a-left .text-box { background: var(--surface); }
+    .a-left .student-answer { font-size: 16.5px; border-left: 4px solid var(--blue); }
 
     .ai-box {
-      background: #f1efff;
-      border: 1px solid #d8d2ff;
-      padding: 15px;
-      border-radius: 10px;
-      margin-top: 15px;
+      background: var(--purple-soft);
+      border: 1px solid #d9cff3;
+      padding: 16px 18px;
+      border-radius: var(--radius);
+      margin-top: 0;
     }
 
-    .ai-box h4 { margin: 0 0 8px; }
+    .a-right .ai-box { margin-bottom: 16px; }
+    .ai-box h4 { margin: 0 0 8px; color: var(--ink); }
     .ai-box p { margin: 6px 0; }
+    .ai-box .text-box { background: var(--surface); }
 
-    .sub-title { font-weight: bold; margin-top: 14px; color: #4b3fa8; }
-
-    .teacher-voice { background: white; border: 1px dashed #b9adf5; }
+    .sub-title { font-weight: 700; margin-top: 14px; color: var(--purple); font-size: 13px; }
+    .teacher-voice { background: var(--surface); border: 1px dashed #b8a8ea; }
 
     .review-box {
-      background: #f7f9fc;
-      padding: 15px;
-      border-radius: 10px;
-      margin-top: 15px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--green);
+      padding: 16px 18px;
+      border-radius: var(--radius);
     }
 
-    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .review-box h4 { margin: 0 0 4px; color: var(--ink); }
 
-    .success-message { color: var(--green); margin-top: 12px; font-weight: bold; }
-    .error-message { color: var(--red); font-weight: bold; margin-top: 12px; }
-    .hint { color: #6b7489; font-size: 14px; line-height: 1.7; }
-    .empty { text-align: center; padding: 30px; color: #777; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
     .flash { animation: flash 1.2s ease; }
 
     @keyframes flash {
       from { background: #fff4c2; }
-      to { background: white; }
+      to { background: var(--surface); }
     }
 
-    @media (prefers-reduced-motion: reduce) {
-      .flash { animation: none; }
+    /* ---------- AI 評語風格 ---------- */
+    .settings-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: start; }
+
+    @media (max-width: 1180px) {
+      .a-grid { grid-template-columns: 1fr; }
+      .a-right { border-left: 0; border-top: 1px solid var(--line); }
+    }
+
+    @media (max-width: 1023px) {
+      .create-grid, .settings-grid { grid-template-columns: 1fr; }
+      .create-side { position: static; }
+      #questionList { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 700px) {
-      .grid2 { grid-template-columns: 1fr; }
-      nav button, nav a.nav-home { flex: 1 1 100%; text-align: center; }
-      nav button.logout { margin-left: 0; }
+      .card { padding: 20px 18px; }
+      .form-actions { margin: 22px -18px -20px; padding: 14px 18px; }
+      .grid2, .field-row { grid-template-columns: 1fr; gap: 0; }
+      .rubric-helper { flex-direction: column; }
+      .filter-bar { flex-direction: column; align-items: stretch; }
+      .seg { margin-left: 0; }
     }
   </style>
 </head>
 
 <body>
 
-<header>
-  <h1>👩‍🏫 教師管理後台</h1>
-  <p>建立題目、AI 初步批改與教師最終審核</p>
+<!-- 這一組會被放到左側選單「教師系統」的下方 -->
+<nav id="subnav" aria-label="教師功能">
+  <button type="button" data-section="create" class="active" onclick="showSection('create')">＋ 新增題目</button>
+  <button type="button" data-section="questions" onclick="showSection('questions')">題目管理</button>
+  <button type="button" data-section="answers" onclick="showSection('answers')">AI 批改／教師審核</button>
+  <button type="button" data-section="settings" onclick="showSection('settings')">AI 評語風格</button>
+</nav>
 
-  <nav>
-    <a class="nav-home" href="index.html">回到首頁</a>
-    <button type="button" data-section="create" class="active" onclick="showSection('create')">＋ 新增題目</button>
-    <button type="button" data-section="questions" onclick="showSection('questions')">題目管理</button>
-    <button type="button" data-section="answers" onclick="showSection('answers')">AI 批改／教師審核</button>
-    <button type="button" data-section="settings" onclick="showSection('settings')">⚙️ AI 評語風格</button>
-    <button type="button" class="discuss" onclick="openDiscuss('')">🗣 開啟課堂討論</button>
-    <button type="button" class="sheet" id="sheetButton" onclick="openSpreadsheet()" disabled>📊 開啟資料試算表</button>
-    <button type="button" class="logout" onclick="TeacherAuth.logout()">登出</button>
-  </nav>
-</header>
+<main class="page container">
 
-<main class="container">
+  <header class="page-header">
+    <div>
+      <h1>教師管理後台</h1>
+      <p>建立題目、AI 初步批改與教師最終審核</p>
+    </div>
+    <div class="page-actions">
+      <button type="button" class="yellow discuss" onclick="openDiscuss('')">🗣 開啟課堂討論</button>
+      <button type="button" class="green sheet" id="sheetButton" onclick="openSpreadsheet()" disabled>📊 資料試算表</button>
+      <button type="button" class="ghost logout" onclick="TeacherAuth.logout()">登出</button>
+    </div>
+  </header>
 
   <!-- 新增題目 -->
   <section id="create" class="section active">
-    <div class="card">
-      <h2>＋ 新增題目</h2>
+    <div class="create-grid">
 
-      <label for="title">題目名稱</label>
-      <input id="title" placeholder="例如：閱讀理解第 1 題">
+      <div class="card">
 
-      <label for="content">題目內容</label>
-      <textarea id="content" placeholder="請輸入要讓學生回答的問題"></textarea>
-<div class="ai-box" style="margin-top:18px;">
+        <div class="form-block">
+          <h2 class="form-block-title">題目</h2>
 
-  <h3>📚 AI 自動搜尋教材｜測試版</h3>
+          <label for="title">題目名稱</label>
+          <input id="title" placeholder="例如：閱讀理解第 1 題">
 
-  <p class="hint">
-    根據上方輸入的題目，自動搜尋已核准教材，
-    並請 Gemini 解讀相關內容。
-    目前僅供教師預覽，不會修改題目或學生分數。
-  </p>
+          <label for="content">題目內容</label>
+          <textarea id="content" placeholder="請輸入要讓學生回答的問題"></textarea>
 
-  <button
-    type="button"
-    class="purple"
-    id="ragPreviewButton"
-    onclick="previewQuestionRAG()">
-    🔍 AI 搜尋教材並解讀
-  </button>
+          <div class="field-row">
+            <div>
+              <label for="points">配分</label>
+              <input id="points" type="number" min="0" value="10">
+            </div>
+            <div>
+              <label for="enableAI">AI 批改</label>
+              <select id="enableAI">
+                <option value="true">啟用 AI 初步批改</option>
+                <option value="false">不啟用</option>
+              </select>
+            </div>
+            <div>
+              <label for="status">題目狀態</label>
+              <select id="status">
+                <option value="草稿">草稿</option>
+                <option value="發布">直接發布</option>
+              </select>
+            </div>
+          </div>
+        </div>
 
-  <div
-    id="ragPreviewResult"
-    class="text-box"
-    role="status"
-    aria-live="polite"
-    style="margin-top:15px;">
-    尚未執行教材搜尋。
-  </div>
+        <div class="form-block">
+          <h2 class="form-block-title">批改依據</h2>
 
-</div>
-      <label for="points">配分</label>
-      <input id="points" type="number" min="0" value="10">
+          <label for="referenceAnswer">參考答案</label>
+          <textarea id="referenceAnswer" placeholder="提供教師與 AI 批改參考"></textarea>
 
-      <label for="referenceAnswer">參考答案</label>
-      <textarea id="referenceAnswer" placeholder="提供教師與 AI 批改參考"></textarea>
-
-      <label for="rubric">AI 評分規準</label>
-      <div class="rubric-helper">
-        <button type="button" class="orange" onclick="openMagicSchoolForRubric()">
-          ✨ 用 MagicSchool 產生評分規準
-        </button>
-        <p class="hint" id="rubricHelperMessage">
-          先填好上面的題目、配分和參考答案再按。按下後會複製一段寫好的提示詞，並在新分頁開啟 MagicSchool 的 Raina。
-          在 Raina 貼上（Ctrl + V）送出，把產生的規準複製回下面這一格。
-        </p>
-      </div>
-      <textarea id="rubric" placeholder="例如：
+          <label for="rubric">AI 評分規準</label>
+          <div class="rubric-helper">
+            <button type="button" class="orange" onclick="openMagicSchoolForRubric()">✨ 用 MagicSchool 產生</button>
+            <p class="hint" id="rubricHelperMessage">
+              先填好題目、配分和參考答案再按。會複製一段寫好的提示詞，並在新分頁開啟 MagicSchool 的 Raina，
+              在 Raina 貼上送出後，把產生的規準複製回下面這一格。
+            </p>
+          </div>
+          <textarea id="rubric" placeholder="例如：
 內容正確 5 分
 理由完整 3 分
 表達清楚 2 分"></textarea>
+        </div>
 
-      <label for="enableAI">AI 批改</label>
-      <select id="enableAI">
-        <option value="true">啟用 AI 初步批改</option>
-        <option value="false">不啟用</option>
-      </select>
+        <div class="form-actions">
+          <button type="button" onclick="createQuestion()">儲存題目</button>
+          <div id="createMessage"></div>
+        </div>
+      </div>
 
-      <label for="status">題目狀態</label>
-      <select id="status">
-        <option value="草稿">草稿</option>
-        <option value="發布">直接發布</option>
-      </select>
+      <aside class="create-side">
+        <div class="ai-box">
+          <h3>📚 AI 搜尋教材｜測試版</h3>
+          <p class="hint">
+            根據你輸入的題目，自動搜尋已核准教材，並請 Gemini 解讀相關內容。
+            目前僅供教師預覽，不會修改題目或學生分數。
+          </p>
 
-      <button type="button" onclick="createQuestion()">儲存題目</button>
-      <div id="createMessage"></div>
+          <button type="button" class="purple" id="ragPreviewButton" onclick="previewQuestionRAG()">
+            🔍 AI 搜尋教材並解讀
+          </button>
+
+          <div id="ragPreviewResult" class="text-box" role="status" aria-live="polite" style="margin-top:15px;">尚未執行教材搜尋。</div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin:0 0 8px;font-size:16px;">出題小提醒</h3>
+          <ul class="tips">
+            <li>先存成草稿，確認題目和規準後再發布。</li>
+            <li>評分規準各面向的分數加總，要等於配分。</li>
+            <li>參考答案寫得越具體，AI 批改越穩定。</li>
+          </ul>
+        </div>
+      </aside>
+
     </div>
   </section>
 
   <!-- 題目管理 -->
   <section id="questions" class="section">
-    <div class="card">
-      <h2>📚 題目管理</h2>
-      <button type="button" class="gray" onclick="loadQuestions()">重新整理</button>
-      <div id="questionList"><div class="empty">載入中……</div></div>
+    <div class="section-top">
+      <div>
+        <h2>題目管理</h2>
+        <p>發布、關閉題目，或進入學生回答與課堂討論。</p>
+      </div>
+      <button type="button" class="ghost" onclick="loadQuestions()">🔄 重新整理</button>
     </div>
+    <div id="questionList"><div class="empty">載入中……</div></div>
   </section>
 
   <!-- 批改 -->
   <section id="answers" class="section">
-    <div class="card">
-      <h2>🤖 AI 批改／教師審核</h2>
-
-      <label for="questionFilter">選擇題目</label>
-      <select id="questionFilter" onchange="loadAnswers()">
-        <option value="">全部題目</option>
-      </select>
-
-      <button type="button" class="gray" onclick="loadAnswers()">重新整理</button>
-
-      <div id="answerList"><div class="empty">目前尚未載入學生作答</div></div>
+    <div class="section-top">
+      <div>
+        <h2>AI 批改／教師審核</h2>
+        <p>左邊是學生作答，右邊是 AI 建議與你的最終審核。</p>
+      </div>
     </div>
+
+    <div class="card filter-bar">
+      <div>
+        <label for="questionFilter">選擇題目</label>
+        <select id="questionFilter" onchange="loadAnswers()">
+          <option value="">全部題目</option>
+        </select>
+      </div>
+      <button type="button" class="ghost" onclick="loadAnswers()">🔄 重新整理</button>
+    </div>
+
+    <div id="answerList"><div class="card empty">目前尚未載入學生作答</div></div>
   </section>
 
   <!-- AI 評語風格 -->
   <section id="settings" class="section">
-    <div class="card">
-      <h2>⚙️ AI 評語風格</h2>
+    <div class="section-top">
+      <div>
+        <h2>AI 評語風格</h2>
+        <p>設定 AI 寫給學生的「教師口吻評語」要用什麼語氣。</p>
+      </div>
+    </div>
 
-      <p class="hint">
-        AI 批改時會另外寫一段「教師口吻評語」，可以在審核區一鍵帶入。
-        這裡的設定會套用到之後的每一次 AI 批改，已經批改過的回答要重新按 AI 批改才會更新。
-      </p>
+    <div class="settings-grid">
+      <div class="card">
+        <label for="feedbackStyle" style="margin-top:0">評語風格要求</label>
+        <textarea id="feedbackStyle" placeholder="例如：語氣溫暖但直接，先肯定再建議，60 到 100 字，不用驚嘆號，結尾給一個具體的下一步。"></textarea>
 
-      <label for="feedbackStyle">評語風格要求</label>
-      <textarea id="feedbackStyle" placeholder="例如：語氣溫暖但直接，先肯定再建議，60 到 100 字，不用驚嘆號，結尾給一個具體的下一步。"></textarea>
-
-      <label for="feedbackExamples">我寫過的評語範例</label>
-      <p class="hint">建議放 3 到 5 則真實寫過的評語，一則一段。有範例時，AI 模仿語氣的效果通常比只描述風格好很多。</p>
-      <textarea id="feedbackExamples" class="tall" placeholder="你有抓到主角改變的關鍵事件，這點很重要。如果能再引用一句原文當證據，你的說法會更有說服力。
+        <label for="feedbackExamples">我寫過的評語範例</label>
+        <textarea id="feedbackExamples" class="tall" placeholder="你有抓到主角改變的關鍵事件，這點很重要。如果能再引用一句原文當證據，你的說法會更有說服力。
 
 你的推理步驟很清楚，看得出有認真想過。第二段的結論跟前面的數據對不太起來，再檢查一次計算看看。"></textarea>
 
-      <p class="hint" id="modelInfo"></p>
+        <div class="form-actions">
+          <button type="button" class="green" onclick="saveSettings()">儲存設定</button>
+          <div id="settingsMessage"></div>
+        </div>
+      </div>
 
-      <button type="button" class="green" onclick="saveSettings()">儲存設定</button>
-      <div id="settingsMessage"></div>
+      <aside class="card">
+        <h3 style="margin:0 0 8px;font-size:16px;">怎麼寫比較有效</h3>
+        <p class="hint">
+          AI 批改時會另外寫一段「教師口吻評語」，可以在審核區一鍵帶入。
+          這裡的設定會套用到之後的每一次 AI 批改，已經批改過的回答要重新按 AI 批改才會更新。
+        </p>
+        <p class="hint">建議放 3 到 5 則真實寫過的評語，一則一段。有範例時，AI 模仿語氣的效果通常比只描述風格好很多。</p>
+        <p class="hint" id="modelInfo"></p>
+      </aside>
     </div>
   </section>
 
@@ -805,24 +1000,35 @@ function previewQuestionRAG() {
       const div = document.createElement('div');
       div.className = 'question';
 
+      const statusButton = function(value) {
+        return '<button type="button" class="' + (q.status === value ? 'on' : '') + '" onclick="changeStatus(\'' + q.id + '\',\'' + value + '\')">' + value + '</button>';
+      };
+
       div.innerHTML = `
-        <h3>${escapeHtml(q.title)}</h3>
+        <div class="q-body">
+          <div class="q-top">
+            <h3>${escapeHtml(q.title)}</h3>
+            <span class="badge" data-status="${escapeHtml(q.status)}">${escapeHtml(q.status)}</span>
+          </div>
 
-        <span class="badge">${escapeHtml(q.status)}</span>
-        <span class="badge">作答：${escapeHtml(q.answerCount)}</span>
-        <span class="badge">待審核：${escapeHtml(q.pendingCount)}</span>
+          <div class="q-stats">
+            <span>作答 <b>${escapeHtml(q.answerCount)}</b></span>
+            <span class="${q.pendingCount > 0 ? 'pending' : ''}">待審核 <b>${escapeHtml(q.pendingCount)}</b></span>
+            <span>配分 <b>${escapeHtml(q.points)}</b></span>
+            <span>AI ${q.enableAI ? '啟用' : '未啟用'}</span>
+          </div>
 
-        <div class="text-box">${escapeHtml(q.content)}</div>
+          <div class="text-box clamp">${escapeHtml(q.content)}</div>
+        </div>
 
-        <p>配分：${escapeHtml(q.points)} 分</p>
-        <p>AI：${q.enableAI ? '啟用' : '未啟用'}</p>
-
-        <button type="button" class="green" onclick="changeStatus('${q.id}','發布')">發布</button>
-        <button type="button" class="gray" onclick="changeStatus('${q.id}','草稿')">草稿</button>
-        <button type="button" class="red" onclick="changeStatus('${q.id}','關閉')">關閉</button>
-        <button type="button" onclick="openAnswers('${q.id}')">查看學生回答</button>
-        <button type="button" class="purple" onclick="openDiscuss('${q.id}')">🗣 課堂討論</button>
-        <button type="button" class="red" onclick="deleteQuestionConfirm('${q.id}')">🗑 刪除題目</button>
+        <div class="q-actions">
+          <button type="button" onclick="openAnswers('${q.id}')">查看學生回答</button>
+          <button type="button" class="purple" onclick="openDiscuss('${q.id}')">🗣 課堂討論</button>
+          <div class="seg" role="group" aria-label="題目狀態">
+            ${statusButton('發布')}${statusButton('草稿')}${statusButton('關閉')}
+          </div>
+          <button type="button" class="danger-link" onclick="deleteQuestionConfirm('${q.id}')" title="刪除題目">🗑 刪除</button>
+        </div>
       `;
 
       box.appendChild(div);
@@ -950,7 +1156,7 @@ function previewQuestionRAG() {
     const box = document.getElementById('answerList');
 
     if (!data || data.length === 0) {
-      box.innerHTML = '<div class="empty">目前沒有學生回答</div>';
+      box.innerHTML = '<div class="card empty">目前沒有學生回答</div>';
       return;
     }
 
@@ -968,60 +1174,67 @@ function previewQuestionRAG() {
         a.aiScore !== '' ? a.aiScore : '';
 
       div.innerHTML = `
-        <h3>${escapeHtml(a.questionTitle || '題目')}</h3>
-
-        <span class="badge" id="badge_${a.answerId}">${escapeHtml(a.status)}</span>
-
-        <p>
-          <strong>學生：</strong>
-          學號：${escapeHtml(a.studentId)}
-          &nbsp;&nbsp;
-          姓名：${escapeHtml(a.name)}
-        </p>
-
-        <p>送出時間：${escapeHtml(a.submittedAt)}</p>
-
-        <h4>題目</h4>
-        <div class="text-box">${escapeHtml(a.questionContent)}</div>
-
-        <h4>學生回答</h4>
-        <div class="text-box">${escapeHtml(a.answer)}</div>
-
-        ${
-          a.enableAI
-            ? `<button type="button" class="orange" id="ai_${a.answerId}" onclick="runAI('${a.answerId}')">
-                 ${a.aiScore !== '' ? '🤖 重新 AI 批改' : '🤖 AI 批改'}
-               </button>`
-            : '<p>本題未啟用 AI。</p>'
-        }
-
-        <div id="aiResult_${a.answerId}">${buildAIBox(a)}</div>
-
-        <div class="review-box">
-          <h4>👩‍🏫 教師最終審核</h4>
-
-          <div class="grid2">
-            <div>
-              <label for="score_${a.answerId}">教師分數</label>
-              <input id="score_${a.answerId}" type="number" min="0"
-                max="${escapeHtml(a.points)}" step="0.5"
-                value="${escapeHtml(defaultScore)}">
+        <div class="a-head">
+          <div>
+            <h3>${escapeHtml(a.questionTitle || '題目')}</h3>
+            <div class="a-meta">
+              <span>學號 ${escapeHtml(a.studentId)}</span>
+              <span>${escapeHtml(a.name)}</span>
+              <span>送出時間 ${escapeHtml(a.submittedAt)}</span>
             </div>
+          </div>
+          <span class="badge" id="badge_${a.answerId}" data-status="${escapeHtml(a.status)}">${escapeHtml(a.status)}</span>
+        </div>
 
-            <div>
-              <label for="status_${a.answerId}">狀態</label>
-              <select id="status_${a.answerId}">
-                <option value="待教師審核">待教師審核</option>
-                <option value="已通過">已通過</option>
-                <option value="退回修改">退回修改</option>
-              </select>
+        <div class="a-grid">
+
+          <div class="a-left">
+            <h4>題目</h4>
+            <div class="text-box">${escapeHtml(a.questionContent)}</div>
+
+            <h4>學生回答</h4>
+            <div class="text-box student-answer">${escapeHtml(a.answer)}</div>
+
+            ${
+              a.enableAI
+                ? `<button type="button" class="orange" id="ai_${a.answerId}" onclick="runAI('${a.answerId}')">
+                     ${a.aiScore !== '' ? '🤖 重新 AI 批改' : '🤖 AI 批改'}
+                   </button>`
+                : '<p class="hint">本題未啟用 AI。</p>'
+            }
+          </div>
+
+          <div class="a-right">
+            <div id="aiResult_${a.answerId}">${buildAIBox(a)}</div>
+
+            <div class="review-box">
+              <h4>👩‍🏫 教師最終審核</h4>
+
+              <div class="grid2">
+                <div>
+                  <label for="score_${a.answerId}">教師分數</label>
+                  <input id="score_${a.answerId}" type="number" min="0"
+                    max="${escapeHtml(a.points)}" step="0.5"
+                    value="${escapeHtml(defaultScore)}">
+                </div>
+
+                <div>
+                  <label for="status_${a.answerId}">狀態</label>
+                  <select id="status_${a.answerId}">
+                    <option value="待教師審核">待教師審核</option>
+                    <option value="已通過">已通過</option>
+                    <option value="退回修改">退回修改</option>
+                  </select>
+                </div>
+              </div>
+
+              <label for="feedback_${a.answerId}">教師評語</label>
+              <textarea id="feedback_${a.answerId}" placeholder="輸入正式給學生看的評語">${escapeHtml(a.teacherFeedback || '')}</textarea>
+
+              <button type="button" class="green" onclick="saveReview('${a.answerId}')">儲存教師審核</button>
             </div>
           </div>
 
-          <label for="feedback_${a.answerId}">教師評語</label>
-          <textarea id="feedback_${a.answerId}" placeholder="輸入正式給學生看的評語">${escapeHtml(a.teacherFeedback || '')}</textarea>
-
-          <button type="button" class="green" onclick="saveReview('${a.answerId}')">儲存教師審核</button>
         </div>
       `;
 
@@ -1142,7 +1355,7 @@ function previewQuestionRAG() {
         box.innerHTML = buildAIBox(a);
 
         const badge = document.getElementById('badge_' + answerId);
-        if (badge) badge.textContent = result.status;
+        if (badge) { badge.textContent = result.status; badge.dataset.status = result.status; }
 
         const score = document.getElementById('score_' + answerId);
         if (score && !score.value) score.value = result.score;
