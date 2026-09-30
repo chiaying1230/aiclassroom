@@ -70,13 +70,57 @@
     .secondary:hover { background: var(--surface-2); }
 
     /* ---------- 我的資料（橫條） ---------- */
-    .identity {
+    .identity { padding: 20px 22px; margin-bottom: 28px; }
+
+    .identity-form {
       display: grid;
       grid-template-columns: auto 1fr 1fr auto;
       gap: 16px;
       align-items: end;
-      padding: 20px 22px;
-      margin-bottom: 28px;
+    }
+
+    .identity-signed { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+
+    .avatar {
+      flex: none;
+      width: 46px;
+      height: 46px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--blue);
+      color: #fff;
+      font-size: 19px;
+      font-weight: 700;
+    }
+
+    .signed-text { flex: 1; min-width: 160px; }
+    .signed-text strong { display: block; font-size: 18px; line-height: 1.4; }
+    .signed-text span { display: block; font-size: 14px; color: var(--ink-2); }
+
+    /* 題目卡上「我交過的答案」 */
+    .mine {
+      margin: 0 0 12px;
+      padding: 9px 13px;
+      border-radius: var(--radius-s);
+      background: var(--green-soft);
+      color: var(--green);
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.6;
+    }
+
+    .mine.passed { background: var(--blue-soft); color: var(--blue-dark); }
+    .mine.returned { background: var(--orange-soft); color: var(--orange); }
+
+    .mine-feedback {
+      display: block;
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px solid rgba(0, 0, 0, .08);
+      color: var(--ink);
+      font-weight: 400;
+      white-space: pre-wrap;
     }
 
     .identity-head { align-self: center; padding-right: 8px; }
@@ -155,6 +199,46 @@
 
     .q-foot .message { margin: 0; }
 
+    /* ---------- 截止時間 ---------- */
+    .q-due {
+      display: inline-flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 2px 8px;
+      margin-top: 6px;
+      padding: 2px 10px;
+      border-radius: 999px;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      font-size: 13px;
+      color: var(--ink-2);
+    }
+
+    .q-due b { color: var(--ink); }
+    .q-due.soon { background: var(--orange-soft); border-color: #efd3b3; }
+    .q-due.soon b { color: var(--orange); }
+    .q-due.passed { background: var(--red-soft); border-color: #f0c9c3; }
+    .q-due.passed b { color: var(--red); }
+
+    .q-card.is-closed .question-title,
+    .q-card.is-closed .question-content { color: var(--ink-2); }
+    .q-card.is-closed textarea { background: var(--surface-2); }
+
+    .message.warn { color: var(--orange); }
+
+    .late-tag {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 999px;
+      background: var(--red-soft);
+      color: var(--red);
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .r-tags { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
     .meta { color: var(--ink-2); font-size: 14px; }
     .message { margin-top: 12px; font-weight: 700; }
     .success { color: var(--green); }
@@ -210,14 +294,15 @@
     .waiting { color: var(--ink-2); margin: 0; }
 
     @media (max-width: 1023px) {
-      .identity { grid-template-columns: 1fr 1fr; }
-      .identity-head { grid-column: 1 / -1; }
-      .identity-actions { grid-column: 1 / -1; }
+      .identity-form { grid-template-columns: 1fr 1fr; }
+      .identity-form .identity-head { grid-column: 1 / -1; }
+      .identity-form .identity-actions { grid-column: 1 / -1; }
+      .identity-signed .identity-actions { width: 100%; }
       .identity-actions button:not(.icon-button) { flex: 1; }
     }
 
     @media (max-width: 640px) {
-      .identity { grid-template-columns: 1fr; }
+      .identity-form { grid-template-columns: 1fr; }
       .question-content { margin-left: 24px; }
       .r-body { grid-template-columns: 1fr; }
       .r-body > div + div { border-left: 0; border-top: 1px solid var(--line); }
@@ -238,26 +323,43 @@
   </header>
 
   <section class="card identity" aria-label="我的資料">
-    <div class="identity-head">
-      <strong>我的資料</strong>
-      <span>填一次就會記住</span>
+
+    <!-- 還沒確認身分 -->
+    <div class="identity-form" id="identityForm">
+      <div class="identity-head">
+        <strong>輸入學號與姓名</strong>
+        <span>換電腦或手機時，輸入同一組就能接著作答</span>
+      </div>
+
+      <div class="student-grid-item">
+        <label for="studentId">學號</label>
+        <input id="studentId" autocomplete="username" placeholder="請輸入學號">
+      </div>
+
+      <div class="student-grid-item">
+        <label for="name">姓名</label>
+        <input id="name" autocomplete="name" placeholder="請輸入姓名">
+      </div>
+
+      <div class="identity-actions">
+        <button type="button" onclick="saveIdentity()">確認</button>
+      </div>
     </div>
 
-    <div class="student-grid-item">
-      <label for="studentId">學號</label>
-      <input id="studentId" autocomplete="username" placeholder="請輸入學號">
+    <!-- 已確認身分 -->
+    <div class="identity-signed" id="identitySigned" hidden>
+      <span class="avatar" id="identityAvatar" aria-hidden="true"></span>
+      <div class="signed-text">
+        <strong id="identityName"></strong>
+        <span id="identityMeta"></span>
+      </div>
+      <div class="identity-actions">
+        <button type="button" class="secondary" id="viewResultsButton" onclick="loadMyResults()">查看審核結果</button>
+        <button type="button" class="secondary icon-button" onclick="refreshStudentPage()" title="重新整理" aria-label="重新整理">🔄</button>
+        <button type="button" class="secondary" onclick="signOutStudent()" title="讓這台裝置忘記你的學號和姓名">換人</button>
+      </div>
     </div>
 
-    <div class="student-grid-item">
-      <label for="name">姓名</label>
-      <input id="name" autocomplete="name" placeholder="請輸入姓名">
-    </div>
-
-    <div class="identity-actions">
-      <button type="button" onclick="saveIdentity()">儲存</button>
-      <button type="button" class="secondary" id="viewResultsButton" onclick="loadMyResults()">查看審核結果</button>
-      <button type="button" class="secondary icon-button" onclick="refreshStudentPage()" title="重新整理" aria-label="重新整理">🔄</button>
-    </div>
   </section>
 
   <div class="line-tabs" role="tablist">
@@ -277,7 +379,7 @@
 
   <section id="panelResults" role="tabpanel" aria-labelledby="tabResults" hidden>
     <div id="myResults">
-      <div class="card empty">請輸入學號與姓名，再按「查看審核結果」</div>
+      <div class="card empty">請輸入學號與姓名，再按「確認」</div>
     </div>
   </section>
 
@@ -287,8 +389,22 @@
 <script>
 
   document.addEventListener('DOMContentLoaded', function() {
+
     restoreIdentity();
     loadQuestions();
+
+    const identity = getIdentity();
+
+    if (identity.studentId && identity.name) {
+      loadMyResults();
+    }
+
+    // 在學號、姓名欄按 Enter 就確認
+    ['studentId', 'name'].forEach(function(id) {
+      document.getElementById(id).addEventListener('keydown', function(event) {
+        if (event.key === 'Enter') saveIdentity();
+      });
+    });
   });
 
 
@@ -312,6 +428,56 @@
   }
 
 
+  /* ==================================================
+     學生身分
+     作答都存在試算表裡；這台裝置只記住學號和姓名，方便下次不用再打。
+     換電腦或手機時，輸入同一組學號和姓名就會讀回自己的作答。
+  ================================================== */
+
+  // 題目ID → 自己在這一題最新的一筆作答
+  const myAnswers = {};
+
+
+  function rememberIdentity(data) {
+    try {
+      localStorage.setItem('classroom_identity', JSON.stringify(data));
+    } catch (error) {
+      // 無痕視窗可能不能存，這一頁仍可使用
+    }
+  }
+
+
+  function showIdentityState() {
+
+    const identity = getIdentity();
+    const signed = !!(identity.studentId && identity.name);
+
+    document.getElementById('identityForm').hidden = signed;
+    document.getElementById('identitySigned').hidden = !signed;
+
+    if (signed) {
+      document.getElementById('identityAvatar').textContent = identity.name.charAt(0);
+      document.getElementById('identityName').textContent = identity.name;
+      updateIdentityMeta();
+    }
+  }
+
+
+  function updateIdentityMeta() {
+
+    const identity = getIdentity();
+    const cards = document.querySelectorAll('.q-card');
+    let answered = 0;
+
+    cards.forEach(function(card) {
+      if (myAnswers[card.dataset.id]) answered++;
+    });
+
+    document.getElementById('identityMeta').textContent =
+      '學號 ' + identity.studentId + (cards.length ? '・已作答 ' + answered + '／' + cards.length + ' 題' : '');
+  }
+
+
   function saveIdentity() {
 
     const data = getIdentity();
@@ -321,25 +487,144 @@
       return;
     }
 
-    localStorage.setItem('classroom_identity', JSON.stringify(data));
-    alert('學生資料已儲存');
+    rememberIdentity(data);
+    showIdentityState();
+    loadMyResults();
   }
 
 
   function restoreIdentity() {
 
-    const saved = localStorage.getItem('classroom_identity');
+    let saved = null;
 
-    if (!saved) {
+    try {
+      saved = localStorage.getItem('classroom_identity');
+    } catch (error) {
+      saved = null;
+    }
+
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        document.getElementById('studentId').value = data.studentId || '';
+        document.getElementById('name').value = data.name || '';
+      } catch (error) {
+        console.log(error);
+      }
+    }
+
+    showIdentityState();
+  }
+
+
+  // 共用電腦用完按「換人」：這台裝置忘記學號姓名，畫面上的作答也清掉。作答本身不會刪除。
+  function signOutStudent() {
+
+    if (!confirm('要換人嗎？\n\n這台裝置會忘記你的學號和姓名，畫面上的作答也會清掉。\n你交過的作答都還在，之後輸入同一組學號姓名就能看到。')) {
       return;
     }
 
     try {
-      const data = JSON.parse(saved);
-      document.getElementById('studentId').value = data.studentId || '';
-      document.getElementById('name').value = data.name || '';
+      localStorage.removeItem('classroom_identity');
     } catch (error) {
-      console.log(error);
+      // 忽略
+    }
+
+    document.getElementById('studentId').value = '';
+    document.getElementById('name').value = '';
+
+    Object.keys(myAnswers).forEach(function(key) {
+      delete myAnswers[key];
+    });
+
+    document.getElementById('myResults').innerHTML =
+      '<div class="card empty">請輸入學號與姓名，再按「確認」</div>';
+
+    showIdentityState();
+    document.getElementById('tabQuestions').click();
+    loadQuestions();
+    document.getElementById('studentId').focus();
+  }
+
+
+  // 把自己交過的答案放回每一題的作答框，並顯示批改狀態
+  function applyMyAnswers(results) {
+
+    Object.keys(myAnswers).forEach(function(key) {
+      delete myAnswers[key];
+    });
+
+    (results || []).forEach(function(item) {
+      // 後端回傳的是新的在前，同一題只留最新一筆
+      if (item.questionId && !myAnswers[item.questionId]) {
+        myAnswers[item.questionId] = item;
+      }
+    });
+
+    fillMyAnswers();
+  }
+
+
+  function fillMyAnswers() {
+
+    document.querySelectorAll('.q-card').forEach(function(card) {
+
+      const id = card.dataset.id;
+      const mine = myAnswers[id];
+      const box = document.getElementById('mine_' + id);
+      const textarea = document.getElementById('answer_' + id);
+      const button = document.getElementById('submit_' + id);
+
+      if (!box || !textarea || !button) return;
+
+      if (!mine) {
+        box.hidden = true;
+        return;
+      }
+
+      // 學生正在打字時不要蓋掉
+      if (!textarea.value.trim() || textarea.dataset.prefilled === 'true') {
+        textarea.value = mine.answer || '';
+        textarea.dataset.prefilled = 'true';
+      }
+
+      const time = String(mine.submittedAt || '').replace(/:\d\d$/, '');
+      let text = '✓ 你已在 ' + time + ' 送出' + (mine.late ? '（遲交）' : '') + '・' + mine.status;
+      let extra = '';
+
+      box.className = 'mine';
+
+      if (mine.status === '已通過') {
+
+        box.classList.add('passed');
+        text += '。老師已審核通過，不能再修改，分數與評語請看「我的作答紀錄」。';
+        textarea.readOnly = true;
+        button.disabled = true;
+        button.textContent = '已審核通過';
+
+      } else {
+
+        textarea.readOnly = false;
+
+        if (mine.status === '退回修改') {
+          box.classList.add('returned');
+          text = '↩ 老師請你修改後再送出一次';
+          if (mine.teacherFeedback) {
+            extra = '<span class="mine-feedback">老師的評語：' + escapeHtml(mine.teacherFeedback) + '</span>';
+          }
+        }
+
+        if (!card.classList.contains('is-closed')) {
+          button.textContent = '重新送出';
+        }
+      }
+
+      box.innerHTML = escapeHtml(text) + extra;
+      box.hidden = false;
+    });
+
+    if (!document.getElementById('identitySigned').hidden) {
+      updateIdentityMeta();
     }
   }
 
@@ -370,22 +655,35 @@
 
     list.innerHTML = '';
 
+    // 還能作答的排前面，已截止的排後面
+    questions = questions.slice().sort(function(a, b) {
+      return Number(isClosed(a)) - Number(isClosed(b));
+    });
+
     questions.forEach(function(q, index) {
 
       const card = document.createElement('div');
       card.className = 'card q-card';
+      card.dataset.id = q.id;
+      card.dataset.deadline = q.deadline || '';
+      card.dataset.allowLate = q.allowLate ? 'true' : 'false';
 
       card.innerHTML = `
         <div class="q-head">
           <span class="q-num">${index + 1}</span>
-          <div class="q-titles"><div class="question-title">${escapeHtml(q.title)}</div></div>
+          <div class="q-titles">
+            <div class="question-title">${escapeHtml(q.title)}</div>
+            ${q.deadline ? '<div class="q-due"></div>' : ''}
+          </div>
           <span class="points">${escapeHtml(q.points)} 分</span>
         </div>
         <div class="question-content">${escapeHtml(q.content)}</div>
 
         <div class="q-answer">
+          <div class="mine" id="mine_${q.id}" hidden></div>
           <label for="answer_${q.id}">我的回答</label>
-          <textarea id="answer_${q.id}" placeholder="請在這裡輸入你的回答……"></textarea>
+          <textarea id="answer_${q.id}" placeholder="請在這裡輸入你的回答……"
+            oninput="this.dataset.prefilled = 'false'"></textarea>
 
           <div class="q-foot">
             <div id="message_${q.id}" class="message"></div>
@@ -396,7 +694,90 @@
 
       list.appendChild(card);
     });
+
+    refreshDeadlines();
+    fillMyAnswers();
   }
+
+
+  /* ==================================================
+     截止時間
+     畫面上的倒數用電腦的時間；能不能交，最後以伺服器為準。
+  ================================================== */
+
+  const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
+
+  function pad2(n) {
+    return String(n).padStart(2, '0');
+  }
+
+  function formatDeadline(time) {
+    const d = new Date(Number(time));
+    const year = d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + '/' : '';
+    return year + pad2(d.getMonth() + 1) + '/' + pad2(d.getDate()) +
+      '（' + WEEKDAYS[d.getDay()] + '）' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+
+  function remainingText(time) {
+
+    const diff = Number(time) - Date.now();
+
+    if (diff <= 0) return '已截止';
+
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(minutes / 60);
+
+    if (minutes < 60) return '剩 ' + Math.max(minutes, 1) + ' 分鐘';
+    if (hours < 48) return '剩 ' + hours + ' 小時';
+    return '剩 ' + Math.floor(hours / 24) + ' 天';
+  }
+
+  function isClosed(q) {
+    return !!q.deadline && Date.now() > Number(q.deadline) && !q.allowLate;
+  }
+
+  // 更新每一題的倒數；時間到了就停用作答
+  function refreshDeadlines() {
+
+    document.querySelectorAll('.q-card[data-deadline]').forEach(function(card) {
+
+      const deadline = Number(card.dataset.deadline);
+
+      if (!deadline) return;
+
+      const id = card.dataset.id;
+      const allowLate = card.dataset.allowLate === 'true';
+      const diff = deadline - Date.now();
+      const passed = diff <= 0;
+      const due = card.querySelector('.q-due');
+
+      due.className = 'q-due' + (passed ? ' passed' : diff < 24 * 3600 * 1000 ? ' soon' : '');
+      due.innerHTML = '⏰ 截止 ' + escapeHtml(formatDeadline(deadline)) +
+        '<b>' + escapeHtml(passed ? (allowLate ? '已截止，仍可遲交' : '已截止') : remainingText(deadline)) + '</b>';
+
+      const textarea = document.getElementById('answer_' + id);
+      const button = document.getElementById('submit_' + id);
+      const message = document.getElementById('message_' + id);
+      const closed = passed && !allowLate;
+
+      card.classList.toggle('is-closed', closed);
+
+      if (closed) {
+        textarea.disabled = true;
+        button.disabled = true;
+        button.textContent = '已截止';
+        if (!message.textContent) {
+          message.className = 'message error';
+          message.textContent = '已超過截止時間，無法再繳交';
+        }
+      } else if (passed && !message.textContent) {
+        message.className = 'message warn';
+        message.textContent = '已過截止時間，現在送出會標示為遲交';
+      }
+    });
+  }
+
+  setInterval(refreshDeadlines, 30 * 1000);
 
 
   function submitAnswer(questionId) {
@@ -415,7 +796,8 @@
       return;
     }
 
-    localStorage.setItem('classroom_identity', JSON.stringify(identity));
+    rememberIdentity(identity);
+    showIdentityState();
 
     const button = document.getElementById('submit_' + questionId);
     const message = document.getElementById('message_' + questionId);
@@ -429,13 +811,17 @@
         button.disabled = false;
         button.textContent = '重新送出';
         message.className = 'message success';
-        message.textContent = result.updated ? '✓ 回答已更新' : '✓ 回答已送出';
+        message.textContent = (result.updated ? '✓ 回答已更新' : '✓ 回答已送出') + (result.late ? '（遲交）' : '');
+        // 更新這一題的狀態與作答紀錄
+        loadMyResults();
       })
       .withFailureHandler(function(error) {
         button.disabled = false;
         button.textContent = '送出回答';
         message.className = 'message error';
         message.textContent = '送出失敗：' + error.message;
+        // 剛好在截止時被擋下，馬上把這一題停用
+        refreshDeadlines();
       })
       .submitAnswer({
         studentId: identity.studentId,
@@ -459,7 +845,10 @@
     box.innerHTML = '<div class="card empty">讀取中……</div>';
 
     google.script.run
-      .withSuccessHandler(renderMyResults)
+      .withSuccessHandler(function(results) {
+        renderMyResults(results);
+        applyMyAnswers(results);
+      })
       .withFailureHandler(function(error) {
         box.innerHTML = '<div class="card error">' + escapeHtml(error.message) + '</div>';
       })
@@ -472,7 +861,8 @@
     const box = document.getElementById('myResults');
 
     if (!results || results.length === 0) {
-      box.innerHTML = '<div class="card empty">找不到你的作答紀錄。</div>';
+      box.innerHTML = '<div class="card empty">還沒有作答紀錄。<br>' +
+        '如果你在其他電腦或手機作答過，請確認學號和姓名跟當時輸入的完全一樣。</div>';
       return;
     }
 
@@ -507,7 +897,10 @@
       div.innerHTML = `
         <div class="r-head">
           <h3>${escapeHtml(item.title)}</h3>
-          <span class="status" data-status="${escapeHtml(item.status)}">${escapeHtml(item.status)}</span>
+          <div class="r-tags">
+            ${item.late ? `<span class="late-tag" title="截止時間 ${escapeHtml(item.deadlineText)}">遲交</span>` : ''}
+            <span class="status" data-status="${escapeHtml(item.status)}">${escapeHtml(item.status)}</span>
+          </div>
         </div>
 
         <div class="r-body">

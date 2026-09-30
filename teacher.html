@@ -325,6 +325,153 @@
     /* ---------- AI 評語風格 ---------- */
     .settings-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: start; }
 
+    /* ---------- 截止時間 ---------- */
+    .deadline-row { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 14px; }
+    .optional { font-weight: 400; color: var(--ink-2); }
+
+    .quick-dates { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+    .quick-dates button {
+      margin: 0;
+      padding: 4px 11px;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--ink-2);
+      font-size: 13px;
+    }
+
+    .quick-dates button:hover { background: var(--surface-2); color: var(--ink); filter: none; }
+
+    .q-deadline {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px 10px;
+      margin: 0 0 12px;
+      padding: 8px 12px;
+      border-radius: var(--radius-s);
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      font-size: 14px;
+    }
+
+    .q-deadline.soon { background: var(--orange-soft); border-color: #efd3b3; }
+    .q-deadline.passed { background: var(--red-soft); border-color: #f0c9c3; }
+    .q-deadline .left { font-weight: 700; }
+    .q-deadline.soon .left { color: var(--orange); }
+    .q-deadline.passed .left { color: var(--red); }
+    .q-deadline .policy { color: var(--ink-2); }
+
+    .q-updated { margin: 8px 0 0; font-size: 13px; color: var(--ink-2); }
+    .q-stats .late b { color: var(--red); }
+
+    .late-tag {
+      display: inline-block;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: var(--red-soft);
+      color: var(--red);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 20px;
+    }
+
+    .q-top-side { display: flex; align-items: center; gap: 8px; flex: none; }
+
+    .edit-link {
+      margin: 0;
+      padding: 4px 12px;
+      background: var(--surface);
+      color: var(--ink);
+      border-color: var(--line-strong);
+      font-size: 14px;
+    }
+
+    .edit-link:hover { background: var(--surface-2); filter: none; }
+
+    .q-deadline.none { background: transparent; border-style: dashed; color: var(--ink-2); }
+
+    /* ---------- 編輯題目（右側面板） ---------- */
+    dialog.drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: auto;
+      width: min(720px, 100%);
+      height: 100%;
+      max-width: none;
+      max-height: none;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: var(--bg);
+      color: var(--ink);
+      box-shadow: -12px 0 40px rgba(10, 16, 28, .25);
+    }
+
+    dialog.drawer[open] { display: flex; flex-direction: column; }
+    dialog.drawer::backdrop { background: rgba(10, 16, 28, .45); }
+
+    .drawer-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 18px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .drawer-head h2 { font-family: var(--serif); font-size: 22px; }
+    .drawer-head p { margin: 2px 0 0; font-size: 14px; color: var(--ink-2); }
+    .drawer-head button { margin: 0; flex: none; }
+
+    .drawer-body { flex: 1; overflow-y: auto; padding: 18px 24px 28px; }
+    .drawer-body .card { margin-bottom: 16px; }
+    .drawer-body .form-block + .form-block { margin-top: 0; padding-top: 0; border-top: 0; }
+
+    .edit-notice {
+      padding: 12px 14px;
+      margin-bottom: 16px;
+      border-radius: var(--radius-s);
+      background: var(--blue-soft);
+      color: var(--ink);
+      font-size: 14px;
+      line-height: 1.75;
+    }
+
+    .edit-notice b { color: var(--blue-dark); }
+
+    .drawer-foot {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 14px 24px;
+      background: var(--surface);
+      border-top: 1px solid var(--line);
+    }
+
+    .drawer-foot button { margin: 0; }
+    .drawer-foot #editMessage > * { margin: 0; }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 28px;
+      transform: translateX(-50%);
+      z-index: 90;
+      max-width: calc(100% - 32px);
+      padding: 11px 18px;
+      border-radius: var(--radius-s);
+      background: var(--ink);
+      color: #fff;
+      font-size: 15px;
+      box-shadow: var(--shadow-lift);
+    }
+
     @media (max-width: 1180px) {
       .a-grid { grid-template-columns: 1fr; }
       .a-right { border-left: 0; border-top: 1px solid var(--line); }
@@ -339,7 +486,8 @@
     @media (max-width: 700px) {
       .card { padding: 20px 18px; }
       .form-actions { margin: 22px -18px -20px; padding: 14px 18px; }
-      .grid2, .field-row { grid-template-columns: 1fr; gap: 0; }
+      .grid2, .field-row, .deadline-row { grid-template-columns: 1fr; gap: 0; }
+      .drawer-head, .drawer-body, .drawer-foot { padding-left: 16px; padding-right: 16px; }
       .rubric-helper { flex-direction: column; }
       .filter-bar { flex-direction: column; align-items: stretch; }
       .seg { margin-left: 0; }
@@ -406,6 +554,26 @@
               </select>
             </div>
           </div>
+
+          <div class="deadline-row">
+            <div>
+              <label for="deadline">截止時間 <span class="optional">（可不填）</span></label>
+              <input id="deadline" type="datetime-local">
+              <div class="quick-dates" data-target="deadline">
+                <button type="button" data-quick="today">今天 23:59</button>
+                <button type="button" data-quick="tomorrow">明天 23:59</button>
+                <button type="button" data-quick="week">一週後</button>
+                <button type="button" data-quick="clear">不設截止</button>
+              </div>
+            </div>
+            <div>
+              <label for="allowLate">截止後</label>
+              <select id="allowLate">
+                <option value="false">停止收件</option>
+                <option value="true">仍可繳交，標示遲交</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <div class="form-block">
@@ -453,6 +621,7 @@
           <h3 style="margin:0 0 8px;font-size:16px;">出題小提醒</h3>
           <ul class="tips">
             <li>先存成草稿，確認題目和規準後再發布。</li>
+            <li>發布後仍可在「題目管理」按「編輯」修改，不用刪掉重出。</li>
             <li>評分規準各面向的分數加總，要等於配分。</li>
             <li>參考答案寫得越具體，AI 批改越穩定。</li>
           </ul>
@@ -534,6 +703,104 @@
   </section>
 
 </main>
+
+
+<!-- 編輯題目（從題目管理的「編輯」打開） -->
+<dialog id="editDialog" class="drawer" aria-labelledby="editDialogTitle">
+
+  <div class="drawer-head">
+    <div>
+      <h2 id="editDialogTitle">編輯題目</h2>
+      <p id="editDialogSub"></p>
+    </div>
+    <button type="button" class="ghost" onclick="closeEditDialog()">✕ 關閉</button>
+  </div>
+
+  <div class="drawer-body">
+
+    <div class="edit-notice" id="editNotice"></div>
+
+    <div class="card">
+      <div class="form-block">
+        <h2 class="form-block-title">題目</h2>
+
+        <label for="editTitle">題目名稱</label>
+        <input id="editTitle">
+
+        <label for="editContent">題目內容</label>
+        <textarea id="editContent"></textarea>
+
+        <div class="field-row">
+          <div>
+            <label for="editPoints">配分</label>
+            <input id="editPoints" type="number" min="0">
+          </div>
+          <div>
+            <label for="editEnableAI">AI 批改</label>
+            <select id="editEnableAI">
+              <option value="true">啟用 AI 初步批改</option>
+              <option value="false">不啟用</option>
+            </select>
+          </div>
+          <div>
+            <label for="editStatus">題目狀態</label>
+            <select id="editStatus">
+              <option value="草稿">草稿</option>
+              <option value="發布">發布</option>
+              <option value="關閉">關閉</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="deadline-row">
+          <div>
+            <label for="editDeadline">截止時間 <span class="optional">（可不填）</span></label>
+            <input id="editDeadline" type="datetime-local">
+            <div class="quick-dates" data-target="editDeadline">
+              <button type="button" data-quick="today">今天 23:59</button>
+              <button type="button" data-quick="tomorrow">明天 23:59</button>
+              <button type="button" data-quick="week">一週後</button>
+              <button type="button" data-quick="clear">不設截止</button>
+            </div>
+          </div>
+          <div>
+            <label for="editAllowLate">截止後</label>
+            <select id="editAllowLate">
+              <option value="false">停止收件</option>
+              <option value="true">仍可繳交，標示遲交</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="form-block">
+        <h2 class="form-block-title">批改依據</h2>
+
+        <label for="editReferenceAnswer">參考答案</label>
+        <textarea id="editReferenceAnswer"></textarea>
+
+        <label for="editRubric">AI 評分規準</label>
+        <div class="rubric-helper">
+          <button type="button" class="orange" onclick="openMagicSchoolForRubric('edit')">✨ 用 MagicSchool 產生</button>
+          <p class="hint" id="editRubricHelperMessage">會依照上面修改後的題目、配分和參考答案產生提示詞。</p>
+        </div>
+        <textarea id="editRubric"></textarea>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="drawer-foot">
+    <button type="button" id="editSaveButton" onclick="saveEditQuestion()">儲存修改</button>
+    <button type="button" class="ghost" onclick="closeEditDialog()">取消</button>
+    <div id="editMessage"></div>
+  </div>
+
+</dialog>
+
+<div id="toast" class="toast" role="status" hidden></div>
 
 
 <script>
@@ -843,10 +1110,15 @@ function previewQuestionRAG() {
 
   const MAGICSCHOOL_URL = 'https://app.magicschool.ai/raina';
 
-  function buildRubricPrompt() {
+  // mode 是 'edit' 時讀編輯面板的欄位（editTitle……），否則讀新增題目的欄位
+  function formFieldId(mode, name) {
+    return mode === 'edit' ? 'edit' + name.charAt(0).toUpperCase() + name.slice(1) : name;
+  }
+
+  function buildRubricPrompt(mode) {
 
     const value = function(id) {
-      return document.getElementById(id).value.trim();
+      return document.getElementById(formFieldId(mode, id)).value.trim();
     };
 
     const points = value('points') || '10';
@@ -889,18 +1161,19 @@ function previewQuestionRAG() {
   }
 
 
-  function openMagicSchoolForRubric() {
+  function openMagicSchoolForRubric(mode) {
 
-    const message = document.getElementById('rubricHelperMessage');
-    const content = document.getElementById('content').value.trim();
+    const message = document.getElementById(formFieldId(mode, 'rubricHelperMessage'));
+    const contentBox = document.getElementById(formFieldId(mode, 'content'));
+    const content = contentBox.value.trim();
 
     if (!content) {
       alert('請先填寫題目內容，MagicSchool 才能依照題目設計規準');
-      document.getElementById('content').focus();
+      contentBox.focus();
       return;
     }
 
-    const prompt = buildRubricPrompt();
+    const prompt = buildRubricPrompt(mode);
 
     // 先開新分頁（要在按下按鈕的當下開，才不會被瀏覽器擋掉）
     const win = window.open(MAGICSCHOOL_URL, '_blank');
@@ -933,11 +1206,18 @@ function previewQuestionRAG() {
       referenceAnswer: document.getElementById('referenceAnswer').value.trim(),
       rubric: document.getElementById('rubric').value.trim(),
       enableAI: document.getElementById('enableAI').value === 'true',
-      status: document.getElementById('status').value
+      status: document.getElementById('status').value,
+      deadline: readDeadline('deadline'),
+      allowLate: document.getElementById('allowLate').value === 'true'
     };
 
     if (!data.title || !data.content) {
       alert('請輸入題目名稱與題目內容');
+      return;
+    }
+
+    if (data.deadline && data.deadline < Date.now() && !data.allowLate &&
+        !confirm('截止時間已經過了，學生會無法作答。確定要這樣儲存嗎？')) {
       return;
     }
 
@@ -997,6 +1277,8 @@ function previewQuestionRAG() {
 
     data.forEach(function(q) {
 
+      questionCache[q.id] = q;
+
       const div = document.createElement('div');
       div.className = 'question';
 
@@ -1008,7 +1290,10 @@ function previewQuestionRAG() {
         <div class="q-body">
           <div class="q-top">
             <h3>${escapeHtml(q.title)}</h3>
-            <span class="badge" data-status="${escapeHtml(q.status)}">${escapeHtml(q.status)}</span>
+            <div class="q-top-side">
+              <span class="badge" data-status="${escapeHtml(q.status)}">${escapeHtml(q.status)}</span>
+              <button type="button" class="edit-link" onclick="openEditDialog('${q.id}')">✏️ 編輯</button>
+            </div>
           </div>
 
           <div class="q-stats">
@@ -1016,9 +1301,13 @@ function previewQuestionRAG() {
             <span class="${q.pendingCount > 0 ? 'pending' : ''}">待審核 <b>${escapeHtml(q.pendingCount)}</b></span>
             <span>配分 <b>${escapeHtml(q.points)}</b></span>
             <span>AI ${q.enableAI ? '啟用' : '未啟用'}</span>
+            ${q.lateCount > 0 ? `<span class="late">遲交 <b>${escapeHtml(q.lateCount)}</b></span>` : ''}
           </div>
 
+          ${deadlineBoxHtml(q)}
+
           <div class="text-box clamp">${escapeHtml(q.content)}</div>
+          ${q.updatedAt ? `<p class="q-updated">最後修改 ${escapeHtml(q.updatedAt)}</p>` : ''}
         </div>
 
         <div class="q-actions">
@@ -1033,6 +1322,273 @@ function previewQuestionRAG() {
 
       box.appendChild(div);
     });
+  }
+
+
+  /* ==================================================
+     截止時間
+     輸入框用的是電腦的時間；送到後端的是毫秒數。
+  ================================================== */
+
+  const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
+
+  function pad2(n) {
+    return String(n).padStart(2, '0');
+  }
+
+  // 輸入框的值 → 毫秒數；空白回傳 ''
+  function readDeadline(id) {
+    const value = document.getElementById(id).value;
+    if (!value) return '';
+    const time = new Date(value).getTime();
+    return isNaN(time) ? '' : time;
+  }
+
+  // 毫秒數 → 輸入框的值（2026-10-05T23:59）
+  function toDeadlineInput(time) {
+    if (!time) return '';
+    const d = new Date(Number(time));
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) +
+      'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+
+  // 毫秒數 → 10/05（日）23:59
+  function formatDeadline(time) {
+    const d = new Date(Number(time));
+    const year = d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + '/' : '';
+    return year + pad2(d.getMonth() + 1) + '/' + pad2(d.getDate()) +
+      '（' + WEEKDAYS[d.getDay()] + '）' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+
+  function remainingText(time) {
+
+    const diff = Number(time) - Date.now();
+
+    if (diff <= 0) return '已截止';
+
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(minutes / 60);
+
+    if (minutes < 60) return '剩 ' + Math.max(minutes, 1) + ' 分鐘';
+    if (hours < 48) return '剩 ' + hours + ' 小時';
+    return '剩 ' + Math.floor(hours / 24) + ' 天';
+  }
+
+  function deadlineBoxHtml(q) {
+
+    if (!q.deadline) {
+      return '<div class="q-deadline none"><span>⏰ 沒有截止時間</span></div>';
+    }
+
+    const diff = Number(q.deadline) - Date.now();
+    const cls = diff <= 0 ? 'passed' : diff < 24 * 3600 * 1000 ? 'soon' : '';
+
+    return '<div class="q-deadline ' + cls + '">' +
+      '<span>⏰ 截止 ' + escapeHtml(formatDeadline(q.deadline)) + '</span>' +
+      '<span class="left">' + escapeHtml(remainingText(q.deadline)) + '</span>' +
+      '<span class="policy">' + (q.allowLate ? '截止後仍可繳交（標示遲交）' : '截止後停止收件') + '</span>' +
+      '</div>';
+  }
+
+  // 「今天 23:59」這類快速設定按鈕
+  document.addEventListener('click', function(event) {
+
+    const button = event.target.closest('[data-quick]');
+
+    if (!button) return;
+
+    const input = document.getElementById(button.closest('.quick-dates').dataset.target);
+    const d = new Date();
+
+    if (button.dataset.quick === 'clear') {
+      input.value = '';
+      return;
+    }
+
+    if (button.dataset.quick === 'tomorrow') d.setDate(d.getDate() + 1);
+    if (button.dataset.quick === 'week') d.setDate(d.getDate() + 7);
+
+    d.setHours(23, 59, 0, 0);
+    input.value = toDeadlineInput(d.getTime());
+  });
+
+
+  function showToast(text) {
+
+    const toast = document.getElementById('toast');
+
+    toast.textContent = text;
+    toast.hidden = false;
+
+    clearTimeout(showToast.timer);
+    showToast.timer = setTimeout(function() {
+      toast.hidden = true;
+    }, 3500);
+  }
+
+
+  /* ==================================================
+     編輯題目
+     發布後也能改。學生已送出的回答、AI 批改與教師分數都會保留。
+  ================================================== */
+
+  const questionCache = {};
+  let editingId = '';
+  let editingSnapshot = '';
+
+  const EDIT_FIELDS = [
+    'editTitle', 'editContent', 'editPoints', 'editEnableAI', 'editStatus',
+    'editDeadline', 'editAllowLate', 'editReferenceAnswer', 'editRubric'
+  ];
+
+  function editFormSnapshot() {
+    return EDIT_FIELDS.map(function(id) {
+      return document.getElementById(id).value;
+    }).join('\u0001');
+  }
+
+
+  function openEditDialog(questionId) {
+
+    const q = questionCache[questionId];
+
+    if (!q) {
+      alert('找不到這個題目，請重新整理');
+      return;
+    }
+
+    editingId = questionId;
+
+    const set = function(id, value) {
+      document.getElementById(id).value = value == null ? '' : value;
+    };
+
+    set('editTitle', q.title);
+    set('editContent', q.content);
+    set('editPoints', q.points);
+    set('editEnableAI', q.enableAI ? 'true' : 'false');
+    set('editStatus', q.status || '草稿');
+    set('editDeadline', toDeadlineInput(q.deadline));
+    set('editAllowLate', q.allowLate ? 'true' : 'false');
+    set('editReferenceAnswer', q.referenceAnswer);
+    set('editRubric', q.rubric);
+
+    document.getElementById('editDialogSub').textContent =
+      '建立於 ' + (q.createdAt || '—') + (q.updatedAt ? '，最後修改 ' + q.updatedAt : '');
+
+    document.getElementById('editNotice').innerHTML = q.answerCount > 0
+      ? '這一題已有 <b>' + escapeHtml(q.answerCount) + ' 份</b>學生回答。修改會套用在之後的作答與 AI 批改；' +
+        '已送出的回答、AI 批改結果與教師分數都會保留。改了評分規準後，需要的話可以在批改頁按「重新 AI 批改」。'
+      : '這一題還沒有學生作答，可以放心修改。';
+
+    document.getElementById('editMessage').innerHTML = '';
+    document.getElementById('editSaveButton').disabled = false;
+
+    editingSnapshot = editFormSnapshot();
+
+    document.getElementById('editDialog').showModal();
+    document.getElementById('editTitle').focus();
+  }
+
+
+  function closeEditDialog(force) {
+
+    const dialog = document.getElementById('editDialog');
+
+    if (!force && editFormSnapshot() !== editingSnapshot &&
+        !confirm('修改還沒有儲存，確定要關閉嗎？')) {
+      return;
+    }
+
+    dialog.close();
+    editingId = '';
+  }
+
+
+  // 按 Esc 或點面板外面，也要先確認有沒有未儲存的修改
+  document.addEventListener('DOMContentLoaded', function() {
+
+    const dialog = document.getElementById('editDialog');
+
+    dialog.addEventListener('cancel', function(event) {
+      event.preventDefault();
+      closeEditDialog();
+    });
+
+    dialog.addEventListener('click', function(event) {
+      if (event.target === dialog) closeEditDialog();
+    });
+  });
+
+
+  function saveEditQuestion() {
+
+    const q = questionCache[editingId];
+
+    if (!q) return;
+
+    const value = function(id) {
+      return document.getElementById(id).value.trim();
+    };
+
+    const data = {
+      id: editingId,
+      title: value('editTitle'),
+      content: value('editContent'),
+      points: Number(value('editPoints')),
+      referenceAnswer: value('editReferenceAnswer'),
+      rubric: value('editRubric'),
+      enableAI: value('editEnableAI') === 'true',
+      status: value('editStatus'),
+      deadline: readDeadline('editDeadline'),
+      allowLate: value('editAllowLate') === 'true'
+    };
+
+    if (!data.title || !data.content) {
+      alert('請輸入題目名稱與題目內容');
+      return;
+    }
+
+    if (isNaN(data.points) || data.points < 0) {
+      alert('配分必須是 0 以上的數字');
+      return;
+    }
+
+    const deadlineChanged = String(data.deadline) !== String(q.deadline || '');
+
+    if (deadlineChanged && data.deadline && data.deadline < Date.now() && !data.allowLate &&
+        !confirm('新的截止時間已經過了，學生會無法再作答。確定要這樣儲存嗎？')) {
+      return;
+    }
+
+    const button = document.getElementById('editSaveButton');
+    const message = document.getElementById('editMessage');
+
+    button.disabled = true;
+    message.className = 'hint';
+    message.textContent = '儲存中……';
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+
+        closeEditDialog(true);
+        loadQuestions();
+
+        if (result && result.overScoreCount > 0) {
+          alert(
+            '已儲存修改。\n\n注意：有 ' + result.overScoreCount +
+            ' 份回答的教師分數超過新的配分 ' + data.points + ' 分，請到「AI 批改／教師審核」調整。'
+          );
+        } else {
+          showToast('✓ 已儲存「' + data.title + '」的修改');
+        }
+      })
+      .withFailureHandler(function(error) {
+        button.disabled = false;
+        message.className = 'error-message';
+        message.textContent = '儲存失敗：' + error.message;
+      })
+      .updateQuestion(data);
   }
 
 
@@ -1181,6 +1737,7 @@ function previewQuestionRAG() {
               <span>學號 ${escapeHtml(a.studentId)}</span>
               <span>${escapeHtml(a.name)}</span>
               <span>送出時間 ${escapeHtml(a.submittedAt)}</span>
+              ${a.late ? `<span class="late-tag" title="截止時間 ${escapeHtml(a.deadlineText)}">遲交</span>` : ''}
             </div>
           </div>
           <span class="badge" id="badge_${a.answerId}" data-status="${escapeHtml(a.status)}">${escapeHtml(a.status)}</span>
