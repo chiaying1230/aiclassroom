@@ -200,6 +200,63 @@
     .q-foot .message { margin: 0; }
 
     /* ---------- 截止時間 ---------- */
+    /* 標題下方：截止時間、繳交人數 */
+    .q-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .q-meta .q-due { margin-top: 0; }
+
+    .q-count {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 999px;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      font-size: 13px;
+      color: var(--ink-2);
+    }
+
+    .q-count b { color: var(--ink); margin: 0 2px; }
+
+    /* 還沒交的提醒 */
+    .nudge {
+      margin: 0 0 12px;
+      padding: 9px 13px;
+      border-radius: var(--radius-s);
+      background: var(--blue-soft);
+      color: var(--blue-dark);
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.6;
+    }
+
+    .nudge.urgent { background: var(--orange-soft); color: var(--orange); }
+
+    /* 題目上方：還有幾題沒交 */
+    .todo-banner {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      padding: 14px 18px;
+      margin-bottom: 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--blue);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .todo-banner.urgent { border-left-color: var(--orange); background: #fffaf3; }
+    .todo-banner.done { border-left-color: var(--green); }
+
+    .todo-text { flex: 1; min-width: 220px; }
+    .todo-text strong { display: block; font-size: 17px; line-height: 1.5; }
+    .todo-text span { display: block; font-size: 14px; color: var(--ink-2); }
+    .todo-banner.urgent .todo-text strong { color: var(--orange); }
+    .todo-banner.done .todo-text strong { color: var(--green); }
+    .todo-banner button { height: 38px; }
+
+    .q-card.highlight { box-shadow: 0 0 0 3px var(--yellow); transition: box-shadow .3s; }
+
     .q-due {
       display: inline-flex;
       align-items: center;
@@ -372,6 +429,7 @@
   </div>
 
   <section id="panelQuestions" role="tabpanel" aria-labelledby="tabQuestions">
+    <div id="todoBanner" class="todo-banner" role="status" hidden></div>
     <div id="questionList">
       <div class="card empty">題目載入中……</div>
     </div>
@@ -437,6 +495,9 @@
   // 題目ID → 自己在這一題最新的一筆作答
   const myAnswers = {};
 
+  // 自己的作答讀回來之前，先不顯示「還沒交」的提醒，免得誤報
+  let myAnswersReady = false;
+
 
   function rememberIdentity(data) {
     try {
@@ -460,6 +521,8 @@
       document.getElementById('identityName').textContent = identity.name;
       updateIdentityMeta();
     }
+
+    updateReminders();
   }
 
 
@@ -488,6 +551,7 @@
     }
 
     rememberIdentity(data);
+    myAnswersReady = false;
     showIdentityState();
     loadMyResults();
   }
@@ -537,6 +601,8 @@
       delete myAnswers[key];
     });
 
+    myAnswersReady = false;
+
     document.getElementById('myResults').innerHTML =
       '<div class="card empty">請輸入學號與姓名，再按「確認」</div>';
 
@@ -561,6 +627,7 @@
       }
     });
 
+    myAnswersReady = true;
     fillMyAnswers();
   }
 
@@ -626,6 +693,8 @@
     if (!document.getElementById('identitySigned').hidden) {
       updateIdentityMeta();
     }
+
+    updateReminders();
   }
 
 
@@ -667,13 +736,18 @@
       card.dataset.id = q.id;
       card.dataset.deadline = q.deadline || '';
       card.dataset.allowLate = q.allowLate ? 'true' : 'false';
+      card.dataset.title = q.title || '';
+      card.dataset.count = q.submittedCount == null ? '' : q.submittedCount;
 
       card.innerHTML = `
         <div class="q-head">
           <span class="q-num">${index + 1}</span>
           <div class="q-titles">
             <div class="question-title">${escapeHtml(q.title)}</div>
-            ${q.deadline ? '<div class="q-due"></div>' : ''}
+            <div class="q-meta">
+              ${q.deadline ? '<span class="q-due"></span>' : ''}
+              ${q.submittedCount == null ? '' : '<span class="q-count"></span>'}
+            </div>
           </div>
           <span class="points">${escapeHtml(q.points)} 分</span>
         </div>
@@ -681,6 +755,7 @@
 
         <div class="q-answer">
           <div class="mine" id="mine_${q.id}" hidden></div>
+          <div class="nudge" id="nudge_${q.id}" hidden></div>
           <label for="answer_${q.id}">我的回答</label>
           <textarea id="answer_${q.id}" placeholder="請在這裡輸入你的回答……"
             oninput="this.dataset.prefilled = 'false'"></textarea>
@@ -775,6 +850,132 @@
         message.textContent = '已過截止時間，現在送出會標示為遲交';
       }
     });
+
+    updateReminders();
+  }
+
+
+  /* ==================================================
+     繳交人數與催交提醒
+     只顯示人數，不會顯示誰交了。
+     知道學號姓名後，才知道自己哪幾題還沒交。
+  ================================================== */
+
+  function isSignedIn() {
+    const identity = getIdentity();
+    return myAnswersReady && !!(identity.studentId && identity.name) &&
+      !document.getElementById('identitySigned').hidden;
+  }
+
+
+  function updateReminders() {
+
+    const signed = isSignedIn();
+    const pending = [];
+
+    document.querySelectorAll('.q-card').forEach(function(card) {
+
+      const id = card.dataset.id;
+      const count = card.dataset.count === '' ? null : Number(card.dataset.count);
+      const deadline = Number(card.dataset.deadline) || 0;
+      const passed = !!deadline && Date.now() > deadline;
+      const closed = card.classList.contains('is-closed');
+      const done = !!myAnswers[id];
+
+      // 標題下方的人數
+      const countBox = card.querySelector('.q-count');
+
+      if (countBox && count != null) {
+        countBox.innerHTML = count > 0
+          ? '👥 已有<b>' + count + '</b>人繳交'
+          : '👥 還沒有人繳交';
+      }
+
+      // 作答區上方的提醒：只給已確認身分、還沒交、還能交的題目
+      const nudge = document.getElementById('nudge_' + id);
+
+      if (!nudge) return;
+
+      if (!signed || done || closed || passed) {
+        nudge.hidden = true;
+        return;
+      }
+
+      pending.push({ card: card, deadline: deadline });
+
+      const others = count > 0 ? '已經有 ' + count + ' 位同學交了，' : '';
+      const urgent = !!deadline && deadline - Date.now() < 24 * 3600 * 1000;
+
+      if (deadline) {
+        nudge.textContent = '⏰ 你還沒交這一題！' + others +
+          '截止時間是 ' + formatDeadline(deadline) + '，' + remainingText(deadline) + '。';
+      } else if (count > 0) {
+        nudge.textContent = '✏️ 你還沒交這一題，' + others + '也來寫寫看吧。';
+      } else {
+        nudge.hidden = true;
+        return;
+      }
+
+      nudge.className = 'nudge' + (urgent ? ' urgent' : '');
+      nudge.hidden = false;
+    });
+
+    updateTodoBanner(signed, pending);
+  }
+
+
+  function updateTodoBanner(signed, pending) {
+
+    const banner = document.getElementById('todoBanner');
+    const total = document.querySelectorAll('.q-card').length;
+
+    if (!signed || !total) {
+      banner.hidden = true;
+      return;
+    }
+
+    if (!pending.length) {
+      banner.className = 'todo-banner done';
+      banner.innerHTML = '<div class="todo-text"><strong>🎉 目前開放的題目你都交了</strong>' +
+        '<span>老師批改後，可以到「我的作答紀錄」看分數和評語。</span></div>';
+      banner.hidden = false;
+      return;
+    }
+
+    // 最快截止的一題
+    const withDeadline = pending
+      .filter(function(item) { return item.deadline; })
+      .sort(function(a, b) { return a.deadline - b.deadline; });
+
+    const first = withDeadline[0] || pending[0];
+    const urgent = !!first.deadline && first.deadline - Date.now() < 24 * 3600 * 1000;
+
+    const detail = first.deadline
+      ? '最快截止：「' + first.card.dataset.title + '」' + formatDeadline(first.deadline) +
+        '（' + remainingText(first.deadline) + '）'
+      : '這幾題沒有截止時間，但還是早點完成比較安心。';
+
+    banner.className = 'todo-banner' + (urgent ? ' urgent' : '');
+    banner.innerHTML =
+      '<div class="todo-text"><strong>⏰ 你還有 ' + pending.length + ' 題沒交</strong>' +
+      '<span>' + escapeHtml(detail) + '</span></div>' +
+      '<button type="button" onclick="goToQuestion(\'' + first.card.dataset.id + '\')">去寫這一題</button>';
+    banner.hidden = false;
+  }
+
+
+  function goToQuestion(id) {
+
+    const card = document.querySelector('.q-card[data-id="' + id + '"]');
+
+    if (!card) return;
+
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    card.classList.add('highlight');
+    setTimeout(function() { card.classList.remove('highlight'); }, 1600);
+
+    const textarea = document.getElementById('answer_' + id);
+    if (textarea && !textarea.disabled) textarea.focus({ preventScroll: true });
   }
 
   setInterval(refreshDeadlines, 30 * 1000);
@@ -812,6 +1013,12 @@
         button.textContent = '重新送出';
         message.className = 'message success';
         message.textContent = (result.updated ? '✓ 回答已更新' : '✓ 回答已送出') + (result.late ? '（遲交）' : '');
+        // 第一次交：這一題的繳交人數加一
+        const card = document.querySelector('.q-card[data-id="' + questionId + '"]');
+        if (!result.updated && card && card.dataset.count !== '') {
+          card.dataset.count = Number(card.dataset.count) + 1;
+        }
+
         // 更新這一題的狀態與作答紀錄
         loadMyResults();
       })
