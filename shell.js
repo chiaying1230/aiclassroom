@@ -45,9 +45,23 @@
     const body = document.body;
     const features = Array.isArray(window.PLATFORM_FEATURES) ? window.PLATFORM_FEATURES : [];
     const here = currentFile();
+    const roles = window.PLATFORM_ROLES || {};
+
+    function rolesOf(f) {
+      return Array.isArray(f.role) ? f.role : (f.role ? [f.role] : []);
+    }
+
+    // 這一頁屬於哪種身分：可以在 <body data-role="..."> 指定，否則依 features.js 判斷
+    const pageFeature = features.find(function (f) { return !f.newTab && f.href === here; });
+    const role = body.dataset.role || (pageFeature ? rolesOf(pageFeature)[0] : '') || '';
+    const roleName = roles[role] ? roles[role].name : '';
 
     const items = features
-      .filter(function (f) { return f.status !== 'soon'; })
+      .filter(function (f) {
+        if (f.status === 'soon') return false;
+        // 沒有身分的頁面（不在清單裡）才顯示全部
+        return !role || rolesOf(f).indexOf(role) !== -1;
+      })
       .map(function (f) {
         const isCurrent = !f.newTab && f.href === here;
         const target = f.newTab ? ' target="_blank" rel="noopener"' : '';
@@ -65,7 +79,7 @@
     side.id = 'shellSide';
     side.setAttribute('aria-label', '網站選單');
     side.innerHTML =
-      '<a class="shell-brand" href="index.html" title="回到首頁"><b>AI<span class="shell-text"> 課堂</span></b><small>人工智慧（小教）</small></a>' +
+      '<a class="shell-brand" href="index.html" title="回到首頁"><b>AI<span class="shell-text"> 課堂</span></b><small>' + escapeHtml(roleName ? roleName + '專區' : '人工智慧（小教）') + '</small></a>' +
       '<nav class="shell-nav" aria-label="功能"><ul>' +
         '<li><a class="shell-link" href="index.html" title="首頁"><span class="shell-icon" aria-hidden="true">🏠</span><span class="shell-text">首頁</span></a></li>' +
         items +

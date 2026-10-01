@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>開發者｜AI 課堂</title>
+
+  <link rel="stylesheet" href="theme.css">
+  <script src="features.js"></script>
+  <script src="shell.js" defer></script>
+
+  <style>
+    .page { --page-width: 920px; }
+
+    .btn {
+      display: inline-block;
+      padding: 9px 18px;
+      border-radius: var(--radius-s);
+      background: var(--navy);
+      color: #fff;
+      font-weight: 500;
+      text-decoration: none;
+    }
+
+    .btn:hover { background: var(--head); }
+
+    section + section { margin-top: 40px; }
+
+    section h2 {
+      margin: 0 0 12px;
+      font-size: 20px;
+    }
+
+    section > p { margin: 0 0 12px; color: var(--ink-2); max-width: 40em; }
+
+    /* 架構圖：一列方塊，中間用箭頭連起來 */
+    .flow {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      align-items: stretch;
+      gap: 10px;
+    }
+
+    .node {
+      padding: 14px 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-s);
+    }
+
+    .node b { display: block; font-size: 16px; }
+    .node small { display: block; margin-top: 2px; color: var(--ink-2); font-size: 14px; line-height: 1.6; }
+    .node.backend { border-color: var(--navy); border-width: 2px; }
+
+    .arrow {
+      align-self: center;
+      color: var(--line-strong);
+      font-size: 22px;
+    }
+
+    .stores {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+      margin-left: auto;
+      width: calc((100% - 40px) / 3 * 2 + 20px);
+    }
+
+    /* 程式碼位置 */
+    .files {
+      margin: 0;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-s);
+    }
+
+    .files div {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: 4px 18px;
+      padding: 12px 16px;
+    }
+
+    .files div + div { border-top: 1px solid var(--line); }
+    .files dt { font-weight: 700; }
+    .files dd { margin: 0; color: var(--ink-2); }
+
+    code {
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      font-size: 14px;
+    }
+
+    ol.steps { margin: 0; padding-left: 1.4em; max-width: 40em; }
+    ol.steps li + li { margin-top: 6px; }
+
+    .note {
+      padding: 12px 16px;
+      border-left: 4px solid var(--orange);
+      background: var(--orange-soft);
+      border-radius: 0 var(--radius-s) var(--radius-s) 0;
+      max-width: 40em;
+    }
+
+    @media (max-width: 760px) {
+      .flow { grid-template-columns: 1fr; }
+      .arrow { justify-self: center; transform: rotate(90deg); }
+      .stores { width: 100%; }
+      .files div { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body data-role="developer">
+
+<main class="page">
+
+  <header class="page-header">
+    <div>
+      <h1>開發者</h1>
+      <p>系統怎麼運作、程式放在哪裡、改完怎麼上線。</p>
+    </div>
+    <div class="page-actions">
+      <a class="btn" href="https://github.com/chiaying1230/aiclassroom" target="_blank" rel="noopener">在 GitHub 查看原始碼</a>
+    </div>
+  </header>
+
+  <section aria-labelledby="arch">
+    <h2 id="arch">系統架構</h2>
+    <p>網頁放在 GitHub Pages，所有資料與 AI 都經過 Apps Script 後端，瀏覽器不會直接接觸試算表或 Gemini。</p>
+
+    <div class="flow">
+      <div class="node"><b>網頁</b><small>GitHub Pages 上的 HTML 頁面</small></div>
+      <span class="arrow" aria-hidden="true">→</span>
+      <div class="node"><b>gas-bridge.js</b><small>把呼叫送到後端的 <code>doPost</code></small></div>
+      <span class="arrow" aria-hidden="true">→</span>
+      <div class="node backend"><b>Apps Script</b><small>檢查權限，再讀寫資料或呼叫 AI</small></div>
+    </div>
+    <div class="stores">
+      <div class="node"><b>Google 試算表</b><small>題目、作答、分類、教材</small></div>
+      <div class="node"><b>Gemini</b><small>批改、分類、摘要、AI 助理</small></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="where">
+    <h2 id="where">程式碼位置</h2>
+    <dl class="files">
+      <div><dt>網頁</dt><dd>儲存庫根目錄的 <code>.html</code>、<code>.js</code>、<code>theme.css</code></dd></div>
+      <div><dt>功能選單</dt><dd><code>features.js</code>：新增功能時加一筆，用 <code>role</code> 決定學生、教師或開發者看得到</dd></div>
+      <div><dt>後端網址</dt><dd><code>config.js</code></dd></div>
+      <div><dt>後端程式</dt><dd>在 Apps Script 執行，備份放在 <a href="https://github.com/chiaying1230/aiclassroom/tree/main/apps-script" target="_blank" rel="noopener"><code>apps-script/</code></a></dd></div>
+    </dl>
+  </section>
+
+  <section aria-labelledby="deploy">
+    <h2 id="deploy">修改後端的流程</h2>
+    <ol class="steps">
+      <li>在 Apps Script 修改，用測試函式確認結果。</li>
+      <li>執行 <code>checkTeacherApiHandlers</code>，確認教師功能都存在。</li>
+      <li>「部署 → 管理部署作業 → 編輯 → 新版本」，網站才會用到新程式。</li>
+      <li>把改好的檔案更新到 GitHub 的 <code>apps-script/</code>，留下版本紀錄。</li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="rules">
+    <h2 id="rules">注意</h2>
+    <p class="note">API 金鑰與教師密碼只存在 Apps Script 的「指令碼屬性」，不要寫進程式碼，也不要上傳到 GitHub。這個儲存庫是公開的。</p>
+  </section>
+
+</main>
+
+</body>
+</html>

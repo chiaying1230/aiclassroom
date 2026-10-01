@@ -4,236 +4,229 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AI 課堂｜人工智慧（小教）</title>
+  <meta name="description" content="人工智慧（小教）課程網站">
 
   <link rel="stylesheet" href="theme.css">
-  <script src="features.js"></script>
 
   <style>
-    /* 左右分割：左邊是課程名稱，右邊是所有入口 */
-    .split {
+    body {
       min-height: 100vh;
-      display: grid;
-      grid-template-columns: minmax(320px, 5fr) 7fr;
-    }
-
-    .intro {
-      position: sticky;
-      top: 0;
-      height: 100vh;
-      background: var(--head);
-      color: var(--head-text);
-      padding: 56px 52px;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
-      overflow: hidden;
+      background: var(--bg);
     }
 
-    .intro-course { margin: 0; color: var(--head-soft); font-size: 15px; }
-
-    .intro h1 {
-      font-family: var(--serif);
-      font-weight: 900;
-      font-size: clamp(56px, 7.4vw, 104px);
-      line-height: 1.05;
-      letter-spacing: .04em;
-      margin: 18px 0 0;
-    }
-
-    .intro h1 span { display: block; }
-
-    .intro-lead {
-      margin: 24px 0 0;
-      max-width: 22em;
-      font-size: 17px;
-      line-height: 1.8;
+    /* ---------- 頂端列 ---------- */
+    .topbar {
+      background: var(--head);
       color: var(--head-text);
-      opacity: .85;
     }
 
-    /* 右下角的大字「課」，只是裝飾 */
-    .intro-mark {
-      position: absolute;
-      right: -40px;
-      bottom: -80px;
+    .topbar-inner {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      color: #fff;
+      text-decoration: none;
+    }
+
+    .brand b {
       font-family: var(--serif);
       font-weight: 900;
-      font-size: 360px;
-      line-height: 1;
-      color: rgba(255, 255, 255, .04);
-      pointer-events: none;
-      user-select: none;
+      font-size: 22px;
+      letter-spacing: .04em;
     }
 
-    .intro-foot { position: relative; font-size: 13px; color: var(--head-soft); }
+    .brand span { color: var(--head-soft); font-size: 14px; }
 
-    /* ---------- 右邊入口 ---------- */
-    .entries {
-      padding: 56px 56px 72px;
-      max-width: 820px;
-      width: 100%;
-    }
-
-    .group + .group { margin-top: 40px; }
-
-    .group-title {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin: 0 0 14px;
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--ink-2);
-    }
-
-    .group-title::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-
-    .group-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-
-    .entry {
-      --c: var(--blue);
-      --soft: var(--blue-soft);
-      display: flex;
-      align-items: flex-start;
-      gap: 14px;
-      padding: 18px;
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      color: var(--ink);
+    .topbar nav a {
+      color: var(--head-soft);
+      font-size: 14px;
       text-decoration: none;
-      transition: border-color .15s, box-shadow .15s, transform .15s;
     }
 
-    a.entry:hover { border-color: var(--c); box-shadow: var(--shadow-lift); transform: translateY(-2px); }
+    .topbar nav a:hover { color: #fff; text-decoration: underline; }
 
-    .entry-icon {
-      flex: 0 0 46px;
-      height: 46px;
+    /* ---------- 主內容 ---------- */
+    main {
+      flex: 1;
+      width: 100%;
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 64px 28px 72px;
+    }
+
+    main h1 {
+      margin: 0;
+      font-family: var(--serif);
+      font-weight: 900;
+      font-size: clamp(34px, 4.6vw, 52px);
+      letter-spacing: .03em;
+    }
+
+    .lead {
+      margin: 8px 0 40px;
+      color: var(--ink-2);
+      font-size: 17px;
+    }
+
+    /* 三扇門：每一扇用一個大字代表身分 */
+    .doors {
       display: grid;
-      place-items: center;
-      border-radius: 10px;
-      background: var(--soft);
-      font-size: 23px;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
     }
 
-    .entry-title { display: block; font-size: 17px; font-weight: 700; line-height: 1.45; }
-    .entry-desc { display: block; margin-top: 2px; font-size: 14px; line-height: 1.6; color: var(--ink-2); }
-
-    .entry.primary { --c: var(--blue);   --soft: var(--blue-soft); }
-    .entry.navy    { --c: var(--navy);   --soft: #e6ebf2; }
-    .entry.purple  { --c: var(--purple); --soft: var(--purple-soft); }
-    .entry.green   { --c: var(--green);  --soft: var(--green-soft); }
-    .entry.orange  { --c: var(--orange); --soft: var(--orange-soft); }
-
-    /* 學生入口：整列的大按鈕 */
-    .group-student .group-list { grid-template-columns: 1fr; }
-
-    .group-student .entry {
-      align-items: center;
-      padding: 26px 28px;
+    .door {
+      --c: var(--blue);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      min-height: 360px;
+      padding: 28px 28px 26px;
+      border-radius: 6px;
       background: var(--c);
-      border-color: var(--c);
       color: #fff;
+      text-decoration: none;
+      overflow: hidden;
+      transition: transform .18s ease, box-shadow .18s ease;
     }
 
-    .group-student .entry-icon { flex-basis: 64px; height: 64px; font-size: 32px; background: rgba(255, 255, 255, .18); }
-    .group-student .entry-title { font-size: 25px; }
-    .group-student .entry-desc { color: rgba(255, 255, 255, .85); font-size: 15px; }
+    .door.student   { --c: #2f5bd3; }
+    .door.teacher   { --c: #1c6b4a; }
+    .door.developer { --c: #22344f; }
 
-    .entry.soon { background: var(--surface-2); color: var(--ink-2); box-shadow: none; cursor: not-allowed; }
-    .entry.soon .entry-icon { filter: grayscale(1); opacity: .6; }
+    .door-glyph {
+      position: absolute;
+      top: 14px;
+      right: 18px;
+      font-family: var(--serif);
+      font-weight: 900;
+      font-size: 168px;
+      line-height: 1;
+      color: rgba(255, 255, 255, .16);
+      transition: color .18s ease;
+      pointer-events: none;
+    }
 
-    @media (max-width: 900px) {
-      .split { grid-template-columns: 1fr; }
-      .intro { position: static; height: auto; padding: 40px 22px 44px; }
-      .intro h1 { font-size: 60px; }
-      .intro h1 span { display: inline; }
-      .intro-mark { font-size: 220px; bottom: -60px; }
-      .intro-foot { display: none; }
-      .entries { padding: 28px 18px 56px; }
-      .group-list { grid-template-columns: 1fr; }
-      .group-student .entry { padding: 22px; }
-      .group-student .entry-title { font-size: 21px; }
+    .door-name {
+      font-family: var(--serif);
+      font-weight: 900;
+      font-size: 34px;
+      letter-spacing: .06em;
+      line-height: 1.2;
+    }
+
+    .door-hint {
+      margin-top: 6px;
+      font-size: 15px;
+      color: rgba(255, 255, 255, .82);
+    }
+
+    .door-go {
+      display: inline-block;
+      margin-top: 22px;
+      padding: 8px 18px;
+      align-self: flex-start;
+      border: 1px solid rgba(255, 255, 255, .55);
+      border-radius: 999px;
+      font-size: 15px;
+      font-weight: 500;
+    }
+
+    a.door:hover { transform: translateY(-4px); box-shadow: 0 14px 30px rgba(16, 24, 40, .22); }
+    a.door:hover .door-glyph { color: rgba(255, 255, 255, .28); }
+    a.door:hover .door-go { background: #fff; color: var(--c); border-color: #fff; }
+
+    /* ---------- 頁尾 ---------- */
+    footer {
+      border-top: 1px solid var(--line);
+      color: var(--ink-2);
+      font-size: 13px;
+    }
+
+    .footer-inner {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 18px 28px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px 16px;
+      flex-wrap: wrap;
+    }
+
+    footer a { color: var(--ink-2); }
+
+    @media (max-width: 860px) {
+      main { padding: 36px 18px 48px; }
+      .lead { margin-bottom: 26px; }
+      .doors { grid-template-columns: 1fr; gap: 12px; }
+      .door { min-height: 0; padding: 22px 22px 20px; }
+      .door-glyph { top: 50%; transform: translateY(-50%); font-size: 104px; }
+      .door-name { font-size: 26px; }
+      .door-go { margin-top: 14px; }
+      .topbar-inner, .footer-inner { padding-left: 18px; padding-right: 18px; }
+      .brand span { display: none; }
     }
   </style>
 </head>
 
 <body>
 
-<div class="split">
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="index.html"><b>AI 課堂</b><span>人工智慧（小教）</span></a>
+    <nav aria-label="外部連結">
+      <a href="https://moodle3.ntnu.edu.tw/" target="_blank" rel="noopener">師大 Moodle</a>
+    </nav>
+  </div>
+</header>
 
-  <header class="intro">
-    <div>
-      <p class="intro-course">人工智慧（小教）</p>
-      <h1><span>AI</span><span>課堂</span></h1>
-      <p class="intro-lead">回答老師的問題、查看批改結果，或進入教師系統與課堂討論。</p>
-    </div>
-    <div class="intro-mark" aria-hidden="true">課</div>
-    <p class="intro-foot">師生共用入口</p>
-  </header>
+<main>
+  <h1>歡迎來到 AI 課堂</h1>
+  <p class="lead">請選擇你的身分。</p>
 
-  <main class="entries" id="menu" aria-label="功能選單"></main>
+  <div class="doors">
+    <a class="door student" href="student.html">
+      <span class="door-glyph" aria-hidden="true">學</span>
+      <span class="door-name">學生</span>
+      <span class="door-hint">回答老師的問題、查看回饋</span>
+      <span class="door-go">進入</span>
+    </a>
 
-</div>
+    <a class="door teacher" href="teacher.html">
+      <span class="door-glyph" aria-hidden="true">教</span>
+      <span class="door-name">教師</span>
+      <span class="door-hint">需要輸入教師密碼</span>
+      <span class="door-go">登入</span>
+    </a>
 
-<script>
+    <a class="door developer" href="dev.html">
+      <span class="door-glyph" aria-hidden="true">研</span>
+      <span class="door-name">開發者</span>
+      <span class="door-hint">系統架構與原始碼</span>
+      <span class="door-go">進入</span>
+    </a>
+  </div>
+</main>
 
-  const features = Array.isArray(window.PLATFORM_FEATURES) ? window.PLATFORM_FEATURES : [];
-
-  const GROUPS = [
-    { key: 'student', title: '學生' },
-    { key: 'teacher', title: '教師' },
-    { key: 'link', title: '其他連結' }
-  ];
-
-  // 沒寫 group 的：第一個當學生入口，新分頁的當外部連結，其他歸教師
-  function groupOf(f, index) {
-    if (f.group) return f.group;
-    if (index === 0) return 'student';
-    return f.newTab ? 'link' : 'teacher';
-  }
-
-  function entryHtml(f) {
-
-    const icon = '<span class="entry-icon" aria-hidden="true">' + escapeHtml(f.icon || '•') + '</span>';
-    const desc = f.desc || (f.newTab ? '在新分頁開啟' : '');
-    const text = '<span><span class="entry-title">' + escapeHtml(f.title) + '</span>' +
-      (desc ? '<span class="entry-desc">' + escapeHtml(desc) + '</span>' : '') + '</span>';
-
-    if (f.status === 'soon') {
-      return '<span class="entry soon" aria-disabled="true">' + icon +
-        '<span><span class="entry-title">' + escapeHtml(f.title) + '</span><span class="entry-desc">籌備中</span></span></span>';
-    }
-
-    const target = f.newTab ? ' target="_blank" rel="noopener"' : '';
-
-    return '<a class="entry ' + escapeHtml(f.color || 'primary') + '" href="' +
-      escapeHtml(f.href) + '"' + target + '>' + icon + text + '</a>';
-  }
-
-  document.getElementById('menu').innerHTML = GROUPS.map(function(g) {
-
-    const list = features.filter(function(f, i) { return groupOf(f, i) === g.key; });
-
-    if (!list.length) return '';
-
-    return '<section class="group group-' + g.key + '">' +
-      '<h2 class="group-title">' + g.title + '</h2>' +
-      '<div class="group-list">' + list.map(entryHtml).join('') + '</div></section>';
-  }).join('');
-
-  function escapeHtml(value) {
-    return String(value == null ? '' : value)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  }
-
-</script>
+<footer>
+  <div class="footer-inner">
+    <span>© 2026 人工智慧（小教）課程</span>
+    <a href="https://github.com/chiaying1230/aiclassroom" target="_blank" rel="noopener">GitHub</a>
+  </div>
+</footer>
 
 </body>
 </html>

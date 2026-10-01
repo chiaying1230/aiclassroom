@@ -1,24 +1,39 @@
 /*
- * 首頁按鈕與左側選單的清單
- * 之後要加新功能，在下面多加一筆，首頁和每一頁的左側選單都會多一項。
+ * 網站的功能清單
  *
- *   title   按鈕文字
- *   desc    首頁卡片上的一句說明（可以不寫）
- *   group   首頁分區：'student' 學生、'teacher' 教師、'link' 外部連結（可以不寫）
+ * 首頁只顯示「學生、教師、開發者」三個入口，不會列出這裡的每個功能。
+ * 進到某一頁後，左側選單只會顯示同一種身分的功能，
+ * 例如學生在作答頁看不到教師系統。
+ *
+ * 之後要加新功能，在下面多加一筆：
+ *
+ *   title   選單上的文字
+ *   role    誰會看到：'student' 學生、'teacher' 教師、'developer' 開發者
+ *           兩種身分都要看到時寫成 ['student', 'teacher']
  *   href    要開啟的頁面檔名，或完整網址
  *   icon    一個 emoji
- *   color   顏色：'primary' 藍、'navy' 深藍、'purple' 紫、'green' 綠、'orange' 橘
  *   newTab  true 代表在新分頁開啟（外部網站建議設 true）
- *   status  'live' 可以點、'soon' 灰色不能點
+ *   status  'live' 可以點、'soon' 先不顯示
  *
  * 注意：每一筆之間要用逗號隔開，最後一筆後面不用逗號。
  */
 
+window.PLATFORM_ROLES = {
+  student:   { name: '學生',   home: 'student.html' },
+  teacher:   { name: '教師',   home: 'teacher.html' },
+  developer: { name: '開發者', home: 'dev.html' }
+};
+
 window.PLATFORM_FEATURES = [
-  { title: '我是學生，我要作答', desc: '回答老師發布的問題，查看批改結果與評語', group: 'student', href: 'student.html', icon: '✏️', color: 'primary', status: 'live' },
-  { title: '教師系統', desc: '出題、AI 初步批改與教師審核', group: 'teacher', href: 'teacher.html', icon: '👩‍🏫', color: 'navy', status: 'live' },
-  { title: '討論平台', desc: '把全班回答分類，投影帶討論', group: 'teacher', href: 'discuss.html', icon: '🗣', color: 'purple', status: 'live' },
-  { title: '教材庫與 AI 助理', desc: '上傳教材，讓 AI 依教材回答', group: 'teacher', href: 'rag.html', icon: '📚', color: 'green', status: 'live' },
-  { title: '教師 AI 工具研習', desc: '五個備課與回饋 AI 工具的操作筆記', group: 'teacher', href: 'ai-tools.html', icon: '🧰', color: 'navy', status: 'live' },
-  { title: '師大 Moodle', desc: '師大數位學習平台', group: 'link', href: 'https://moodle3.ntnu.edu.tw/', icon: '🎓', color: 'orange', newTab: true, status: 'live' }
+  { title: '課堂問答',         role: 'student',   href: 'student.html',  icon: '✏️', status: 'live' },
+
+  { title: '教師系統',         role: 'teacher',   href: 'teacher.html',  icon: '👩‍🏫', status: 'live' },
+  { title: '課堂討論',         role: 'teacher',   href: 'discuss.html',  icon: '🗣', status: 'live' },
+  { title: '教材庫與 AI 助理', role: 'teacher',   href: 'rag.html',      icon: '📚', status: 'live' },
+  { title: '教師 AI 工具研習', role: 'teacher',   href: 'ai-tools.html', icon: '🧰', status: 'live' },
+
+  { title: '開發者首頁',       role: 'developer', href: 'dev.html',      icon: '🛠', status: 'live' },
+  { title: 'GitHub 原始碼',    role: 'developer', href: 'https://github.com/chiaying1230/aiclassroom', icon: '📦', newTab: true, status: 'live' },
+
+  { title: '師大 Moodle',      role: ['student', 'teacher'], href: 'https://moodle3.ntnu.edu.tw/', icon: '🎓', newTab: true, status: 'live' }
 ];
