@@ -27,6 +27,14 @@
 
     label { display: block; margin: 0 0 6px; font-weight: 700; font-size: 14px; color: var(--ink-2); }
 
+    .visually-hidden {
+      position: absolute !important;
+      width: 1px; height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+
     input, textarea {
       width: 100%;
       padding: 10px 13px;
@@ -350,6 +358,85 @@
 
     .waiting { color: var(--ink-2); margin: 0; }
 
+    /* ---------- 課程 ---------- */
+    .course-teacher { margin: 6px 0 0; color: var(--ink-2); }
+
+    .course-panel { padding: 22px 24px; }
+    .course-panel h2 { margin: 0; font-size: 19px; }
+    .course-panel > p { margin: 4px 0 16px; color: var(--ink-2); font-size: 15px; }
+
+    .join-row { display: flex; gap: 10px; max-width: 420px; }
+
+    .join-row input {
+      flex: 1;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: .28em;
+      text-transform: uppercase;
+      text-align: center;
+    }
+
+    .join-row input::placeholder { font-size: 15px; font-weight: 400; letter-spacing: 0; text-transform: none; }
+
+    .course-message { min-height: 1.5em; margin-top: 8px; font-size: 14px; font-weight: 700; }
+    .course-message.error { color: var(--red); }
+    .course-message:empty { min-height: 0; margin: 0; }
+
+    .my-courses { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+    .my-courses h3 { margin: 0 0 10px; font-size: 15px; color: var(--ink-2); }
+
+    .course-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+
+    .course-item {
+      display: flex;
+      align-items: stretch;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-s);
+      background: var(--surface);
+      overflow: hidden;
+    }
+
+    .course-item.current { border-color: var(--blue); box-shadow: 0 0 0 2px var(--blue-soft); }
+
+    .course-pick {
+      flex: 1;
+      min-width: 0;
+      height: auto;
+      padding: 10px 14px;
+      background: transparent;
+      color: var(--ink);
+      text-align: left;
+      white-space: normal;
+      border-radius: 0;
+    }
+
+    .course-pick:hover { background: var(--surface-2); }
+    .course-pick b { display: block; font-size: 15px; line-height: 1.45; }
+    .course-pick small { display: block; color: var(--ink-2); font-size: 13px; font-weight: 400; }
+
+    .course-forget {
+      flex: none;
+      width: 38px;
+      height: auto;
+      padding: 0;
+      background: transparent;
+      color: var(--ink-2);
+      border-left: 1px solid var(--line);
+      border-radius: 0;
+      font-size: 16px;
+    }
+
+    .course-forget:hover { background: var(--red-soft); color: var(--red); }
+
+    .archived-note {
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      border-radius: var(--radius-s);
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      color: var(--ink-2);
+    }
+
     @media (max-width: 1023px) {
       .identity-form { grid-template-columns: 1fr 1fr; }
       .identity-form .identity-head { grid-column: 1 / -1; }
@@ -359,6 +446,7 @@
     }
 
     @media (max-width: 640px) {
+      .join-row { max-width: none; }
       .identity-form { grid-template-columns: 1fr; }
       .question-content { margin-left: 24px; }
       .r-body { grid-template-columns: 1fr; }
@@ -374,10 +462,30 @@
 
   <header class="page-header">
     <div>
-      <h1>課堂問答</h1>
-      <p>閱讀老師的問題，用自己的想法回答</p>
+      <h1 id="courseTitle">課堂問答</h1>
+      <p class="course-teacher" id="courseTeacher">先輸入老師給你的課程代碼</p>
+    </div>
+    <div class="page-actions">
+      <button type="button" class="secondary" id="switchCourseButton" onclick="toggleCoursePanel()" aria-expanded="false" aria-controls="coursePanel" hidden>切換課程</button>
     </div>
   </header>
+
+  <section class="card course-panel" id="coursePanel" aria-labelledby="coursePanelTitle" hidden>
+    <h2 id="coursePanelTitle">加入課程</h2>
+    <p>輸入老師給你的 6 碼課程代碼。</p>
+
+    <form class="join-row" id="joinForm">
+      <label for="courseCode" class="visually-hidden">課程代碼</label>
+      <input id="courseCode" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="例如 AB3K7Q">
+      <button type="submit" id="joinButton">加入</button>
+    </form>
+    <div class="course-message" id="courseMessage" role="status"></div>
+
+    <div class="my-courses" id="myCourses" hidden>
+      <h3>我加入過的課程</h3>
+      <div class="course-list" id="courseList"></div>
+    </div>
+  </section>
 
   <section class="card identity" aria-label="我的資料">
 
@@ -449,13 +557,7 @@
   document.addEventListener('DOMContentLoaded', function() {
 
     restoreIdentity();
-    loadQuestions();
-
-    const identity = getIdentity();
-
-    if (identity.studentId && identity.name) {
-      loadMyResults();
-    }
+    setupCourses();
 
     // 在學號、姓名欄按 Enter 就確認
     ['studentId', 'name'].forEach(function(id) {
@@ -475,6 +577,276 @@
     if (identity.studentId && identity.name) {
       loadMyResults();
     }
+  }
+
+
+  /* ==================================================
+     課程
+     學生輸入老師給的加入代碼，或點老師分享的連結（student.html?course=代碼）。
+     這台裝置會記住加入過的課程，下次直接選。
+  ================================================== */
+
+  const COURSES_KEY = 'classroom_courses';
+  const CURRENT_COURSE_KEY = 'classroom_course';
+
+  let currentCourse = null;
+
+
+  function readJoinedCourses() {
+    try {
+      const list = JSON.parse(localStorage.getItem(COURSES_KEY) || '[]');
+      return Array.isArray(list) ? list.filter(function(c) { return c && c.code; }) : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+
+  function saveJoinedCourses(list) {
+    try {
+      localStorage.setItem(COURSES_KEY, JSON.stringify(list));
+    } catch (error) {
+      // 無痕視窗可能不能存，這一次仍可使用
+    }
+  }
+
+
+  function rememberCourse(course) {
+    const list = readJoinedCourses().filter(function(c) { return c.code !== course.code; });
+    list.unshift({ code: course.code, name: course.name, teacherName: course.teacherName, archived: !!course.archived });
+    saveJoinedCourses(list.slice(0, 20));
+    try { localStorage.setItem(CURRENT_COURSE_KEY, course.code); } catch (error) { /* 忽略 */ }
+  }
+
+
+  function forgetCourse(code) {
+
+    saveJoinedCourses(readJoinedCourses().filter(function(c) { return c.code !== code; }));
+
+    if (currentCourse && currentCourse.code === code) {
+      try { localStorage.removeItem(CURRENT_COURSE_KEY); } catch (error) { /* 忽略 */ }
+      setCurrentCourse(null);
+    }
+
+    renderCourseList();
+  }
+
+
+  function setupCourses() {
+
+    document.getElementById('joinForm').addEventListener('submit', function(event) {
+      event.preventDefault();
+      joinCourse(document.getElementById('courseCode').value);
+    });
+
+    // 老師分享的連結：student.html?course=代碼
+    const params = new URLSearchParams(window.location.search);
+    const linkCode = params.get('course');
+
+    if (linkCode) {
+      params.delete('course');
+      const rest = params.toString();
+      try {
+        history.replaceState(null, '', window.location.pathname + (rest ? '?' + rest : '') + window.location.hash);
+      } catch (error) { /* 忽略 */ }
+      joinCourse(linkCode);
+      return;
+    }
+
+    let savedCode = '';
+    try { savedCode = localStorage.getItem(CURRENT_COURSE_KEY) || ''; } catch (error) { savedCode = ''; }
+
+    const saved = readJoinedCourses().find(function(c) { return c.code === savedCode; });
+
+    if (!saved) {
+      setCurrentCourse(null);
+      return;
+    }
+
+    // 先用記住的資料顯示，再向伺服器確認代碼還有效
+    setCurrentCourse(saved);
+    refreshCourseInfo(saved);
+  }
+
+
+  /*
+   * 向伺服器確認記住的課程還有效，順便更新課程名稱與狀態。
+   * 老師換過代碼的話，舊代碼就找不到了。
+   */
+  function refreshCourseInfo(saved) {
+
+    google.script.run
+      .withSuccessHandler(function(course) {
+        rememberCourse(course);
+        if (currentCourse && currentCourse.code === course.code) {
+          const archivedChanged = course.archived !== !!currentCourse.archived;
+          currentCourse = course;
+          showCourseHeader();
+          renderCourseList();
+          if (archivedChanged) loadQuestions();
+        }
+      })
+      .withFailureHandler(function(error) {
+        if (/找不到/.test(error.message)) {
+          forgetCourse(saved.code);
+          openCoursePanel(true);
+          showCourseMessage('「' + saved.name + '」的課程代碼已經更換，請向老師索取新的代碼。', true);
+        }
+      })
+      .getCourseByCode(saved.code);
+  }
+
+
+  function joinCourse(code) {
+
+    code = String(code || '').trim().toUpperCase().replace(/[\s-]/g, '');
+
+    if (!code) {
+      showCourseMessage('請輸入課程代碼', true);
+      document.getElementById('courseCode').focus();
+      return;
+    }
+
+    const button = document.getElementById('joinButton');
+    button.disabled = true;
+    button.textContent = '查詢中……';
+    showCourseMessage('', false);
+    openCoursePanel(true);
+
+    google.script.run
+      .withSuccessHandler(function(course) {
+        button.disabled = false;
+        button.textContent = '加入';
+        document.getElementById('courseCode').value = '';
+        rememberCourse(course);
+        setCurrentCourse(course);
+      })
+      .withFailureHandler(function(error) {
+        button.disabled = false;
+        button.textContent = '加入';
+        showCourseMessage(error.message, true);
+        document.getElementById('courseCode').value = code;
+        document.getElementById('courseCode').select();
+      })
+      .getCourseByCode(code);
+  }
+
+
+  function setCurrentCourse(course) {
+
+    const changed = (currentCourse && currentCourse.code) !== (course && course.code);
+
+    currentCourse = course;
+
+    try {
+      if (course) localStorage.setItem(CURRENT_COURSE_KEY, course.code);
+    } catch (error) { /* 忽略 */ }
+
+    showCourseHeader();
+    renderCourseList();
+    openCoursePanel(!course);
+
+    if (!changed && course) {
+      return;
+    }
+
+    // 換課程：清掉上一門課的作答
+    Object.keys(myAnswers).forEach(function(key) { delete myAnswers[key]; });
+    myAnswersReady = false;
+
+    loadQuestions();
+
+    const identity = getIdentity();
+
+    if (course && identity.studentId && identity.name) {
+      loadMyResults();
+    } else {
+      document.getElementById('myResults').innerHTML = course
+        ? '<div class="card empty">請輸入學號與姓名，再按「確認」</div>'
+        : '<div class="card empty">請先加入課程</div>';
+    }
+  }
+
+
+  function showCourseHeader() {
+
+    const title = document.getElementById('courseTitle');
+    const teacher = document.getElementById('courseTeacher');
+    const switchButton = document.getElementById('switchCourseButton');
+
+    if (!currentCourse) {
+      title.textContent = '課堂問答';
+      teacher.textContent = '先輸入老師給你的課程代碼';
+      switchButton.hidden = true;
+      document.title = '課堂問答｜AI 課堂';
+      return;
+    }
+
+    title.textContent = currentCourse.name;
+    teacher.textContent =
+      (currentCourse.teacherName ? '授課教師：' + currentCourse.teacherName : '課堂問答') +
+      (currentCourse.archived ? '・課程已結束' : '');
+    switchButton.hidden = false;
+    document.title = currentCourse.name + '｜AI 課堂';
+  }
+
+
+  function renderCourseList() {
+
+    const list = readJoinedCourses();
+    const box = document.getElementById('courseList');
+
+    document.getElementById('myCourses').hidden = list.length === 0;
+
+    box.innerHTML = list.map(function(c) {
+      const isCurrent = currentCourse && currentCourse.code === c.code;
+      return '<div class="course-item' + (isCurrent ? ' current' : '') + '">' +
+        '<button type="button" class="course-pick" data-code="' + escapeHtml(c.code) + '"' +
+        (isCurrent ? ' aria-current="true"' : '') + '>' +
+        '<b>' + escapeHtml(c.name) + '</b>' +
+        '<small>' + escapeHtml((c.teacherName || '') + (isCurrent ? '・目前的課程' : c.archived ? '・已結束' : '')) + '</small>' +
+        '</button>' +
+        '<button type="button" class="course-forget" data-forget="' + escapeHtml(c.code) + '"' +
+        ' title="從這台裝置移除" aria-label="從這台裝置移除「' + escapeHtml(c.name) + '」">×</button>' +
+        '</div>';
+    }).join('');
+
+    box.querySelectorAll('[data-code]').forEach(function(button) {
+      button.addEventListener('click', function() {
+        const picked = readJoinedCourses().find(function(c) { return c.code === button.dataset.code; });
+        if (picked) {
+          showCourseMessage('', false);
+          setCurrentCourse(picked);
+          refreshCourseInfo(picked);
+        }
+      });
+    });
+
+    box.querySelectorAll('[data-forget]').forEach(function(button) {
+      button.addEventListener('click', function() {
+        forgetCourse(button.dataset.forget);
+      });
+    });
+  }
+
+
+  function openCoursePanel(open) {
+    document.getElementById('coursePanel').hidden = !open;
+    document.getElementById('switchCourseButton').setAttribute('aria-expanded', String(!!open));
+  }
+
+
+  function toggleCoursePanel() {
+    const panel = document.getElementById('coursePanel');
+    openCoursePanel(panel.hidden);
+    if (!panel.hidden) document.getElementById('courseCode').focus();
+  }
+
+
+  function showCourseMessage(text, isError) {
+    const box = document.getElementById('courseMessage');
+    box.textContent = text;
+    box.className = 'course-message' + (isError ? ' error' : '');
   }
 
 
@@ -553,7 +925,10 @@
     rememberIdentity(data);
     myAnswersReady = false;
     showIdentityState();
-    loadMyResults();
+
+    if (currentCourse) {
+      loadMyResults();
+    }
   }
 
 
@@ -610,6 +985,7 @@
     document.getElementById('tabQuestions').click();
     loadQuestions();
     document.getElementById('studentId').focus();
+    fillMyAnswers();
   }
 
 
@@ -701,15 +1077,28 @@
   function loadQuestions() {
 
     const list = document.getElementById('questionList');
+
+    if (!currentCourse) {
+      list.innerHTML = '<div class="card empty">輸入課程代碼加入課程後，這裡會出現老師的問題。</div>';
+      updateReminders();
+      return;
+    }
+
+    const code = currentCourse.code;
     list.innerHTML = '<div class="card empty">題目載入中……</div>';
 
     google.script.run
-      .withSuccessHandler(renderQuestions)
+      .withSuccessHandler(function(questions) {
+        // 等待期間換了課程，就不要顯示舊課程的題目
+        if (!currentCourse || currentCourse.code !== code) return;
+        renderQuestions(questions);
+      })
       .withFailureHandler(function(error) {
+        if (!currentCourse || currentCourse.code !== code) return;
         list.innerHTML =
           '<div class="card error">題目讀取失敗：' + escapeHtml(error.message) + '</div>';
       })
-      .getPublishedQuestions();
+      .getPublishedQuestions(code);
   }
 
 
@@ -717,8 +1106,15 @@
 
     const list = document.getElementById('questionList');
 
+    if (currentCourse && currentCourse.archived) {
+      list.innerHTML = '<div class="archived-note">這門課程已經結束，不能再作答。你的作答和老師的評語可以在「我的作答紀錄」查看。</div>';
+      updateReminders();
+      return;
+    }
+
     if (!questions || questions.length === 0) {
       list.innerHTML = '<div class="card empty">老師目前沒有發布題目。</div>';
+      updateReminders();
       return;
     }
 
@@ -1034,7 +1430,8 @@
         studentId: identity.studentId,
         name: identity.name,
         questionId: questionId,
-        answer: answer
+        answer: answer,
+        courseCode: currentCourse ? currentCourse.code : ''
       });
   }
 
@@ -1049,17 +1446,30 @@
     }
 
     const box = document.getElementById('myResults');
+
+    if (!currentCourse) {
+      box.innerHTML = '<div class="card empty">請先加入課程</div>';
+      return;
+    }
+
+    const code = currentCourse.code;
     box.innerHTML = '<div class="card empty">讀取中……</div>';
 
     google.script.run
       .withSuccessHandler(function(results) {
+        if (!currentCourse || currentCourse.code !== code) return;
         renderMyResults(results);
         applyMyAnswers(results);
       })
       .withFailureHandler(function(error) {
+        if (!currentCourse || currentCourse.code !== code) return;
         box.innerHTML = '<div class="card error">' + escapeHtml(error.message) + '</div>';
       })
-      .getStudentResults(identity);
+      .getStudentResults({
+        studentId: identity.studentId,
+        name: identity.name,
+        courseCode: code
+      });
   }
 
 
@@ -1068,7 +1478,7 @@
     const box = document.getElementById('myResults');
 
     if (!results || results.length === 0) {
-      box.innerHTML = '<div class="card empty">還沒有作答紀錄。<br>' +
+      box.innerHTML = '<div class="card empty">這門課還沒有作答紀錄。<br>' +
         '如果你在其他電腦或手機作答過，請確認學號和姓名跟當時輸入的完全一樣。</div>';
       return;
     }
@@ -1158,7 +1568,7 @@
     tabs.results.tab.addEventListener('click', function() {
       show('results');
       const identity = getIdentity();
-      if (identity.studentId && identity.name) loadMyResults();
+      if (identity.studentId && identity.name && currentCourse) loadMyResults();
     });
 
     document.getElementById('viewResultsButton').addEventListener('click', function() {

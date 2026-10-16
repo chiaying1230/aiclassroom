@@ -1,14 +1,16 @@
 /*
- * 教師頁面共用的登入畫面（teacher.html、discuss.html）
+ * 教師頁面共用的登入畫面（教師系統、課堂討論、教材庫、課程管理、帳號管理）
  *
  * 用法：頁面把「需要登入後才執行」的程式放進 TeacherAuth.ready(function () { ... })
+ * 需要知道目前課程的頁面，改用 teacher-course.js 的 TeacherCourse.ready。
  *
- * 密碼不寫在這裡。這個檔案在 GitHub 上是公開的，
- * 真正的密碼檢查在 Apps Script（Code.gs 的 teacherLogin）。
+ * 帳號密碼不寫在這裡。這個檔案在 GitHub 上是公開的，
+ * 真正的檢查在 Apps Script（Code.gs 的 teacherLogin）。
  */
 (function () {
 
   const STORAGE_KEY = 'aiclassroom_teacher_session';
+  const ACCOUNT_KEY = 'aiclassroom_teacher_account';
 
   const callbacks = [];
   let isReady = false;
@@ -28,10 +30,11 @@
   }
 
 
-  function saveSession(token, seconds) {
+  function saveSession(token, seconds, teacher) {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         token: token,
+        teacher: teacher || null,
         expiresAt: Date.now() + (seconds - 60) * 1000
       }));
     } catch (error) {
@@ -123,15 +126,22 @@
         color: #1a2433;
       }
 
+      .auth-body input + label { margin-top: 14px; }
+
+      .auth-sub {
+        margin: 6px 0 0;
+        color: #4f5b6d;
+        font-size: 14px;
+      }
+
       .auth-body input {
         width: 100%;
         box-sizing: border-box;
         padding: 12px 14px;
         border: 1px solid #c3ccd9;
         border-radius: 8px;
-        font-size: 18px;
+        font-size: 17px;
         font-family: inherit;
-        letter-spacing: .2em;
       }
 
       .auth-body input:focus {
@@ -198,10 +208,16 @@
 
       overlay.innerHTML = `
         <form class="auth-card" id="teacherAuthForm">
-          <header><h1>👩‍🏫 教師登入</h1></header>
+          <header>
+            <h1>教師登入</h1>
+            <p class="auth-sub">還沒有帳號，請向管理員申請。</p>
+          </header>
           <div class="auth-body">
-            <label for="teacherAuthPassword">教師密碼</label>
-            <input id="teacherAuthPassword" type="password" inputmode="numeric"
+            <label for="teacherAuthAccount">帳號</label>
+            <input id="teacherAuthAccount" autocomplete="username" autocapitalize="none"
+              spellcheck="false" required>
+            <label for="teacherAuthPassword">密碼</label>
+            <input id="teacherAuthPassword" type="password"
               autocomplete="current-password" required>
             <button type="submit" id="teacherAuthButton">登入</button>
             <div class="auth-message" id="teacherAuthMessage" role="alert"></div>
@@ -221,9 +237,15 @@
     overlay.style.display = 'flex';
     document.getElementById('teacherAuthMessage').textContent = message || '';
 
+    const accountInput = document.getElementById('teacherAuthAccount');
     const input = document.getElementById('teacherAuthPassword');
+
+    if (!accountInput.value) {
+      try { accountInput.value = localStorage.getItem(ACCOUNT_KEY) || ''; } catch (error) { /* 忽略 */ }
+    }
+
     input.value = '';
-    input.focus();
+    (accountInput.value ? input : accountInput).focus();
   }
 
 
@@ -239,13 +261,15 @@
 
   function login() {
 
+    const accountInput = document.getElementById('teacherAuthAccount');
     const input = document.getElementById('teacherAuthPassword');
     const button = document.getElementById('teacherAuthButton');
     const message = document.getElementById('teacherAuthMessage');
 
+    const account = accountInput.value.trim().toLowerCase();
     const password = input.value.trim();
 
-    if (!password) {
+    if (!account || !password) {
       return;
     }
 
@@ -256,7 +280,17 @@
     google.script.run
       .withSuccessHandler(function (result) {
 
-        saveSession(result.token, result.expiresInSeconds);
+        saveSession(result.token, result.expiresInSeconds, result.teacher);
+
+        try { localStorage.setItem(ACCOUNT_KEY, account); } catch (error) { /* 忽略 */ }
+
+        const previous = window.TeacherAuth.lastAccount;
+
+        // 換了別的帳號登入：重新載入，免得畫面還留著上一位老師的資料
+        if (previous && previous !== account) {
+          window.location.reload();
+          return;
+        }
 
         if (wasReadyOnce) {
           // 使用途中過期：重新載入，確保畫面資料是最新的
@@ -274,7 +308,7 @@
 
         input.select();
       })
-      .teacherLogin(password);
+      .teacherLogin({ account: account, password: password });
   }
 
 
@@ -296,6 +330,9 @@
 
 
   window.addEventListener('aiclassroom:auth-required', function () {
+
+    const old = readSession();
+    window.TeacherAuth.lastAccount = old && old.teacher ? old.teacher.account : '';
 
     clearSession();
 
@@ -319,6 +356,14 @@
   window.TeacherAuth = {
 
     getToken: getToken,
+
+    // 登入時後端回傳的教師資料 { account, name, role, isAdmin }
+    getTeacher: function () {
+      const session = readSession();
+      return session && session.teacher ? session.teacher : null;
+    },
+
+    lastAccount: '',
 
     logout: logout,
 

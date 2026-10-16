@@ -140,9 +140,20 @@
       <div class="node backend"><b>Apps Script</b><small>檢查權限，再讀寫資料或呼叫 AI</small></div>
     </div>
     <div class="stores">
-      <div class="node"><b>Google 試算表</b><small>題目、作答、分類、教材</small></div>
+      <div class="node"><b>Google 試算表</b><small>課程、教師帳號、題目、作答、分類、教材</small></div>
       <div class="node"><b>Gemini</b><small>批改、分類、摘要、AI 助理</small></div>
     </div>
+  </section>
+
+  <section aria-labelledby="courses">
+    <h2 id="courses">課程與權限</h2>
+    <p>每一題都屬於一門課程，學生作答、討論分類跟著題目分到課程；教材用「教材課程」工作表記錄屬於哪門課。</p>
+    <dl class="files">
+      <div><dt>學生</dt><dd>輸入老師給的 6 碼加入代碼，或打開 <code>student.html?course=代碼</code>，只看得到那門課的題目和自己的紀錄。</dd></div>
+      <div><dt>教師</dt><dd>用自己的帳號登入，只看得到、只改得到自己開的課程。權限檢查在後端，每個教師功能執行前都會確認課程屬於登入者。</dd></div>
+      <div><dt>管理員</dt><dd>帳號 <code>admin</code>，密碼是指令碼屬性的 <code>TEACHER_PASSWORD</code>。看得到所有課程，可以新增教師帳號、修改全站的 AI 評語風格。</dd></div>
+      <div><dt>預設課程</dt><dd>改版前的題目和教材都歸在「人工智慧（小教）」，課程ID 存在指令碼屬性 <code>DEFAULT_COURSE_ID</code>。</dd></div>
+    </dl>
   </section>
 
   <section aria-labelledby="where">
@@ -150,6 +161,7 @@
     <dl class="files">
       <div><dt>網頁</dt><dd>儲存庫根目錄的 <code>.html</code>、<code>.js</code>、<code>theme.css</code></dd></div>
       <div><dt>功能選單</dt><dd><code>features.js</code>：新增功能時加一筆，用 <code>role</code> 決定學生、教師或開發者看得到</dd></div>
+      <div><dt>教師登入與課程</dt><dd><code>teacher-auth.js</code> 負責登入；<code>teacher-course.js</code> 負責左側選單的「目前課程」，教師頁面呼叫後端時帶上 <code>TeacherCourse.id()</code></dd></div>
       <div><dt>後端網址</dt><dd><code>config.js</code></dd></div>
       <div><dt>後端程式</dt><dd>在 Apps Script 執行，備份放在 <a href="https://github.com/chiaying1230/aiclassroom/tree/main/apps-script" target="_blank" rel="noopener"><code>apps-script/</code></a></dd></div>
     </dl>
@@ -159,7 +171,8 @@
     <h2 id="deploy">修改後端的流程</h2>
     <ol class="steps">
       <li>在 Apps Script 修改，用測試函式確認結果。</li>
-      <li>執行 <code>checkTeacherApiHandlers</code>，確認教師功能都存在。</li>
+      <li>執行 <code>checkTeacherApiHandlers</code>，確認教師功能和其他檔案的函式都存在。</li>
+      <li>新增教師用的後端函式時，加進 <code>getTeacherApiHandlers_</code>，並在函式開頭用 <code>requireCourse_</code>、<code>requireQuestion_</code> 或 <code>requireAdmin_</code> 檢查權限。</li>
       <li>「部署 → 管理部署作業 → 編輯 → 新版本」，網站才會用到新程式。</li>
       <li>把改好的檔案更新到 GitHub 的 <code>apps-script/</code>，留下版本紀錄。</li>
     </ol>

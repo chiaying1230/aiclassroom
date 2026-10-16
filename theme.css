@@ -216,6 +216,130 @@ body.shell-collapsed .shell-brand b { font-size: 20px; letter-spacing: 0; }
 body.shell-collapsed .shell-link,
 body.shell-collapsed .shell-side .shell-toggle { justify-content: center; padding: 8px 0; }
 
+/* 教師頁面：目前課程（teacher-course.js 產生） */
+.shell-course {
+  padding: 14px 20px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, .08);
+}
+
+.shell-course-label {
+  display: block;
+  margin: 0 0 6px;
+  color: var(--head-soft);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.shell-side .shell-course-select {
+  width: 100%;
+  height: 40px;
+  margin: 0;
+  padding: 0 32px 0 12px;
+  border: 1px solid rgba(255, 255, 255, .22);
+  border-radius: var(--radius-s);
+  background-color: var(--head-2);
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.shell-course-select option,
+.shell-course-select optgroup { color: var(--ink); background: #fff; }
+
+.shell-course-code {
+  display: block;
+  margin-top: 6px;
+  color: var(--head-soft);
+  font-size: 13px;
+}
+
+.shell-course-code b { color: #fff; letter-spacing: .12em; font-weight: 700; }
+
+.shell-course-none { margin: 0; color: #fff; font-weight: 700; }
+
+.shell-course-link {
+  display: inline-block;
+  margin-top: 6px;
+  color: var(--yellow);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.shell-course-link:hover { text-decoration: underline; }
+
+/* 教師頁面：登入者 */
+.shell-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 10px 10px;
+  color: #fff;
+}
+
+.shell-user .shell-icon { background: var(--blue); font-size: 14px; font-weight: 700; }
+.shell-user .shell-text { line-height: 1.35; }
+.shell-user b { display: block; font-size: 14px; }
+.shell-user small { display: block; color: var(--head-soft); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+
+.shell-side .shell-logout {
+  flex: none;
+  height: 30px;
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, .22);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--head-soft);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  filter: none;
+}
+
+.shell-side .shell-logout:hover { color: #fff; border-color: rgba(255, 255, 255, .5); background: transparent; }
+
+body.shell-collapsed .shell-course,
+body.shell-collapsed .shell-logout { display: none; }
+body.shell-collapsed .shell-user { justify-content: center; padding: 4px 0 10px; }
+
+/* 教師頁面：頁面最上方的提醒（沒有課程、課程已封存） */
+.course-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0 0 22px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--blue);
+  border-radius: var(--radius);
+}
+
+.course-banner strong { flex: 1 1 100%; font-size: 17px; }
+.course-banner span { flex: 1 1 320px; color: var(--ink-2); }
+
+.course-banner a,
+.course-banner button {
+  flex: none;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: var(--blue);
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.course-banner.muted { border-left-color: var(--gray); }
+.course-banner.muted a { background: var(--navy); }
+.course-banner.error { border-left-color: var(--red); }
+
 /* 手機上方列 */
 .shell-bar { display: none; }
 

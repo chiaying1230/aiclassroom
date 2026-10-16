@@ -30,6 +30,8 @@ window.PLATFORM_FEATURES = [
   { title: '教師系統',         role: 'teacher',   href: 'teacher.html',  icon: '👩‍🏫', status: 'live' },
   { title: '課堂討論',         role: 'teacher',   href: 'discuss.html',  icon: '🗣', status: 'live' },
   { title: '教材庫與 AI 助理', role: 'teacher',   href: 'rag.html',      icon: '📚', status: 'live' },
+  { title: '課程管理',         role: 'teacher',   href: 'courses.html',  icon: '🗂', status: 'live' },
+  { title: '帳號管理',         role: 'teacher',   href: 'accounts.html', icon: '🔑', status: 'live' },
   { title: '教師 AI 工具研習', role: 'teacher',   href: 'ai-tools.html', icon: '🧰', status: 'live' },
 
   { title: '開發者首頁',       role: 'developer', href: 'dev.html',      icon: '🛠', status: 'live' },

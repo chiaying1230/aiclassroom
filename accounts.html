@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>帳號管理｜AI 課堂</title>
+
+  <script src="config.js"></script>
+  <script src="gas-bridge.js"></script>
+  <script src="teacher-auth.js"></script>
+  <script src="teacher-course.js"></script>
+
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="admin.css">
+  <script src="features.js"></script>
+  <script src="shell.js" defer></script>
+
+  <style>
+    :root { --page-width: 1040px; }
+
+    .me { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+
+    .me-avatar {
+      flex: none;
+      width: 56px;
+      height: 56px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--blue);
+      color: #fff;
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .me-text { flex: 1; min-width: 200px; }
+    .me-text strong { display: block; font-size: 20px; line-height: 1.4; }
+    .me-text span { color: var(--ink-2); }
+
+    .me-password { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .me-password h3 { margin: 0 0 12px; font-size: 16px; }
+    .me-password .k-form { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+    .note {
+      margin: 0;
+      padding: 12px 16px;
+      border-left: 4px solid var(--purple);
+      background: var(--purple-soft);
+      border-radius: 0 var(--radius-s) var(--radius-s) 0;
+      line-height: 1.7;
+    }
+
+    .note code { font-size: 14px; }
+
+    /* ---------- 帳號清單 ---------- */
+    .accounts { width: 100%; border-collapse: collapse; }
+
+    .accounts th,
+    .accounts td { padding: 12px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+
+    .accounts th { color: var(--ink-2); font-size: 14px; font-weight: 700; white-space: nowrap; }
+    .accounts tr:last-child td { border-bottom: 0; }
+    .accounts td.num { text-align: right; }
+
+    .who b { display: block; }
+    .who small { color: var(--ink-2); }
+
+    .row-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+
+    .accounts tr.is-off .who { opacity: .6; }
+
+    .created-box {
+      margin-top: 16px;
+      padding: 14px 16px;
+      border-radius: var(--radius-s);
+      background: var(--green-soft);
+      color: var(--ink);
+      line-height: 1.8;
+    }
+
+    .created-box b { font-size: 17px; letter-spacing: .04em; }
+
+    @media (max-width: 860px) {
+      .me-password .k-form { grid-template-columns: 1fr; }
+      .accounts thead { display: none; }
+      .accounts, .accounts tbody, .accounts tr, .accounts td { display: block; width: 100%; }
+      .accounts tr { padding: 12px 0; border-bottom: 1px solid var(--line); }
+      .accounts tr:last-child { border-bottom: 0; }
+      .accounts td { padding: 3px 0; border: 0; }
+      .accounts td.num { text-align: left; }
+      .accounts td[data-label]::before { content: attr(data-label) "："; color: var(--ink-2); font-size: 14px; }
+      .row-actions { justify-content: flex-start; padding-top: 6px; }
+    }
+  </style>
+</head>
+
+<body data-course-optional>
+
+<main class="page">
+
+  <header class="page-header">
+    <div>
+      <h1>帳號管理</h1>
+      <p id="pageLead">查看自己的帳號、修改密碼。</p>
+    </div>
+  </header>
+
+  <section class="k-card" aria-labelledby="meTitle">
+    <h2 id="meTitle" class="visually-hidden">我的帳號</h2>
+    <div class="me">
+      <span class="me-avatar" id="meAvatar" aria-hidden="true"></span>
+      <div class="me-text">
+        <strong id="meName">讀取中……</strong>
+        <span id="meInfo"></span>
+      </div>
+    </div>
+
+    <div class="me-password" id="passwordBox" hidden>
+      <h3>修改密碼</h3>
+      <form id="passwordForm" class="k-form">
+        <div class="k-field">
+          <label for="oldPassword">目前的密碼</label>
+          <input id="oldPassword" type="password" autocomplete="current-password" required>
+        </div>
+        <div class="k-field">
+          <label for="newPassword">新密碼</label>
+          <input id="newPassword" type="password" autocomplete="new-password" required>
+          <p class="k-hint">至少 8 個字元，要有英文字母和數字</p>
+        </div>
+        <div class="k-field">
+          <label for="newPassword2">再輸入一次新密碼</label>
+          <input id="newPassword2" type="password" autocomplete="new-password" required>
+        </div>
+      </form>
+      <div class="k-actions">
+        <button type="submit" form="passwordForm" class="k-btn primary" id="passwordButton">修改密碼</button>
+        <span class="k-message" id="passwordMessage" role="status"></span>
+      </div>
+    </div>
+
+    <div class="me-password" id="adminNote" hidden>
+      <p class="note">
+        管理員帳號是 <code>admin</code>，密碼存在 Apps Script「專案設定 → 指令碼屬性」的
+        <code>TEACHER_PASSWORD</code>。要改管理員密碼，請到那裡修改，改完不用重新部署。
+      </p>
+    </div>
+  </section>
+
+  <!-- 管理員：教師帳號 -->
+  <section class="k-section" id="adminArea" aria-labelledby="teachersTitle" hidden>
+    <h2 id="teachersTitle">教師帳號</h2>
+
+    <div class="k-card">
+      <table class="accounts">
+        <thead>
+          <tr><th>教師</th><th>角色</th><th>狀態</th><th class="num">課程</th><th>最後登入</th><th><span class="visually-hidden">操作</span></th></tr>
+        </thead>
+        <tbody id="accountRows"><tr><td colspan="6" class="k-empty">讀取中……</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="k-card" aria-labelledby="newAccountTitle">
+      <h2 id="newAccountTitle">新增教師帳號</h2>
+      <p class="k-sub">建立後把帳號和初始密碼交給老師，請老師登入後到這一頁自己修改密碼。</p>
+
+      <form id="newAccountForm" class="k-form">
+        <div class="k-field">
+          <label for="accName">顯示名稱</label>
+          <input id="accName" maxlength="30" required placeholder="例如：王老師">
+        </div>
+        <div class="k-field">
+          <label for="accAccount">帳號</label>
+          <input id="accAccount" maxlength="30" required autocapitalize="none" spellcheck="false" placeholder="例如：wang">
+          <p class="k-hint">英文小寫、數字、點、底線或減號，3 到 30 個字</p>
+        </div>
+        <div class="k-field">
+          <label for="accPassword">初始密碼</label>
+          <div class="k-input-row">
+            <input id="accPassword" required autocomplete="off" spellcheck="false">
+            <button type="button" class="k-btn" id="genPassword">產生</button>
+          </div>
+        </div>
+        <div class="k-field">
+          <label for="accRole">角色</label>
+          <select id="accRole">
+            <option value="教師">教師：只能管理自己的課程</option>
+            <option value="管理員">管理員：可以看所有課程、管理帳號</option>
+          </select>
+        </div>
+      </form>
+
+      <div class="k-actions">
+        <button type="submit" form="newAccountForm" class="k-btn primary" id="createAccountButton">建立帳號</button>
+        <span class="k-message" id="accountMessage" role="status"></span>
+      </div>
+
+      <div class="created-box" id="createdBox" hidden></div>
+    </div>
+  </section>
+
+</main>
+
+
+<!-- 編輯帳號 -->
+<dialog class="k-dialog" id="editDialog" aria-labelledby="editTitle">
+  <form id="editForm">
+    <h2 id="editTitle">編輯帳號</h2>
+    <p class="k-sub" id="editSub"></p>
+    <div class="k-form">
+      <div class="k-field">
+        <label for="editName">顯示名稱</label>
+        <input id="editName" maxlength="30" required>
+      </div>
+      <div class="k-field">
+        <label for="editRole">角色</label>
+        <select id="editRole">
+          <option value="教師">教師</option>
+          <option value="管理員">管理員</option>
+        </select>
+      </div>
+    </div>
+    <div class="k-actions">
+      <button type="submit" class="k-btn primary" id="editSaveButton">儲存</button>
+      <button type="button" class="k-btn" data-close>取消</button>
+      <span class="k-message" id="editMessage" role="status"></span>
+    </div>
+  </form>
+</dialog>
+
+<!-- 重設密碼 -->
+<dialog class="k-dialog" id="resetDialog" aria-labelledby="resetTitle">
+  <form id="resetForm">
+    <h2 id="resetTitle">重設密碼</h2>
+    <p class="k-sub" id="resetSub"></p>
+    <div class="k-form">
+      <div class="k-field">
+        <label for="resetPassword">新密碼</label>
+        <div class="k-input-row">
+          <input id="resetPassword" required autocomplete="off" spellcheck="false">
+          <button type="button" class="k-btn" id="genReset">產生</button>
+        </div>
+        <p class="k-hint">重設後，這位老師在其他裝置的登入會全部失效。</p>
+      </div>
+    </div>
+    <div class="k-actions">
+      <button type="submit" class="k-btn primary" id="resetSaveButton">重設密碼</button>
+      <button type="button" class="k-btn" data-close>取消</button>
+      <span class="k-message" id="resetMessage" role="status"></span>
+    </div>
+  </form>
+</dialog>
+
+<div class="k-toast" id="toast" role="status" hidden></div>
+
+
+<script>
+(function() {
+
+  'use strict';
+
+  let accounts = [];
+  let editing = null;
+
+  function $(id) { return document.getElementById(id); }
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function api(fn) {
+    const args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function(resolve, reject) {
+      const runner = google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(function(error) { reject(error instanceof Error ? error : new Error(String(error))); });
+      runner[fn].apply(runner, args);
+    });
+  }
+
+  let toastTimer = null;
+
+  function toast(text) {
+    $('toast').textContent = text;
+    $('toast').hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function() { $('toast').hidden = true; }, 2600);
+  }
+
+  function setMessage(id, text, kind) {
+    $(id).textContent = text;
+    $(id).className = 'k-message' + (kind ? ' ' + kind : '');
+  }
+
+  // 好唸、不容易看錯的初始密碼，例如 sun-river-47
+  function makePassword() {
+    const words = ['sun', 'moon', 'tree', 'river', 'cloud', 'leaf', 'star', 'book', 'rain', 'hill', 'lake', 'bird', 'seed', 'wind'];
+    const pick = function() {
+      const buf = new Uint32Array(1);
+      crypto.getRandomValues(buf);
+      return buf[0];
+    };
+    return words[pick() % words.length] + '-' + words[pick() % words.length] + '-' + (10 + pick() % 90);
+  }
+
+
+  /* ---------- 我的帳號 ---------- */
+
+  function showMe(teacher) {
+
+    $('meAvatar').textContent = teacher.name.charAt(0) || '師';
+    $('meName').textContent = teacher.name;
+    $('meInfo').textContent = '帳號 ' + teacher.account + '・' + (teacher.isAdmin ? '管理員' : '教師');
+
+    $('passwordBox').hidden = teacher.account === 'admin';
+    $('adminNote').hidden = teacher.account !== 'admin';
+  }
+
+  function changePassword(event) {
+
+    event.preventDefault();
+
+    const oldPassword = $('oldPassword').value;
+    const newPassword = $('newPassword').value;
+
+    if (newPassword !== $('newPassword2').value) {
+      setMessage('passwordMessage', '兩次輸入的新密碼不一樣', 'error');
+      return;
+    }
+
+    $('passwordButton').disabled = true;
+    setMessage('passwordMessage', '修改中……');
+
+    api('changeMyPassword', oldPassword, newPassword)
+      .then(function() {
+        ['oldPassword', 'newPassword', 'newPassword2'].forEach(function(id) { $(id).value = ''; });
+        setMessage('passwordMessage', '已修改。這台電腦也需要用新密碼重新登入。', 'ok');
+        // 改密碼後所有登入都失效，稍等一下讓老師看到訊息再顯示登入畫面
+        setTimeout(function() { window.TeacherAuth.logout(); }, 1800);
+      })
+      .catch(function(error) {
+        setMessage('passwordMessage', error.message, 'error');
+        $('passwordButton').disabled = false;
+      });
+  }
+
+
+  /* ---------- 教師帳號（管理員） ---------- */
+
+  function renderAccounts() {
+
+    $('accountRows').innerHTML = accounts.map(function(a) {
+
+      const off = a.status === '停用';
+
+      const actions = a.builtIn
+        ? '<span class="k-hint">密碼在指令碼屬性修改</span>'
+        : '<button type="button" class="k-btn small" data-action="edit">編輯</button>' +
+          '<button type="button" class="k-btn small" data-action="reset">重設密碼</button>' +
+          '<button type="button" class="k-btn small' + (off ? '' : ' danger') + '" data-action="toggle">' + (off ? '啟用' : '停用') + '</button>';
+
+      return '<tr data-account="' + escapeHtml(a.account) + '"' + (off ? ' class="is-off"' : '') + '>' +
+        '<td class="who"><b>' + escapeHtml(a.name) + '</b><small>' + escapeHtml(a.account) + '</small></td>' +
+        '<td data-label="角色"><span class="k-badge' + (a.role === '管理員' ? ' admin' : '') + '">' + escapeHtml(a.role) + '</span></td>' +
+        '<td data-label="狀態"><span class="k-badge ' + (off ? 'off' : 'open') + '">' + escapeHtml(a.status) + '</span></td>' +
+        '<td class="num" data-label="課程">' + escapeHtml(a.courseCount) + ' 門</td>' +
+        '<td data-label="最後登入">' + escapeHtml(a.lastLogin ? a.lastLogin.slice(0, 16) : (a.builtIn ? '—' : '還沒登入過')) + '</td>' +
+        '<td><div class="row-actions">' + actions + '</div></td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  function loadAccounts() {
+    return api('listTeacherAccounts').then(function(list) {
+      accounts = list;
+      renderAccounts();
+    }).catch(function(error) {
+      $('accountRows').innerHTML = '<tr><td colspan="6" class="k-empty">' + escapeHtml(error.message) + '</td></tr>';
+    });
+  }
+
+  function createAccount(event) {
+
+    event.preventDefault();
+
+    const data = {
+      name: $('accName').value.trim(),
+      account: $('accAccount').value.trim().toLowerCase(),
+      password: $('accPassword').value.trim(),
+      role: $('accRole').value
+    };
+
+    $('createAccountButton').disabled = true;
+    setMessage('accountMessage', '建立中……');
+    $('createdBox').hidden = true;
+
+    api('createTeacherAccount', data)
+      .then(function(result) {
+        setMessage('accountMessage', '');
+        $('createdBox').innerHTML =
+          '已建立 ' + escapeHtml(data.name) + ' 的帳號，請把下面的資料交給老師：<br>' +
+          '網址 <b>' + escapeHtml(new URL('index.html', window.location.href).href) + '</b>（選「教師」）<br>' +
+          '帳號 <b>' + escapeHtml(result.account) + '</b>　初始密碼 <b>' + escapeHtml(data.password) + '</b>';
+        $('createdBox').hidden = false;
+        ['accName', 'accAccount', 'accPassword'].forEach(function(id) { $(id).value = ''; });
+        $('accRole').value = '教師';
+        return loadAccounts();
+      })
+      .catch(function(error) { setMessage('accountMessage', error.message, 'error'); })
+      .then(function() { $('createAccountButton').disabled = false; });
+  }
+
+  function handleRow(event) {
+
+    const button = event.target.closest('[data-action]');
+    if (!button) return;
+
+    const account = button.closest('tr').dataset.account;
+    const a = accounts.find(function(x) { return x.account === account; });
+    if (!a) return;
+
+    editing = a;
+
+    if (button.dataset.action === 'edit') {
+      $('editSub').textContent = '帳號 ' + a.account;
+      $('editName').value = a.name;
+      $('editRole').value = a.role;
+      setMessage('editMessage', '');
+      $('editDialog').showModal();
+    }
+
+    if (button.dataset.action === 'reset') {
+      $('resetSub').textContent = a.name + '（' + a.account + '）';
+      $('resetPassword').value = makePassword();
+      setMessage('resetMessage', '');
+      $('resetDialog').showModal();
+      $('resetPassword').select();
+    }
+
+    if (button.dataset.action === 'toggle') {
+      const disabling = a.status !== '停用';
+      if (disabling && !confirm('要停用 ' + a.name + ' 的帳號嗎？\n\n停用後這位老師會立刻被登出，也不能再登入。\n他的課程、題目和學生作答都會保留，學生仍可以作答。')) return;
+      button.disabled = true;
+      api('updateTeacherAccount', { account: a.account, status: disabling ? '停用' : '啟用' })
+        .then(function() { toast(disabling ? '已停用' : '已啟用'); return loadAccounts(); })
+        .catch(function(error) { alert(error.message); button.disabled = false; });
+    }
+  }
+
+  function saveEdit(event) {
+    event.preventDefault();
+    $('editSaveButton').disabled = true;
+    api('updateTeacherAccount', { account: editing.account, name: $('editName').value.trim(), role: $('editRole').value })
+      .then(function() { $('editDialog').close(); toast('已儲存'); return loadAccounts(); })
+      .catch(function(error) { setMessage('editMessage', error.message, 'error'); })
+      .then(function() { $('editSaveButton').disabled = false; });
+  }
+
+  function saveReset(event) {
+    event.preventDefault();
+    const password = $('resetPassword').value.trim();
+    $('resetSaveButton').disabled = true;
+    api('resetTeacherPassword', editing.account, password)
+      .then(function() {
+        $('resetDialog').close();
+        alert('已重設 ' + editing.name + ' 的密碼。\n\n新密碼：' + password + '\n\n請把新密碼交給這位老師，並請他登入後自己修改。');
+      })
+      .catch(function(error) { setMessage('resetMessage', error.message, 'error'); })
+      .then(function() { $('resetSaveButton').disabled = false; });
+  }
+
+
+  /* ---------- 開始 ---------- */
+
+  document.addEventListener('DOMContentLoaded', function() {
+
+    $('passwordForm').addEventListener('submit', changePassword);
+    $('newAccountForm').addEventListener('submit', createAccount);
+    $('editForm').addEventListener('submit', saveEdit);
+    $('resetForm').addEventListener('submit', saveReset);
+    $('accountRows').addEventListener('click', handleRow);
+    $('genPassword').addEventListener('click', function() { $('accPassword').value = makePassword(); });
+    $('genReset').addEventListener('click', function() { $('resetPassword').value = makePassword(); });
+
+    document.querySelectorAll('[data-close]').forEach(function(button) {
+      button.addEventListener('click', function() { button.closest('dialog').close(); });
+    });
+
+    window.TeacherCourse.ready(function(ctx) {
+
+      const teacher = ctx.teacher;
+      if (!teacher) return;
+
+      showMe(teacher);
+
+      if (teacher.isAdmin) {
+        $('pageLead').textContent = '新增教師帳號、重設密碼。每位教師只看得到自己開的課程。';
+        $('adminArea').hidden = false;
+        $('accPassword').value = makePassword();
+        loadAccounts();
+      }
+    });
+  });
+
+})();
+</script>
+
+</body>
+</html>

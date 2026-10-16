@@ -13,12 +13,24 @@ const QUESTION_SHEET = '題目';
 const ANSWER_SHEET = '學生作答';
 const CATEGORY_SHEET = '回答類別';
 const CODING_SHEET = '回答分類';
+const COURSE_SHEET = '課程';
+const TEACHER_SHEET = '教師帳號';
 const TIME_ZONE = 'Asia/Taipei';
 
 const QUESTION_HEADERS = [
   '題目ID', '標題', '題目內容', '配分', '標準答案',
   '評分規準', 'AI審核', '狀態', '建立時間',
-  '截止時間', '截止後', '最後修改'
+  '截止時間', '截止後', '最後修改', '課程ID'
+];
+
+const COURSE_HEADERS = [
+  '課程ID', '課程名稱', '授課教師帳號', '教師顯示名稱', '課程說明',
+  '加入代碼', '狀態', '建立時間', '最後修改'
+];
+
+const TEACHER_HEADERS = [
+  '帳號', '顯示名稱', '角色', '狀態', '密碼雜湊',
+  '密碼鹽', '建立時間', '最後登入'
 ];
 
 const ANSWER_HEADERS = [
@@ -42,8 +54,33 @@ const CODING_HEADERS = [
 const QCOL = {
   ID: 1, TITLE: 2, CONTENT: 3, POINTS: 4, REFERENCE: 5,
   RUBRIC: 6, AI: 7, STATUS: 8, CREATED: 9,
-  DEADLINE: 10, LATE_POLICY: 11, UPDATED: 12
+  DEADLINE: 10, LATE_POLICY: 11, UPDATED: 12, COURSE: 13
 };
+
+const COURSE_COL = {
+  ID: 1, NAME: 2, OWNER: 3, TEACHER_NAME: 4, DESCRIPTION: 5,
+  CODE: 6, STATUS: 7, CREATED: 8, UPDATED: 9
+};
+
+const TCOL = {
+  ACCOUNT: 1, NAME: 2, ROLE: 3, STATUS: 4, HASH: 5,
+  SALT: 6, CREATED: 7, LAST_LOGIN: 8
+};
+
+const COURSE_STATUS = { OPEN: '開放', ARCHIVED: '封存' };
+const ROLE = { ADMIN: '管理員', TEACHER: '教師' };
+const ACCOUNT_STATUS = { ACTIVE: '啟用', DISABLED: '停用' };
+
+/* 管理員帳號固定叫 admin，密碼是指令碼屬性的 TEACHER_PASSWORD */
+const ADMIN_ACCOUNT = 'admin';
+const ADMIN_DISPLAY_NAME = '管理員';
+
+/* 第一次執行時，原本的題目都會歸到這門課 */
+const DEFAULT_COURSE_NAME = '人工智慧（小教）';
+
+/* 加入代碼不用 0、O、1、I、L，避免學生看錯 */
+const JOIN_CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const JOIN_CODE_LENGTH = 6;
 
 /* 截止後的處理方式（存在「截止後」欄） */
 const LATE_POLICY = {
@@ -103,52 +140,120 @@ function doGet() {
 
 
 /* =====================================================
-   教師密碼
-   密碼存在「專案設定 → 指令碼屬性」的 TEACHER_PASSWORD，不寫在程式裡。
+   教師登入
+   - 管理員：帳號 admin，密碼是「專案設定 → 指令碼屬性」的 TEACHER_PASSWORD。
+     看得到所有課程，可以新增教師帳號。
+   - 其他教師：帳號存在「教師帳號」工作表，密碼只存雜湊值。
+     只看得到自己開的課程。
 ===================================================== */
 
 const TEACHER_SESSION_SECONDS = 6 * 60 * 60;   // 登入後 6 小時內有效
-const LOGIN_MAX_FAILS = 10;                    // 連續錯幾次後暫停
+const LOGIN_MAX_FAILS = 10;                    // 同一帳號連續錯幾次後暫停
 const LOGIN_LOCK_SECONDS = 5 * 60;             // 暫停幾秒
+const PASSWORD_HASH_ROUNDS = 500;
 
 
-function teacherLogin(password) {
+/*
+ * 這次呼叫是誰。
+ * null 代表從 Apps Script 編輯器直接執行（測試用），視為管理員。
+ * 從網頁呼叫時，doPost 會先填好。
+ */
+let REQUEST_ = null;
 
-  const expected = cleanText_(
-    PropertiesService.getScriptProperties().getProperty('TEACHER_PASSWORD')
-  );
 
-  if (!expected) {
-    throw new Error('尚未設定教師密碼，請在 Apps Script 的指令碼屬性加入 TEACHER_PASSWORD');
+function teacherLogin(first, second) {
+
+  // 新版網頁送 {account, password}；舊版網頁只送密碼字串，當作管理員登入
+  let account;
+  let password;
+
+  if (first && typeof first === 'object') {
+    account = first.account;
+    password = first.password;
+  } else {
+    password = first;
+    account = second;
+  }
+
+  account = normalizeAccount_(account) || ADMIN_ACCOUNT;
+  password = cleanText_(password);
+
+  if (!password) {
+    throw new Error('請輸入密碼');
   }
 
   const cache = CacheService.getScriptCache();
-  const fails = Number(cache.get('teacher_login_fails')) || 0;
+  const failKey = 'teacher_login_fails_' + account;
+  const fails = Number(cache.get(failKey)) || 0;
 
   if (fails >= LOGIN_MAX_FAILS) {
     throw new Error('密碼錯誤次數太多，請 5 分鐘後再試');
   }
 
-  if (cleanText_(password) !== expected) {
+  const teacher = verifyTeacherPassword_(account, password);
 
-    cache.put('teacher_login_fails', String(fails + 1), LOGIN_LOCK_SECONDS);
+  if (!teacher) {
+
+    cache.put(failKey, String(fails + 1), LOGIN_LOCK_SECONDS);
 
     // 放慢猜密碼的速度
     Utilities.sleep(1000);
 
-    throw new Error('密碼錯誤');
+    throw new Error('帳號或密碼錯誤');
   }
 
-  cache.remove('teacher_login_fails');
+  cache.remove(failKey);
+
+  if (teacher.account !== ADMIN_ACCOUNT) {
+    withLock_(function() {
+      const row = findTeacherRow_(teacher.account);
+      if (row) {
+        getTeacherSheet_().getRange(row.rowNumber, TCOL.LAST_LOGIN).setValue(new Date());
+      }
+    });
+  }
 
   const token = Utilities.getUuid();
 
-  cache.put('teacher_session_' + token, '1', TEACHER_SESSION_SECONDS);
+  cache.put(
+    'teacher_session_' + token,
+    JSON.stringify({ account: teacher.account, salt: teacher.salt || '' }),
+    TEACHER_SESSION_SECONDS
+  );
 
   return {
     token: token,
-    expiresInSeconds: TEACHER_SESSION_SECONDS
+    expiresInSeconds: TEACHER_SESSION_SECONDS,
+    teacher: publicTeacher_(teacher)
   };
+}
+
+
+/*
+ * 帳號密碼正確就回傳教師資料，否則回傳 null。
+ */
+function verifyTeacherPassword_(account, password) {
+
+  if (account === ADMIN_ACCOUNT) {
+
+    const expected = cleanText_(
+      PropertiesService.getScriptProperties().getProperty('TEACHER_PASSWORD')
+    );
+
+    if (!expected) {
+      throw new Error('尚未設定教師密碼，請在 Apps Script 的指令碼屬性加入 TEACHER_PASSWORD');
+    }
+
+    return password === expected ? adminTeacher_() : null;
+  }
+
+  const row = findTeacherRow_(account);
+
+  if (!row || row.status !== ACCOUNT_STATUS.ACTIVE) {
+    return null;
+  }
+
+  return hashPassword_(password, row.salt) === row.hash ? row : null;
 }
 
 
@@ -164,23 +269,910 @@ function teacherLogout(token) {
 }
 
 
-function isTeacherTokenValid_(token) {
+/*
+ * 依登入憑證找出教師。每次都重新讀取帳號狀態，
+ * 所以帳號被停用或密碼被重設後，舊的登入會立刻失效。
+ */
+function getTeacherSession_(token) {
 
   token = cleanText_(token);
 
-  return (
-    !!token &&
-    CacheService.getScriptCache().get('teacher_session_' + token) === '1'
-  );
+  if (!token) {
+    return null;
+  }
+
+  const saved = CacheService.getScriptCache().get('teacher_session_' + token);
+
+  if (!saved) {
+    return null;
+  }
+
+  // 改版前的登入只存 '1'，當時只有管理員一種身分
+  if (saved === '1') {
+    return adminTeacher_();
+  }
+
+  let session;
+
+  try {
+    session = JSON.parse(saved);
+  } catch (error) {
+    return null;
+  }
+
+  if (session.account === ADMIN_ACCOUNT) {
+    return adminTeacher_();
+  }
+
+  const row = findTeacherRow_(session.account);
+
+  if (!row || row.status !== ACCOUNT_STATUS.ACTIVE || row.salt !== session.salt) {
+    return null;
+  }
+
+  return row;
+}
+
+
+/*
+ * 目前登入的教師。沒有登入就丟出錯誤。
+ */
+function currentTeacher_() {
+
+  if (!REQUEST_) {
+    return adminTeacher_();
+  }
+
+  if (!REQUEST_.teacher) {
+    throw new Error('請先登入教師帳號');
+  }
+
+  return REQUEST_.teacher;
+}
+
+
+function isAdmin_(teacher) {
+  return !!teacher && teacher.role === ROLE.ADMIN;
+}
+
+
+function requireAdmin_() {
+
+  if (!isAdmin_(currentTeacher_())) {
+    throw new Error('只有管理員可以使用這個功能');
+  }
+}
+
+
+function adminTeacher_() {
+
+  return {
+    account: ADMIN_ACCOUNT,
+    name: ADMIN_DISPLAY_NAME,
+    role: ROLE.ADMIN,
+    status: ACCOUNT_STATUS.ACTIVE
+  };
+}
+
+
+function publicTeacher_(teacher) {
+
+  return {
+    account: teacher.account,
+    name: teacher.name,
+    role: teacher.role,
+    isAdmin: isAdmin_(teacher)
+  };
 }
 
 
 function getTeacherConfig() {
 
+  const teacher = currentTeacher_();
+
   return {
-    spreadsheetUrl:
-      'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/edit'
+    // 試算表裡有所有課程的資料，只給管理員
+    spreadsheetUrl: isAdmin_(teacher)
+      ? 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/edit'
+      : '',
+    teacher: publicTeacher_(teacher)
   };
+}
+
+
+/* =====================================================
+   教師帳號管理（管理員）與修改密碼
+===================================================== */
+
+function getTeacherSheet_() {
+
+  const ss = getSpreadsheet_();
+
+  return (
+    ss.getSheetByName(TEACHER_SHEET) ||
+    ensureSheet_(ss, TEACHER_SHEET, TEACHER_HEADERS, '#e8e1f7', false)
+  );
+}
+
+
+function normalizeAccount_(value) {
+  return cleanText_(value).toLowerCase();
+}
+
+
+function teacherFromRow_(row, rowNumber) {
+
+  return {
+    rowNumber: rowNumber,
+    account: normalizeAccount_(row[TCOL.ACCOUNT - 1]),
+    name: cleanText_(row[TCOL.NAME - 1]),
+    role: cleanText_(row[TCOL.ROLE - 1]) === ROLE.ADMIN ? ROLE.ADMIN : ROLE.TEACHER,
+    status: cleanText_(row[TCOL.STATUS - 1]) === ACCOUNT_STATUS.DISABLED
+      ? ACCOUNT_STATUS.DISABLED
+      : ACCOUNT_STATUS.ACTIVE,
+    hash: cleanText_(row[TCOL.HASH - 1]),
+    salt: cleanText_(row[TCOL.SALT - 1]),
+    createdAt: row[TCOL.CREATED - 1],
+    lastLogin: row[TCOL.LAST_LOGIN - 1]
+  };
+}
+
+
+function getTeacherRows_() {
+
+  const values = getTeacherSheet_().getDataRange().getValues();
+  const list = [];
+
+  for (let i = 1; i < values.length; i++) {
+    const teacher = teacherFromRow_(values[i], i + 1);
+    if (teacher.account) {
+      list.push(teacher);
+    }
+  }
+
+  return list;
+}
+
+
+function findTeacherRow_(account) {
+
+  account = normalizeAccount_(account);
+
+  if (!account || account === ADMIN_ACCOUNT) {
+    return null;
+  }
+
+  return getTeacherRows_().find(function(teacher) {
+    return teacher.account === account;
+  }) || null;
+}
+
+
+function hashPassword_(password, salt) {
+
+  const key = Utilities.newBlob(String(salt)).getBytes();
+  let bytes = Utilities.newBlob(String(password)).getBytes();
+
+  for (let i = 0; i < PASSWORD_HASH_ROUNDS; i++) {
+    bytes = Utilities.computeHmacSha256Signature(bytes, key);
+  }
+
+  return Utilities.base64Encode(bytes);
+}
+
+
+function checkNewPassword_(password) {
+
+  password = String(password == null ? '' : password);
+
+  if (password.length < 8) {
+    throw new Error('密碼至少要 8 個字元');
+  }
+
+  if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+    throw new Error('密碼要同時包含英文字母和數字');
+  }
+
+  if (password.length > 100) {
+    throw new Error('密碼太長了');
+  }
+
+  return password;
+}
+
+
+function listTeacherAccounts() {
+
+  requireAdmin_();
+
+  const courseCount = {};
+
+  getCourses_().forEach(function(course) {
+    courseCount[course.owner] = (courseCount[course.owner] || 0) + 1;
+  });
+
+  const list = getTeacherRows_().map(function(teacher) {
+    return {
+      account: teacher.account,
+      name: teacher.name,
+      role: teacher.role,
+      status: teacher.status,
+      createdAt: formatDate_(teacher.createdAt),
+      lastLogin: teacher.lastLogin ? formatDate_(teacher.lastLogin) : '',
+      courseCount: courseCount[teacher.account] || 0,
+      builtIn: false
+    };
+  });
+
+  list.unshift({
+    account: ADMIN_ACCOUNT,
+    name: ADMIN_DISPLAY_NAME,
+    role: ROLE.ADMIN,
+    status: ACCOUNT_STATUS.ACTIVE,
+    createdAt: '',
+    lastLogin: '',
+    courseCount: courseCount[ADMIN_ACCOUNT] || 0,
+    builtIn: true
+  });
+
+  return list;
+}
+
+
+function createTeacherAccount(data) {
+
+  requireAdmin_();
+
+  data = data || {};
+
+  const account = normalizeAccount_(data.account);
+  const name = cleanText_(data.name).substring(0, 30);
+  const role = cleanText_(data.role) === ROLE.ADMIN ? ROLE.ADMIN : ROLE.TEACHER;
+  const password = checkNewPassword_(data.password);
+
+  if (!/^[a-z0-9][a-z0-9._-]{2,29}$/.test(account)) {
+    throw new Error('帳號要 3 到 30 個字元，只能用英文小寫、數字、點、底線或減號');
+  }
+
+  if (account === ADMIN_ACCOUNT) {
+    throw new Error('admin 是保留的管理員帳號，請換一個');
+  }
+
+  if (!name) {
+    throw new Error('請輸入顯示名稱，例如「王老師」');
+  }
+
+  return withLock_(function() {
+
+    if (findTeacherRow_(account)) {
+      throw new Error('帳號「' + account + '」已經有人使用');
+    }
+
+    const salt = Utilities.getUuid();
+    const now = new Date();
+
+    appendRows_(getTeacherSheet_(), [[
+      account, name, role, ACCOUNT_STATUS.ACTIVE,
+      hashPassword_(password, salt), salt, now, ''
+    ]], TEACHER_HEADERS.length);
+
+    return { success: true, account: account };
+  });
+}
+
+
+function updateTeacherAccount(data) {
+
+  requireAdmin_();
+
+  data = data || {};
+
+  const account = normalizeAccount_(data.account);
+
+  return withLock_(function() {
+
+    const row = findTeacherRow_(account);
+
+    if (!row) {
+      throw new Error('找不到這個帳號');
+    }
+
+    const name = data.name === undefined ? row.name : cleanText_(data.name).substring(0, 30);
+    const role = data.role === undefined
+      ? row.role
+      : (cleanText_(data.role) === ROLE.ADMIN ? ROLE.ADMIN : ROLE.TEACHER);
+    const status = data.status === undefined
+      ? row.status
+      : (cleanText_(data.status) === ACCOUNT_STATUS.DISABLED ? ACCOUNT_STATUS.DISABLED : ACCOUNT_STATUS.ACTIVE);
+
+    if (!name) {
+      throw new Error('顯示名稱不能空白');
+    }
+
+    getTeacherSheet_()
+      .getRange(row.rowNumber, TCOL.NAME, 1, 3)
+      .setValues([[name, role, status]]);
+
+    return { success: true };
+  });
+}
+
+
+function resetTeacherPassword(account, newPassword) {
+
+  requireAdmin_();
+
+  return setTeacherPassword_(normalizeAccount_(account), checkNewPassword_(newPassword));
+}
+
+
+function changeMyPassword(oldPassword, newPassword) {
+
+  const teacher = currentTeacher_();
+
+  if (teacher.account === ADMIN_ACCOUNT) {
+    throw new Error('管理員密碼請到 Apps Script「專案設定 → 指令碼屬性」修改 TEACHER_PASSWORD');
+  }
+
+  if (!verifyTeacherPassword_(teacher.account, cleanText_(oldPassword))) {
+    throw new Error('目前的密碼不正確');
+  }
+
+  return setTeacherPassword_(teacher.account, checkNewPassword_(newPassword));
+}
+
+
+/*
+ * 換新的鹽再存雜湊值。鹽變了，這個帳號所有舊的登入都會失效。
+ */
+function setTeacherPassword_(account, password) {
+
+  return withLock_(function() {
+
+    const row = findTeacherRow_(account);
+
+    if (!row) {
+      throw new Error('找不到這個帳號');
+    }
+
+    const salt = Utilities.getUuid();
+
+    getTeacherSheet_()
+      .getRange(row.rowNumber, TCOL.HASH, 1, 2)
+      .setValues([[hashPassword_(password, salt), salt]]);
+
+    return { success: true };
+  });
+}
+
+
+/* =====================================================
+   課程
+   每一題都屬於一門課程（題目表的「課程ID」欄）。
+   學生作答、討論類別、分類都透過題目ID連到題目，所以也跟著分到課程。
+===================================================== */
+
+let coursesCache_ = null;
+let defaultCourseIdCache_ = '';
+
+
+function getCourseSheet_() {
+
+  const ss = getSpreadsheet_();
+
+  return (
+    ss.getSheetByName(COURSE_SHEET) ||
+    ensureSheet_(ss, COURSE_SHEET, COURSE_HEADERS, '#dff1f4', false)
+  );
+}
+
+
+function courseFromRow_(row, rowNumber) {
+
+  return {
+    rowNumber: rowNumber,
+    id: cleanText_(row[COURSE_COL.ID - 1]),
+    name: cleanText_(row[COURSE_COL.NAME - 1]),
+    owner: normalizeAccount_(row[COURSE_COL.OWNER - 1]) || ADMIN_ACCOUNT,
+    teacherName: cleanText_(row[COURSE_COL.TEACHER_NAME - 1]),
+    description: cleanText_(row[COURSE_COL.DESCRIPTION - 1]),
+    code: cleanText_(row[COURSE_COL.CODE - 1]).toUpperCase(),
+    status: cleanText_(row[COURSE_COL.STATUS - 1]) === COURSE_STATUS.ARCHIVED
+      ? COURSE_STATUS.ARCHIVED
+      : COURSE_STATUS.OPEN,
+    createdAt: row[COURSE_COL.CREATED - 1],
+    updatedAt: row[COURSE_COL.UPDATED - 1]
+  };
+}
+
+
+function getCourses_() {
+
+  if (coursesCache_) {
+    return coursesCache_;
+  }
+
+  const values = getCourseSheet_().getDataRange().getValues();
+  const list = [];
+
+  for (let i = 1; i < values.length; i++) {
+    const course = courseFromRow_(values[i], i + 1);
+    if (course.id) {
+      list.push(course);
+    }
+  }
+
+  coursesCache_ = list;
+
+  return list;
+}
+
+
+function findCourse_(courseId) {
+
+  courseId = cleanText_(courseId);
+
+  return getCourses_().find(function(course) {
+    return course.id === courseId;
+  }) || null;
+}
+
+
+function normalizeCode_(code) {
+  return cleanText_(code).toUpperCase().replace(/[\s-]/g, '');
+}
+
+
+function findCourseByCode_(code) {
+
+  code = normalizeCode_(code);
+
+  if (!code) {
+    return null;
+  }
+
+  return getCourses_().find(function(course) {
+    return course.code === code;
+  }) || null;
+}
+
+
+/*
+ * 預設課程：改版前的題目都屬於這門課。
+ * 第一次用到時自動建立，課程ID存在指令碼屬性 DEFAULT_COURSE_ID。
+ */
+function getDefaultCourseId_() {
+
+  if (defaultCourseIdCache_) {
+    return defaultCourseIdCache_;
+  }
+
+  const props = PropertiesService.getScriptProperties();
+  const saved = cleanText_(props.getProperty('DEFAULT_COURSE_ID'));
+
+  if (saved && findCourse_(saved)) {
+    defaultCourseIdCache_ = saved;
+    return saved;
+  }
+
+  defaultCourseIdCache_ = withLock_(function() {
+
+    coursesCache_ = null;
+
+    // 鎖住後再確認一次，避免兩個人同時建立
+    const again = cleanText_(props.getProperty('DEFAULT_COURSE_ID'));
+
+    if (again && findCourse_(again)) {
+      return again;
+    }
+
+    const id = generateId_('K');
+    const now = new Date();
+
+    appendRows_(getCourseSheet_(), [[
+      id, DEFAULT_COURSE_NAME, ADMIN_ACCOUNT, '', '',
+      generateJoinCode_(), COURSE_STATUS.OPEN, now, now
+    ]], COURSE_HEADERS.length);
+
+    props.setProperty('DEFAULT_COURSE_ID', id);
+    coursesCache_ = null;
+
+    return id;
+  });
+
+  return defaultCourseIdCache_;
+}
+
+
+/*
+ * 題目屬於哪門課。課程ID 空白的舊題目算預設課程。
+ */
+function courseIdOf_(questionOrRow) {
+
+  const id = Array.isArray(questionOrRow)
+    ? cleanText_(questionOrRow[QCOL.COURSE - 1])
+    : cleanText_(questionOrRow && questionOrRow.courseId);
+
+  return id || getDefaultCourseId_();
+}
+
+
+function generateJoinCode_() {
+
+  const used = {};
+
+  getCourses_().forEach(function(course) {
+    used[course.code] = true;
+  });
+
+  for (let attempt = 0; attempt < 50; attempt++) {
+
+    let code = '';
+
+    for (let i = 0; i < JOIN_CODE_LENGTH; i++) {
+      code += JOIN_CODE_CHARS.charAt(Math.floor(Math.random() * JOIN_CODE_CHARS.length));
+    }
+
+    if (!used[code]) {
+      return code;
+    }
+  }
+
+  throw new Error('產生加入代碼失敗，請再試一次');
+}
+
+
+function canAccessCourse_(teacher, course) {
+  return !!course && (isAdmin_(teacher) || course.owner === teacher.account);
+}
+
+
+/*
+ * 確認目前登入的教師可以管理這門課，可以就回傳課程。
+ */
+function requireCourse_(courseId) {
+
+  const course = findCourse_(courseId);
+
+  if (!course) {
+    throw new Error('找不到這門課程，可能已經被刪除');
+  }
+
+  if (!canAccessCourse_(currentTeacher_(), course)) {
+    throw new Error('你沒有這門課程的管理權限');
+  }
+
+  return course;
+}
+
+
+/*
+ * 確認目前登入的教師可以管理這一題，可以就回傳題目。
+ */
+function requireQuestion_(questionId) {
+
+  const question = findQuestion_(questionId);
+
+  if (!question) {
+    throw new Error('找不到題目，可能已經被刪除');
+  }
+
+  requireCourse_(question.courseId);
+
+  return question;
+}
+
+
+/*
+ * 確認目前登入的教師可以管理這份回答。
+ */
+function requireAnswer_(answerId) {
+
+  answerId = cleanText_(answerId);
+
+  const values = getAnswerSheet_().getDataRange().getValues();
+  const index = findRowIndex_(values, answerId);
+
+  if (index < 0) {
+    throw new Error('找不到這份回答');
+  }
+
+  return requireQuestion_(values[index][ACOL.QUESTION_ID - 1]);
+}
+
+
+/*
+ * 教師畫面要顯示哪一門課：
+ * 有指定就檢查權限；沒指定（舊版網頁）就用預設課程，沒權限時用自己的第一門課。
+ */
+function resolveTeacherCourse_(courseId) {
+
+  if (cleanText_(courseId)) {
+    return requireCourse_(courseId);
+  }
+
+  const teacher = currentTeacher_();
+  const fallback = findCourse_(getDefaultCourseId_());
+
+  if (canAccessCourse_(teacher, fallback)) {
+    return fallback;
+  }
+
+  return getCourses_().find(function(course) {
+    return canAccessCourse_(teacher, course);
+  }) || null;
+}
+
+
+function teacherNameMap_() {
+
+  const map = {};
+  map[ADMIN_ACCOUNT] = ADMIN_DISPLAY_NAME;
+
+  getTeacherRows_().forEach(function(teacher) {
+    map[teacher.account] = teacher.name;
+  });
+
+  return map;
+}
+
+
+/* ---------- 學生用 ---------- */
+
+/*
+ * 學生輸入加入代碼時呼叫。只回傳學生需要知道的資料。
+ */
+function getCourseByCode(code) {
+
+  const course = findCourseByCode_(code);
+
+  if (!course) {
+    throw new Error('找不到這個課程代碼，請確認有沒有打錯');
+  }
+
+  return publicCourseForStudent_(course);
+}
+
+
+function publicCourseForStudent_(course) {
+
+  return {
+    code: course.code,
+    name: course.name,
+    // 沒填教師顯示名稱時用帳號的名稱；管理員帳號的名稱「管理員」不適合給學生看
+    teacherName: course.teacherName ||
+      (course.owner === ADMIN_ACCOUNT ? '' : teacherNameMap_()[course.owner] || ''),
+    description: course.description,
+    archived: course.status === COURSE_STATUS.ARCHIVED
+  };
+}
+
+
+/*
+ * 學生端指定課程：有代碼就用代碼，沒有（舊版網頁）就用預設課程。
+ */
+function resolveStudentCourse_(code) {
+
+  const course = cleanText_(code)
+    ? findCourseByCode_(code)
+    : findCourse_(getDefaultCourseId_());
+
+  if (!course) {
+    throw new Error('找不到這個課程代碼，請向老師確認');
+  }
+
+  return course;
+}
+
+
+/* ---------- 教師用 ---------- */
+
+function getMyCourses() {
+
+  const teacher = currentTeacher_();
+  const names = teacherNameMap_();
+  const defaultId = getDefaultCourseId_();
+
+  const questionCount = {};
+
+  const questionRows = getQuestionSheet_().getDataRange().getValues().slice(1);
+
+  questionRows.forEach(function(row) {
+    if (cleanText_(row[0])) {
+      const id = courseIdOf_(row);
+      questionCount[id] = (questionCount[id] || 0) + 1;
+    }
+  });
+
+  return getCourses_()
+    .filter(function(course) {
+      return canAccessCourse_(teacher, course);
+    })
+    .map(function(course) {
+      return {
+        id: course.id,
+        name: course.name,
+        owner: course.owner,
+        ownerName: names[course.owner] || course.owner,
+        teacherName: course.teacherName ||
+          (course.owner === ADMIN_ACCOUNT ? '' : names[course.owner] || ''),
+        description: course.description,
+        code: course.code,
+        status: course.status,
+        archived: course.status === COURSE_STATUS.ARCHIVED,
+        mine: course.owner === teacher.account,
+        isDefault: course.id === defaultId,
+        questionCount: questionCount[course.id] || 0,
+        createdAt: formatDate_(course.createdAt)
+      };
+    });
+}
+
+
+function cleanCourseInput_(data) {
+
+  data = data || {};
+
+  const name = cleanText_(data.name).substring(0, 40);
+
+  if (!name) {
+    throw new Error('請輸入課程名稱');
+  }
+
+  return {
+    name: name,
+    teacherName: cleanText_(data.teacherName).substring(0, 30),
+    description: cleanText_(data.description).substring(0, 300)
+  };
+}
+
+
+/*
+ * 管理員可以把課程指定給其他教師；一般教師只能開自己的課。
+ */
+function resolveCourseOwner_(owner) {
+
+  const teacher = currentTeacher_();
+
+  owner = normalizeAccount_(owner);
+
+  if (!owner || owner === teacher.account) {
+    return teacher.account;
+  }
+
+  if (!isAdmin_(teacher)) {
+    throw new Error('只有管理員可以把課程指定給其他教師');
+  }
+
+  if (owner === ADMIN_ACCOUNT) {
+    return owner;
+  }
+
+  const row = findTeacherRow_(owner);
+
+  if (!row || row.status !== ACCOUNT_STATUS.ACTIVE) {
+    throw new Error('找不到這個教師帳號，或帳號已停用');
+  }
+
+  return row.account;
+}
+
+
+function createCourse(data) {
+
+  const input = cleanCourseInput_(data);
+  const owner = resolveCourseOwner_(data && data.owner);
+
+  // 先確保預設課程存在，免得它在這次新增之後才建立
+  getDefaultCourseId_();
+
+  return withLock_(function() {
+
+    coursesCache_ = null;
+
+    const id = generateId_('K');
+    const code = generateJoinCode_();
+    const now = new Date();
+
+    appendRows_(getCourseSheet_(), [[
+      id, input.name, owner, input.teacherName, input.description,
+      code, COURSE_STATUS.OPEN, now, now
+    ]], COURSE_HEADERS.length);
+
+    coursesCache_ = null;
+
+    return { success: true, id: id, code: code };
+  });
+}
+
+
+function updateCourse(data) {
+
+  data = data || {};
+
+  const course = requireCourse_(data.id);
+  const input = cleanCourseInput_(data);
+  const owner = data.owner === undefined ? course.owner : resolveCourseOwner_(data.owner);
+
+  return withLock_(function() {
+
+    getCourseSheet_()
+      .getRange(course.rowNumber, COURSE_COL.NAME, 1, 4)
+      .setValues([[input.name, owner, input.teacherName, input.description]]);
+
+    getCourseSheet_().getRange(course.rowNumber, COURSE_COL.UPDATED).setValue(new Date());
+
+    coursesCache_ = null;
+
+    return { success: true };
+  });
+}
+
+
+function setCourseStatus(courseId, status) {
+
+  const course = requireCourse_(courseId);
+
+  if ([COURSE_STATUS.OPEN, COURSE_STATUS.ARCHIVED].indexOf(status) === -1) {
+    throw new Error('不允許的課程狀態');
+  }
+
+  return withLock_(function() {
+
+    getCourseSheet_()
+      .getRange(course.rowNumber, COURSE_COL.STATUS)
+      .setValue(status);
+
+    getCourseSheet_().getRange(course.rowNumber, COURSE_COL.UPDATED).setValue(new Date());
+
+    coursesCache_ = null;
+
+    return { success: true };
+  });
+}
+
+
+/*
+ * 代碼外流時換一組新的。已經加入的學生要重新輸入新代碼。
+ */
+function resetCourseCode(courseId) {
+
+  const course = requireCourse_(courseId);
+
+  return withLock_(function() {
+
+    coursesCache_ = null;
+
+    const code = generateJoinCode_();
+
+    getCourseSheet_()
+      .getRange(course.rowNumber, COURSE_COL.CODE)
+      .setValue(code);
+
+    getCourseSheet_().getRange(course.rowNumber, COURSE_COL.UPDATED).setValue(new Date());
+
+    coursesCache_ = null;
+
+    return { success: true, code: code };
+  });
+}
+
+
+/*
+ * 只有管理員能做、但函式寫在別的檔案（ai.gs、RAG）裡的功能，包一層檢查。
+ */
+function adminOnly_(fn, name) {
+
+  if (typeof fn !== 'function') {
+    throw new Error('找不到函式：' + name);
+  }
+
+  const wrapped = function() {
+    requireAdmin_();
+    return fn.apply(null, arguments);
+  };
+
+  return wrapped;
 }
 
 
@@ -195,6 +1187,7 @@ function getTeacherConfig() {
 function getPublicApiHandlers_() {
 
   return {
+    getCourseByCode: getCourseByCode,
     getPublishedQuestions: getPublishedQuestions,
     submitAnswer: submitAnswer,
     getStudentResults: getStudentResults,
@@ -205,8 +1198,12 @@ function getPublicApiHandlers_() {
 
 
 /*
- * 必須先輸入教師密碼才能呼叫的功能
+ * 必須先登入教師帳號才能呼叫的功能
  * 之後新增教師用的後端函式，記得加在這裡。
+ *
+ * 權限：每個函式自己會檢查「這門課／這一題是不是登入者的」，
+ * 管理員才能用的功能，函式裡會呼叫 requireAdmin_()，
+ * 或是在這裡用 adminOnly_() 包起來。
  *
  * 注意：這裡列出的每個函式都必須真的存在於專案中，
  * 少一個檔案，所有教師功能都會出錯。
@@ -226,7 +1223,22 @@ function getTeacherApiHandlers_() {
     saveTeacherReview: saveTeacherReview,
     runAIReview: runAIReview,
     getAISettings: getAISettings,
-    saveAISettings: saveAISettings,
+    // 評語風格是全站共用的設定，只讓管理員修改
+    saveAISettings: adminOnly_(saveAISettings, 'saveAISettings'),
+
+    // 課程
+    getMyCourses: getMyCourses,
+    createCourse: createCourse,
+    updateCourse: updateCourse,
+    setCourseStatus: setCourseStatus,
+    resetCourseCode: resetCourseCode,
+
+    // 帳號
+    changeMyPassword: changeMyPassword,
+    listTeacherAccounts: listTeacherAccounts,
+    createTeacherAccount: createTeacherAccount,
+    updateTeacherAccount: updateTeacherAccount,
+    resetTeacherPassword: resetTeacherPassword,
 
     // 課堂討論
     getDiscussionBoard: getDiscussionBoard,
@@ -238,20 +1250,17 @@ function getTeacherApiHandlers_() {
     confirmClassifications: confirmClassifications,
     summarizeCategories: summarizeCategories,
 
-    // RAG 預覽（RAG 網站測試版）
-    previewRAGForTeacher: previewRAGForTeacher,
-
-    // 教材庫（RAG_Admin.gs）
-    ragListDocuments: ragListDocuments,
-    ragGetDocumentDetail: ragGetDocumentDetail,
-    ragUploadPdf: ragUploadPdf,
-    ragRetryDocument: ragRetryDocument,
-    ragUpdateDocumentInfo: ragUpdateDocumentInfo,
-    ragSetDocumentStatus: ragSetDocumentStatus,
-    ragSetChunkStatus: ragSetChunkStatus,
-
-    // AI 助理（RAG_Chat.gs）
-    ragChat: ragChat
+    // 教材庫與 AI 助理：網頁用的名稱不變，實際呼叫的是會檢查課程的版本
+    // （函式在這個檔案的「教材庫分課程」，再交給 RAG_Admin.gs、RAG_Chat.gs）
+    previewRAGForTeacher: previewRAGForCourse_,
+    ragListDocuments: ragListDocumentsForCourse_,
+    ragGetDocumentDetail: ragGetDocumentDetailChecked_,
+    ragUploadPdf: ragUploadPdfForCourse_,
+    ragRetryDocument: ragRetryDocumentChecked_,
+    ragUpdateDocumentInfo: ragUpdateDocumentInfoChecked_,
+    ragSetDocumentStatus: ragSetDocumentStatusChecked_,
+    ragSetChunkStatus: ragSetChunkStatusChecked_,
+    ragChat: ragChatForCourse_
 
   };
 
@@ -262,6 +1271,9 @@ function doPost(e) {
 
   let output;
 
+  // 每次呼叫都重新判斷身分；從網頁呼叫一律不是「編輯器執行」
+  REQUEST_ = { teacher: null };
+
   try {
 
     const request = JSON.parse(
@@ -270,25 +1282,38 @@ function doPost(e) {
         : '{}'
     );
 
+    const fn = String(request.fn || '');
     const args = Array.isArray(request.args) ? request.args : [];
 
-    let handler = getPublicApiHandlers_()[request.fn];
+    const publicHandlers = getPublicApiHandlers_();
+    let handler = Object.prototype.hasOwnProperty.call(publicHandlers, fn)
+      ? publicHandlers[fn]
+      : null;
 
     if (!handler) {
 
-      handler = getTeacherApiHandlers_()[request.fn];
+      const teacherHandlers = getTeacherApiHandlers_();
 
-      if (handler && !isTeacherTokenValid_(request.token)) {
-        return jsonOutput_({
-          ok: false,
-          code: 'AUTH_REQUIRED',
-          error: '請先輸入教師密碼'
-        });
+      handler = Object.prototype.hasOwnProperty.call(teacherHandlers, fn)
+        ? teacherHandlers[fn]
+        : null;
+
+      if (handler) {
+
+        REQUEST_.teacher = getTeacherSession_(request.token);
+
+        if (!REQUEST_.teacher) {
+          return jsonOutput_({
+            ok: false,
+            code: 'AUTH_REQUIRED',
+            error: '請先登入教師帳號'
+          });
+        }
       }
     }
 
     if (!handler) {
-      throw new Error('不允許呼叫的功能：' + request.fn);
+      throw new Error('不允許呼叫的功能：' + fn);
     }
 
     output = { ok: true, result: handler.apply(null, args) };
@@ -324,9 +1349,46 @@ function setupSystem() {
   const answerSheet =
     ensureSheet_(ss, ANSWER_SHEET, ANSWER_HEADERS, '#dcf4e7', true);
 
-  ensureSheet_(ss, QUESTION_SHEET, QUESTION_HEADERS, '#d9e5ff', false);
+  const questionSheet =
+    ensureSheet_(ss, QUESTION_SHEET, QUESTION_HEADERS, '#d9e5ff', false);
   ensureSheet_(ss, CATEGORY_SHEET, CATEGORY_HEADERS, '#fff1d6', false);
   ensureSheet_(ss, CODING_SHEET, CODING_HEADERS, '#fde2e2', false);
+  ensureSheet_(ss, COURSE_SHEET, COURSE_HEADERS, '#dff1f4', false);
+  ensureSheet_(ss, TEACHER_SHEET, TEACHER_HEADERS, '#e8e1f7', false);
+  ensureSheet_(ss, RAG_COURSE_SHEET, RAG_COURSE_HEADERS, '#e3f3eb', false);
+
+  /*
+   * 課程：建立預設課程，把還沒有課程的舊題目都歸到預設課程。
+   */
+  const defaultCourseId = getDefaultCourseId_();
+  const moved = withLock_(function() {
+
+    const lastRow = questionSheet.getLastRow();
+
+    if (lastRow < 2) {
+      return 0;
+    }
+
+    const range = questionSheet.getRange(2, QCOL.COURSE, lastRow - 1, 1);
+    const ids = questionSheet.getRange(2, QCOL.ID, lastRow - 1, 1).getValues();
+    const values = range.getValues();
+    let count = 0;
+
+    values.forEach(function(row, i) {
+      if (cleanText_(ids[i][0]) && !cleanText_(row[0])) {
+        row[0] = defaultCourseId;
+        count++;
+      }
+    });
+
+    if (count) {
+      range.setValues(values);
+    }
+
+    return count;
+  });
+
+  const course = findCourse_(defaultCourseId);
 
   /*
    * 學號欄設為純文字，避免 0123 被存成 123。
@@ -336,7 +1398,13 @@ function setupSystem() {
     .getRange(1, ACOL.STUDENT_ID, answerSheet.getMaxRows(), 1)
     .setNumberFormat('@');
 
-  return '系統初始化完成';
+  const message =
+    '系統初始化完成。預設課程「' + course.name + '」的加入代碼是 ' + course.code +
+    (moved ? '，已把 ' + moved + ' 題舊題目歸到這門課' : '');
+
+  Logger.log(message);
+
+  return message;
 }
 
 
@@ -350,6 +1418,11 @@ function ensureSheet_(ss, name, headers, color, backupIfIncompatible) {
   let sheet = ss.getSheetByName(name);
 
   if (sheet && sheet.getLastRow() > 0) {
+
+    // 工作表欄數不夠時先補欄，才能寫入新增的標題
+    if (sheet.getMaxColumns() < headers.length) {
+      sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
+    }
 
     const width = Math.max(sheet.getLastColumn(), headers.length);
 
@@ -489,13 +1562,22 @@ function getCodingSheet_() {
 /*
  * 寫入資料時加鎖，避免多人同時操作造成重複列或列號錯位。
  */
+let lockDepth_ = 0;
+
 function withLock_(callback) {
+
+  // 已經在鎖裡面（例如建立預設課程時）就直接執行，避免提早放掉外層的鎖
+  if (lockDepth_ > 0) {
+    return callback();
+  }
 
   const lock = LockService.getScriptLock();
 
   if (!lock.tryLock(30000)) {
     throw new Error('目前使用人數較多，請稍後再試一次');
   }
+
+  lockDepth_++;
 
   try {
 
@@ -505,6 +1587,7 @@ function withLock_(callback) {
 
   } finally {
 
+    lockDepth_--;
     lock.releaseLock();
 
   }
@@ -660,7 +1743,8 @@ function questionFromRow_(row, rowNumber) {
     enableAI: cleanText_(row[6]) === '是',
     status: cleanText_(row[7]),
     deadline: toTime_(row[QCOL.DEADLINE - 1]),
-    allowLate: cleanText_(row[QCOL.LATE_POLICY - 1]) === LATE_POLICY.ACCEPT
+    allowLate: cleanText_(row[QCOL.LATE_POLICY - 1]) === LATE_POLICY.ACCEPT,
+    courseId: courseIdOf_(row)
   };
 }
 
@@ -805,7 +1889,17 @@ function findQuestion_(questionId) {
    學生：取得發布中的題目
 ===================================================== */
 
-function getPublishedQuestions() {
+/*
+ * courseCode：學生輸入的加入代碼。舊版網頁不會送，就用預設課程。
+ */
+function getPublishedQuestions(courseCode) {
+
+  const course = resolveStudentCourse_(courseCode);
+
+  // 封存的課程不再開放作答，學生仍可以看自己的作答紀錄
+  if (course.status === COURSE_STATUS.ARCHIVED) {
+    return [];
+  }
 
   const sheet = getQuestionSheet_();
 
@@ -830,7 +1924,11 @@ function getPublishedQuestions() {
 
   return rows
     .filter(function(row) {
-      return cleanText_(row[0]) !== '' && cleanText_(row[7]) === '發布';
+      return (
+        cleanText_(row[0]) !== '' &&
+        cleanText_(row[7]) === '發布' &&
+        courseIdOf_(row) === course.id
+      );
     })
     .map(function(row) {
 
@@ -883,6 +1981,16 @@ function submitAnswer(data) {
 
   if (question.status !== '發布') {
     throw new Error('這一題目前已停止作答');
+  }
+
+  const course = findCourse_(question.courseId);
+
+  if (cleanText_(data.courseCode) && (!course || course.code !== normalizeCode_(data.courseCode))) {
+    throw new Error('這一題不屬於目前的課程，請重新整理頁面');
+  }
+
+  if (!course || course.status === COURSE_STATUS.ARCHIVED) {
+    throw new Error('這門課程已經結束，不能再繳交');
   }
 
   const late = !!question.deadline && Date.now() > question.deadline;
@@ -977,6 +2085,9 @@ function getStudentResults(data) {
     return [];
   }
 
+  // 只回傳這門課的作答；舊版網頁沒送代碼時用預設課程
+  const course = resolveStudentCourse_(data.courseCode);
+
   const answers = getAnswerSheet_().getDataRange().getValues();
   const questions = getQuestionSheet_().getDataRange().getValues();
 
@@ -990,7 +2101,8 @@ function getStudentResults(data) {
       questionMap[id] = {
         title: row[1],
         points: row[3],
-        deadline: toTime_(row[QCOL.DEADLINE - 1])
+        deadline: toTime_(row[QCOL.DEADLINE - 1]),
+        courseId: courseIdOf_(row)
       };
     }
   });
@@ -998,9 +2110,12 @@ function getStudentResults(data) {
   return answers
     .slice(1)
     .filter(function(row) {
+      const q = questionMap[cleanText_(row[1])];
+
       return (
         cleanText_(row[2]) === studentId &&
-        cleanText_(row[3]) === name
+        cleanText_(row[3]) === name &&
+        !!q && q.courseId === course.id
       );
     })
     .map(function(row) {
@@ -1033,6 +2148,16 @@ function getStudentResults(data) {
 function createQuestion(data) {
 
   const q = cleanQuestionInput_(data);
+  const course = resolveTeacherCourse_(data && data.courseId);
+
+  if (!course) {
+    throw new Error('請先到「課程管理」建立一門課程，再新增題目');
+  }
+
+  if (course.status === COURSE_STATUS.ARCHIVED) {
+    throw new Error('這門課程已封存，請先重新開放課程再新增題目');
+  }
+
   const id = generateId_('Q');
 
   return withLock_(function() {
@@ -1053,12 +2178,13 @@ function createQuestion(data) {
       new Date(),
       q.deadline,
       q.latePolicy,
-      ''
+      '',
+      course.id
     ]], QUESTION_HEADERS.length);
 
     sheet.getRange(rowNumber, QCOL.DEADLINE).setNumberFormat('yyyy/mm/dd hh:mm');
 
-    return { success: true, id: id };
+    return { success: true, id: id, courseId: course.id };
   });
 }
 
@@ -1079,6 +2205,8 @@ function updateQuestion(data) {
   }
 
   const q = cleanQuestionInput_(data);
+
+  requireQuestion_(questionId);
 
   return withLock_(function() {
 
@@ -1148,9 +2276,21 @@ function updateQuestion(data) {
    教師：取得題目清單
 ===================================================== */
 
-function getTeacherQuestions() {
+/*
+ * courseId：目前選的課程。舊版網頁不會送，就用預設課程。
+ */
+function getTeacherQuestions(courseId) {
 
-  const questions = getQuestionSheet_().getDataRange().getValues();
+  const course = resolveTeacherCourse_(courseId);
+
+  if (!course) {
+    return [];
+  }
+
+  const questions = getQuestionSheet_().getDataRange().getValues()
+    .filter(function(row, index) {
+      return index === 0 || (cleanText_(row[0]) && courseIdOf_(row) === course.id);
+    });
   const answers = getAnswerSheet_().getDataRange().getValues();
 
   const counts = {};
@@ -1212,7 +2352,8 @@ function getTeacherQuestions() {
         deadline: q.deadline || '',
         deadlineText: formatDeadline_(q.deadline),
         allowLate: q.allowLate,
-        updatedAt: row[QCOL.UPDATED - 1] ? formatDate_(row[QCOL.UPDATED - 1]) : ''
+        updatedAt: row[QCOL.UPDATED - 1] ? formatDate_(row[QCOL.UPDATED - 1]) : '',
+        courseId: course.id
       };
     })
     .reverse();
@@ -1230,6 +2371,8 @@ function updateQuestionStatus(questionId, newStatus) {
   }
 
   questionId = cleanText_(questionId);
+
+  requireQuestion_(questionId);
 
   return withLock_(function() {
 
@@ -1252,7 +2395,23 @@ function updateQuestionStatus(questionId, newStatus) {
    教師：取得學生回答
 ===================================================== */
 
-function getTeacherAnswers(questionId) {
+/*
+ * questionId 有值：只看這一題。
+ * questionId 空白：看 courseId 這門課的全部回答（舊版網頁沒送 courseId 時用預設課程）。
+ */
+function getTeacherAnswers(questionId, courseId) {
+
+  let course;
+
+  if (cleanText_(questionId)) {
+    course = findCourse_(requireQuestion_(questionId).courseId);
+  } else {
+    course = resolveTeacherCourse_(courseId);
+  }
+
+  if (!course) {
+    return [];
+  }
 
   const answers = getAnswerSheet_().getDataRange().getValues();
   const questions = getQuestionSheet_().getDataRange().getValues();
@@ -1275,6 +2434,12 @@ function getTeacherAnswers(questionId) {
     .filter(function(row) {
 
       if (!cleanText_(row[0])) {
+        return false;
+      }
+
+      const q = questionMap[cleanText_(row[1])];
+
+      if (!q || q.courseId !== course.id) {
         return false;
       }
 
@@ -1324,6 +2489,8 @@ function deleteQuestion(questionId) {
   if (!questionId) {
     throw new Error('缺少題目ID');
   }
+
+  requireQuestion_(questionId);
 
   return withLock_(function() {
 
@@ -1392,6 +2559,8 @@ function saveTeacherReview(data) {
 
   const feedback = cleanText_(data.teacherFeedback);
 
+  requireAnswer_(answerId);
+
   return withLock_(function() {
 
     const sheet = getAnswerSheet_();
@@ -1444,6 +2613,8 @@ function runAIReview(answerId) {
   if (!question) {
     throw new Error('找不到原題目');
   }
+
+  requireCourse_(question.courseId);
 
   if (!question.enableAI) {
     throw new Error('這一題沒有啟用 AI 批改');
@@ -1654,6 +2825,8 @@ function getDiscussionBoard(questionId) {
     return { question: null, categories: [], answers: [] };
   }
 
+  requireCourse_(question.courseId);
+
   const categories = getCategoriesForQuestion_(questionId);
   const coding = getCodingMap_(questionId);
 
@@ -1703,9 +2876,7 @@ function saveCategories(questionId, list) {
 
   questionId = cleanText_(questionId);
 
-  if (!findQuestion_(questionId)) {
-    throw new Error('找不到題目');
-  }
+  requireQuestion_(questionId);
 
   if (!Array.isArray(list)) {
     throw new Error('類別資料格式錯誤');
@@ -1822,11 +2993,7 @@ function suggestCategories(questionId) {
 
   questionId = cleanText_(questionId);
 
-  const question = findQuestion_(questionId);
-
-  if (!question) {
-    throw new Error('找不到題目');
-  }
+  const question = requireQuestion_(questionId);
 
   const answers = getAnswersForQuestion_(questionId);
 
@@ -1880,11 +3047,7 @@ function classifyAnswers(questionId) {
   questionId = cleanText_(questionId);
 
   const startedAt = Date.now();
-  const question = findQuestion_(questionId);
-
-  if (!question) {
-    throw new Error('找不到題目');
-  }
+  const question = requireQuestion_(questionId);
 
   const categories = getCategoriesForQuestion_(questionId);
 
@@ -2000,6 +3163,8 @@ function clearUnconfirmedClassifications(questionId) {
 
   questionId = cleanText_(questionId);
 
+  requireQuestion_(questionId);
+
   return withLock_(function() {
 
     const deleted = deleteRowsWhere_(getCodingSheet_(), function(row) {
@@ -2032,6 +3197,8 @@ function setAnswerCategory(answerId, categoryId) {
     }
 
     const questionId = cleanText_(answerValues[index][ACOL.QUESTION_ID - 1]);
+
+    requireQuestion_(questionId);
 
     if (categoryId) {
 
@@ -2086,6 +3253,8 @@ function confirmClassifications(questionId, categoryId) {
   questionId = cleanText_(questionId);
   categoryId = cleanText_(categoryId);
 
+  requireQuestion_(questionId);
+
   return withLock_(function() {
 
     const sheet = getCodingSheet_();
@@ -2128,11 +3297,7 @@ function summarizeCategories(questionId) {
 
   questionId = cleanText_(questionId);
 
-  const question = findQuestion_(questionId);
-
-  if (!question) {
-    throw new Error('找不到題目');
-  }
+  const question = requireQuestion_(questionId);
 
   const categories = getCategoriesForQuestion_(questionId);
 
@@ -2208,6 +3373,237 @@ function summarizeCategories(questionId) {
 
 
 /* =====================================================
+   教材庫分課程
+   RAG 的教材存在另一份試算表。這裡用主試算表的「教材課程」工作表
+   記錄每份教材屬於哪門課；沒有紀錄的舊教材算預設課程。
+   網頁呼叫的都是這裡的版本，會先檢查課程權限，再交給 RAG_Admin.gs、RAG_Chat.gs。
+===================================================== */
+
+const RAG_COURSE_SHEET = '教材課程';
+const RAG_COURSE_HEADERS = ['教材ID', '課程ID', '最後修改'];
+
+
+function getRagCourseSheet_() {
+
+  const ss = getSpreadsheet_();
+
+  return (
+    ss.getSheetByName(RAG_COURSE_SHEET) ||
+    ensureSheet_(ss, RAG_COURSE_SHEET, RAG_COURSE_HEADERS, '#e3f3eb', false)
+  );
+}
+
+
+/*
+ * 回傳 { 教材ID: 課程ID }
+ */
+function getRagCourseMap_() {
+
+  const values = getRagCourseSheet_().getDataRange().getValues();
+  const map = {};
+
+  for (let i = 1; i < values.length; i++) {
+    const docId = cleanText_(values[i][0]);
+    if (docId) {
+      map[docId] = cleanText_(values[i][1]);
+    }
+  }
+
+  return map;
+}
+
+
+function ragCourseOfDoc_(docId, map) {
+  return (map || getRagCourseMap_())[cleanText_(docId)] || getDefaultCourseId_();
+}
+
+
+function setRagDocCourse_(docId, courseId) {
+
+  docId = cleanText_(docId);
+
+  if (!docId) {
+    return;
+  }
+
+  withLock_(function() {
+
+    const sheet = getRagCourseSheet_();
+    const values = sheet.getDataRange().getValues();
+    const index = findRowIndex_(values, docId);
+
+    if (index >= 0) {
+      sheet.getRange(index + 1, 2, 1, 2).setValues([[courseId, new Date()]]);
+    } else {
+      appendRows_(sheet, [[docId, courseId, new Date()]], RAG_COURSE_HEADERS.length);
+    }
+  });
+}
+
+
+function requireRagDoc_(docId) {
+  return requireCourse_(ragCourseOfDoc_(docId));
+}
+
+
+/*
+ * 教材要放在哪門課：有指定就檢查權限，沒有就用預設課程（舊版網頁）。
+ */
+function requireRagCourse_(courseId) {
+
+  const course = resolveTeacherCourse_(courseId);
+
+  if (!course) {
+    throw new Error('請先到「課程管理」建立一門課程');
+  }
+
+  return course;
+}
+
+
+function ragListDocumentsForCourse_(courseId) {
+
+  const course = resolveTeacherCourse_(courseId);
+
+  if (!course) {
+    return [];
+  }
+
+  const map = getRagCourseMap_();
+
+  return ragListDocuments().filter(function(doc) {
+    return ragCourseOfDoc_(doc.docId, map) === course.id;
+  });
+}
+
+
+function ragGetDocumentDetailChecked_(docId) {
+  requireRagDoc_(docId);
+  return ragGetDocumentDetail(docId);
+}
+
+
+function ragUploadPdfForCourse_(fileName, base64Data, courseId) {
+
+  const course = requireRagCourse_(courseId);
+
+  if (course.status === COURSE_STATUS.ARCHIVED) {
+    throw new Error('這門課程已封存，不能再上傳教材');
+  }
+
+  const result = ragUploadPdf(fileName, base64Data);
+
+  // 匯入失敗也要記，重試時才知道是哪門課的
+  if (result && result.docId) {
+    setRagDocCourse_(result.docId, course.id);
+  }
+
+  return result;
+}
+
+
+function ragRetryDocumentChecked_(docId) {
+  requireRagDoc_(docId);
+  return ragRetryDocument(docId);
+}
+
+
+function ragUpdateDocumentInfoChecked_(docId, info) {
+  requireRagDoc_(docId);
+  return ragUpdateDocumentInfo(docId, info);
+}
+
+
+function ragSetDocumentStatusChecked_(docId, status) {
+  requireRagDoc_(docId);
+  return ragSetDocumentStatus(docId, status);
+}
+
+
+function ragSetChunkStatusChecked_(chunkId, status) {
+
+  // 段落 ID 是「教材ID_C數字」
+  const docId = cleanText_(chunkId).replace(/_C\d+$/, '');
+
+  requireRagDoc_(docId);
+
+  return ragSetChunkStatus(chunkId, status);
+}
+
+
+/*
+ * AI 助理：只讀這門課的教材。
+ */
+function ragChatForCourse_(message, history, courseId) {
+
+  const course = requireRagCourse_(courseId);
+  const map = getRagCourseMap_();
+
+  return ragChat(message, history, {
+    allowDoc: function(docId) {
+      return ragCourseOfDoc_(docId, map) === course.id;
+    }
+  });
+}
+
+
+/*
+ * 出題時的「AI 搜尋教材」：只顯示這門課的教材段落。
+ * 搜尋程式在其他 RAG 檔案裡，這裡把結果中其他課程的教材拿掉。
+ */
+function previewRAGForCourse_(question, courseId) {
+
+  const course = requireRagCourse_(courseId);
+  const result = previewRAGForTeacher(question);
+
+  if (!result || !Array.isArray(result.candidates)) {
+    return result;
+  }
+
+  const map = getRagCourseMap_();
+  const allowed = {};
+
+  const candidates = result.candidates.filter(function(item) {
+
+    const ok = ragCourseOfDoc_(item && item.docId, map) === course.id;
+
+    if (ok && item.chunkId) {
+      allowed[item.chunkId] = true;
+    }
+
+    return ok;
+  });
+
+  if (candidates.length === result.candidates.length) {
+    return result;
+  }
+
+  if (!candidates.length) {
+    return {
+      status: 'NO_MATCH',
+      message: '這門課程的教材庫中沒有找到相關教材。'
+    };
+  }
+
+  const analysis = result.analysis || {};
+
+  // 解讀可能用到了其他課程的教材，所以不顯示，只列出本課程的段落
+  return {
+    status: result.status,
+    message: result.message,
+    candidates: candidates,
+    analysis: {
+      explanation: '（搜尋結果中有其他課程的教材，已經隱藏。下面只列出這門課程的教材段落，請自行參考。）',
+      concepts: [],
+      selectedChunkIds: (analysis.selectedChunkIds || []).filter(function(id) {
+        return allowed[id];
+      })
+    }
+  };
+}
+
+
+/* =====================================================
    除錯用
 ===================================================== */
 
@@ -2269,5 +3665,30 @@ function checkTeacherApiHandlers() {
     }
   });
 
-  Logger.log('教師 API 共 ' + Object.keys(handlers).length + ' 個，全部存在');
+  // 這些函式在其他檔案，由這個檔案包一層權限檢查後再呼叫
+  const external = {
+    'ai.gs：gradeAnswerWithAI_': typeof gradeAnswerWithAI_,
+    'ai.gs：getAISettings': typeof getAISettings,
+    'ai.gs：saveAISettings': typeof saveAISettings,
+    'RAG_Admin.gs：ragListDocuments': typeof ragListDocuments,
+    'RAG_Admin.gs：ragGetDocumentDetail': typeof ragGetDocumentDetail,
+    'RAG_Admin.gs：ragUploadPdf': typeof ragUploadPdf,
+    'RAG_Admin.gs：ragRetryDocument': typeof ragRetryDocument,
+    'RAG_Admin.gs：ragUpdateDocumentInfo': typeof ragUpdateDocumentInfo,
+    'RAG_Admin.gs：ragSetDocumentStatus': typeof ragSetDocumentStatus,
+    'RAG_Admin.gs：ragSetChunkStatus': typeof ragSetChunkStatus,
+    'RAG_Chat.gs：ragChat': typeof ragChat,
+    'RAG 預覽：previewRAGForTeacher': typeof previewRAGForTeacher
+  };
+
+  Object.keys(external).forEach(function(name) {
+    if (external[name] !== 'function') {
+      throw new Error('找不到函式：' + name);
+    }
+  });
+
+  Logger.log(
+    '教師 API 共 ' + Object.keys(handlers).length + ' 個，' +
+    '其他檔案的 ' + Object.keys(external).length + ' 個函式也都存在'
+  );
 }

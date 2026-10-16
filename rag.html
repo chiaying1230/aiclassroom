@@ -578,10 +578,7 @@
     <div class="page-header">
       <div>
         <h1>教材庫與 AI 助理</h1>
-        <p>上傳教材，讓 AI 助理根據你的教材回答</p>
-      </div>
-      <div class="page-actions">
-        <button type="button" class="btn" id="logoutButton" hidden>登出</button>
+        <p id="courseLine">上傳教材，讓 AI 助理根據你的教材回答</p>
       </div>
     </div>
     <div class="tabs line-tabs" role="tablist">
@@ -650,6 +647,7 @@
 <script src="config.js"></script>
 <script src="gas-bridge.js"></script>
 <script src="teacher-auth.js"></script>
+<script src="teacher-course.js"></script>
 <script>
 (function () {
 
@@ -735,7 +733,12 @@
      AI 助理
   ===================================================== */
 
-  const CHAT_KEY = 'aiclassroom_rag_chat';
+  // 每門課的對話分開存，換課程時不會帶到別門課的對話
+  const CHAT_KEY_BASE = 'aiclassroom_rag_chat';
+
+  function chatKey() {
+    return CHAT_KEY_BASE + ':' + (window.TeacherCourse ? window.TeacherCourse.id() : '');
+  }
 
   const SUGGESTIONS = [
     '根據教材，設計三個讓學生分組討論的開放式問題',
@@ -750,13 +753,13 @@
 
   function saveChat() {
     try {
-      sessionStorage.setItem(CHAT_KEY, JSON.stringify(messages.slice(-40)));
+      sessionStorage.setItem(chatKey(), JSON.stringify(messages.slice(-40)));
     } catch (e) { /* 忽略 */ }
   }
 
   function loadChat() {
     try {
-      const saved = JSON.parse(sessionStorage.getItem(CHAT_KEY) || '[]');
+      const saved = JSON.parse(sessionStorage.getItem(chatKey()) || '[]');
       if (Array.isArray(saved)) messages = saved;
     } catch (e) {
       messages = [];
@@ -899,7 +902,7 @@
     setSending(true);
     renderChat();
 
-    api('ragChat', text, history)
+    api('ragChat', text, history, window.TeacherCourse.id())
       .then(function (result) {
         messages[messages.length - 1] = {
           role: 'assistant',
@@ -974,7 +977,7 @@
   let currentFilter = 'ALL';
 
   function loadDocs() {
-    return api('ragListDocuments')
+    return api('ragListDocuments', window.TeacherCourse.id())
       .then(function (list) {
         docs = Array.isArray(list) ? list : [];
         renderDocs();
@@ -1026,7 +1029,7 @@
             (d.status === 'REVIEW' ? '檢查' : '查看') + '</button>' +
         '</div>' +
         '<div class="doc-meta">' +
-          escapeHtml(where || '未填課程與單元') + '｜' + chunkText + '｜' + escapeHtml(d.updatedAt) +
+          escapeHtml(where || '未填科目與單元') + '｜' + chunkText + '｜' + escapeHtml(d.updatedAt) +
         '</div>' +
         (d.status === 'FAILED' && d.errorMessage
           ? '<div class="doc-error">' + escapeHtml(d.errorMessage) + '</div>'
@@ -1129,7 +1132,7 @@
     renderQueue();
 
     readAsBase64(item.file)
-      .then(function (data) { return api('ragUploadPdf', item.file.name, data); })
+      .then(function (data) { return api('ragUploadPdf', item.file.name, data, window.TeacherCourse.id()); })
       .then(function (result) {
         if (result.status === 'FAILED') {
           item.state = '匯入失敗：' + result.message;
@@ -1240,7 +1243,7 @@
         '<h3>教材資料</h3>' +
         '<div class="fields">' +
           '<label class="wide">教材名稱<input name="title" maxlength="100" required value="' + escapeHtml(d.title) + '"></label>' +
-          '<label>課程<input name="course" maxlength="100" placeholder="例如：綜合活動" value="' + escapeHtml(d.course) + '"></label>' +
+          '<label>科目<input name="course" maxlength="100" placeholder="例如：綜合活動" value="' + escapeHtml(d.course) + '"></label>' +
           '<label>單元<input name="unit" maxlength="100" placeholder="例如：第三單元 溝通與合作" value="' + escapeHtml(d.unit) + '"></label>' +
         '</div>' +
         '<div class="fields-actions"><button type="submit" class="btn">儲存教材資料</button></div>' +
@@ -1401,18 +1404,15 @@
     showTab(tab);
 
     loadDocs();
-
-    if (window.TeacherAuth && typeof window.TeacherAuth.logout === 'function') {
-      $('logoutButton').hidden = false;
-      $('logoutButton').addEventListener('click', function () { window.TeacherAuth.logout(); });
-    }
   }
 
-  if (window.TeacherAuth && typeof window.TeacherAuth.ready === 'function') {
-    window.TeacherAuth.ready(start);
-  } else {
-    document.addEventListener('DOMContentLoaded', start);
-  }
+  // 教材和 AI 助理都只用目前課程的教材
+  window.TeacherCourse.ready(function (ctx) {
+    $('courseLine').textContent = ctx.course
+      ? '目前課程：' + ctx.course.name + '。AI 助理只會參考這門課的教材。'
+      : '還沒有課程，請先到「課程管理」建立';
+    start();
+  });
 
 })();
 </script>

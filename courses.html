@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>課程管理｜AI 課堂</title>
+
+  <script src="config.js"></script>
+  <script src="gas-bridge.js"></script>
+  <script src="teacher-auth.js"></script>
+  <script src="teacher-course.js"></script>
+
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="admin.css">
+  <script src="features.js"></script>
+  <script src="shell.js" defer></script>
+
+  <style>
+    :root { --page-width: 1040px; }
+
+    /* ---------- 課程卡 ---------- */
+    .course {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 300px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .course + .course { margin-top: 16px; }
+
+    .course.is-current { border-color: var(--blue); box-shadow: 0 0 0 2px var(--blue-soft); }
+    .course.is-archived .course-name { color: var(--ink-2); }
+
+    .course-main { padding: 22px 24px 20px; min-width: 0; display: flex; flex-direction: column; }
+
+    .course-top { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+
+    .course-name {
+      flex: 1 1 auto;
+      margin: 0;
+      font-family: var(--serif);
+      font-size: 24px;
+      font-weight: 900;
+      line-height: 1.35;
+    }
+
+    .course-meta { margin: 6px 0 0; color: var(--ink-2); font-size: 15px; }
+    .course-desc { margin: 10px 0 0; white-space: pre-wrap; line-height: 1.75; }
+
+    .course-stats { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 14px 0 0; color: var(--ink-2); font-size: 14px; }
+    .course-stats b { color: var(--ink); }
+
+    .course-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 18px; }
+
+    /* 右邊：加入代碼 */
+    .course-code {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 12px;
+      padding: 22px 24px;
+      background: var(--head);
+      color: var(--head-text);
+    }
+
+    .course.is-archived .course-code { background: #3a4558; }
+
+    .code-label { font-size: 14px; color: var(--head-soft); }
+
+    .code-value {
+      font-size: 44px;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: .14em;
+      color: #fff;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .code-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    .code-buttons button {
+      height: 32px;
+      padding: 0 11px;
+      border: 1px solid rgba(255, 255, 255, .28);
+      border-radius: 6px;
+      background: transparent;
+      color: #fff;
+      font: inherit;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .code-buttons button:hover { background: rgba(255, 255, 255, .1); }
+
+    .course-current-tag { color: var(--blue); font-size: 14px; font-weight: 700; align-self: center; }
+
+    /* ---------- 新增課程 ---------- */
+    .new-course { margin-bottom: 26px; border-top: 4px solid var(--blue); }
+
+    /* ---------- 投影加入代碼 ---------- */
+    .projector {
+      position: fixed;
+      inset: 0;
+      z-index: 300;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3vh;
+      padding: 32px;
+      background: var(--head);
+      color: #fff;
+      text-align: center;
+    }
+
+    .projector[hidden] { display: none; }
+
+    .projector-close {
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      height: 40px;
+      padding: 0 16px;
+      border: 1px solid rgba(255, 255, 255, .35);
+      border-radius: 8px;
+      background: transparent;
+      color: #fff;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .projector-course { margin: 0; font-family: var(--serif); font-weight: 900; font-size: clamp(26px, 4vw, 46px); }
+    .projector-step { margin: 0; color: var(--head-soft); font-size: clamp(16px, 2vw, 22px); }
+
+    .projector-code {
+      font-size: clamp(64px, 15vw, 200px);
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: .12em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .projector-body { display: flex; align-items: center; justify-content: center; gap: 5vw; flex-wrap: wrap; }
+
+    .projector-qr { padding: 14px; background: #fff; border-radius: 12px; line-height: 0; }
+    .projector-qr[hidden] { display: none; }
+    .projector-qr img, .projector-qr canvas { width: min(26vh, 240px); height: auto; }
+
+    .projector-link { margin: 0; color: var(--head-soft); font-size: clamp(14px, 1.6vw, 18px); word-break: break-all; }
+    .projector-link b { color: #fff; }
+
+    @media (max-width: 860px) {
+      .course { grid-template-columns: 1fr; }
+      .course-code { order: -1; flex-direction: row; flex-wrap: wrap; align-items: center; padding: 16px 18px; }
+      .code-label { flex: 1 1 100%; }
+      .code-value { font-size: 34px; margin-right: auto; }
+      .course-main { padding: 18px; }
+      .course-name { font-size: 21px; }
+    }
+  </style>
+</head>
+
+<body data-course-optional>
+
+<main class="page">
+
+  <header class="page-header">
+    <div>
+      <h1>課程管理</h1>
+      <p>每門課有自己的題目、學生作答和教材。把加入代碼給學生，學生就會看到這門課的題目。</p>
+    </div>
+    <div class="page-actions">
+      <button type="button" class="k-btn primary" id="newCourseButton" aria-expanded="false" aria-controls="newCourse">＋ 新增課程</button>
+    </div>
+  </header>
+
+  <section class="k-card new-course" id="newCourse" aria-labelledby="newCourseTitle" hidden>
+    <h2 id="newCourseTitle">新增課程</h2>
+    <p class="k-sub">建立後會自動產生加入代碼。</p>
+
+    <form id="newCourseForm" class="k-form">
+      <div class="k-field">
+        <label for="newName">課程名稱</label>
+        <input id="newName" maxlength="40" required placeholder="例如：國小自然科教材教法">
+      </div>
+      <div class="k-field">
+        <label for="newTeacherName">學生看到的教師名稱</label>
+        <input id="newTeacherName" maxlength="30" placeholder="例如：王老師">
+      </div>
+      <div class="k-field wide">
+        <label for="newDescription">課程說明 <span class="k-hint">（可不填）</span></label>
+        <textarea id="newDescription" maxlength="300" placeholder="例如：週三下午 2–4 點，教育大樓 301"></textarea>
+      </div>
+      <div class="k-field wide" id="newOwnerField" hidden>
+        <label for="newOwner">負責教師</label>
+        <select id="newOwner"></select>
+        <p class="k-hint">管理員可以替其他教師開課，課程會出現在那位教師的帳號裡。</p>
+      </div>
+    </form>
+
+    <div class="k-actions">
+      <button type="submit" form="newCourseForm" class="k-btn primary" id="createButton">建立課程</button>
+      <button type="button" class="k-btn" id="cancelNewButton">取消</button>
+      <span class="k-message" id="newMessage" role="status"></span>
+    </div>
+  </section>
+
+  <div id="courseList"><div class="k-card k-empty">讀取課程中……</div></div>
+
+</main>
+
+
+<!-- 編輯課程 -->
+<dialog class="k-dialog" id="editDialog" aria-labelledby="editTitle">
+  <form method="dialog" id="editForm">
+    <h2 id="editTitle">編輯課程</h2>
+    <p class="k-sub">修改後，學生重新整理頁面就會看到新的名稱。</p>
+
+    <div class="k-form">
+      <div class="k-field">
+        <label for="editName">課程名稱</label>
+        <input id="editName" maxlength="40" required>
+      </div>
+      <div class="k-field">
+        <label for="editTeacherName">學生看到的教師名稱</label>
+        <input id="editTeacherName" maxlength="30">
+      </div>
+      <div class="k-field">
+        <label for="editDescription">課程說明</label>
+        <textarea id="editDescription" maxlength="300"></textarea>
+      </div>
+      <div class="k-field" id="editOwnerField" hidden>
+        <label for="editOwner">負責教師</label>
+        <select id="editOwner"></select>
+      </div>
+    </div>
+
+    <div class="k-actions">
+      <button type="submit" class="k-btn primary" id="editSaveButton" value="save">儲存</button>
+      <button type="button" class="k-btn" id="editCancelButton">取消</button>
+      <span class="k-message" id="editMessage" role="status"></span>
+    </div>
+  </form>
+</dialog>
+
+
+<!-- 投影加入代碼 -->
+<div class="projector" id="projector" role="dialog" aria-modal="true" aria-labelledby="projectorCourse" hidden>
+  <button type="button" class="projector-close" id="projectorClose">關閉（Esc）</button>
+  <p class="projector-course" id="projectorCourse"></p>
+  <p class="projector-step">打開 AI 課堂，選「學生」，輸入課程代碼</p>
+  <div class="projector-body">
+    <div class="projector-code" id="projectorCode"></div>
+    <div class="projector-qr" id="projectorQr" hidden></div>
+  </div>
+  <p class="projector-link"><span id="projectorLinkLead">也可以直接打開</span><br><b id="projectorLink"></b></p>
+</div>
+
+<div class="k-toast" id="toast" role="status" hidden></div>
+
+
+<script>
+(function() {
+
+  'use strict';
+
+  const QR_LIBRARY = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+
+  let courses = [];
+  let accounts = [];
+  let isAdmin = false;
+  let me = null;
+  let editingId = '';
+
+  function $(id) { return document.getElementById(id); }
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function api(fn) {
+    const args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function(resolve, reject) {
+      const runner = google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(function(error) { reject(error instanceof Error ? error : new Error(String(error))); });
+      runner[fn].apply(runner, args);
+    });
+  }
+
+  let toastTimer = null;
+
+  function toast(text) {
+    const box = $('toast');
+    box.textContent = text;
+    box.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function() { box.hidden = true; }, 2600);
+  }
+
+  function setMessage(id, text, kind) {
+    $(id).textContent = text;
+    $(id).className = 'k-message' + (kind ? ' ' + kind : '');
+  }
+
+  function studentLink(code) {
+    return new URL('student.html?course=' + encodeURIComponent(code), window.location.href).href;
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function(resolve, reject) {
+      const box = document.createElement('textarea');
+      box.value = text;
+      box.style.position = 'fixed';
+      box.style.opacity = '0';
+      document.body.appendChild(box);
+      box.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(box);
+      ok ? resolve() : reject(new Error('copy failed'));
+    });
+  }
+
+
+  /* ---------- 讀取與顯示 ---------- */
+
+  function render() {
+
+    const box = $('courseList');
+    const currentId = window.TeacherCourse.id();
+
+    if (!courses.length) {
+      box.innerHTML = '<div class="k-card k-empty">還沒有課程。按「新增課程」開始。</div>';
+      return;
+    }
+
+    const card = function(c) {
+
+      const archived = c.archived;
+      const isCurrent = c.id === currentId;
+
+      return '<article class="course' + (archived ? ' is-archived' : '') + (isCurrent ? ' is-current' : '') + '" data-id="' + escapeHtml(c.id) + '">' +
+        '<div class="course-main">' +
+          '<div class="course-top">' +
+            '<h3 class="course-name">' + escapeHtml(c.name) + '</h3>' +
+            '<span class="k-badge' + (archived ? '' : ' open') + '">' + (archived ? '已封存' : '開放中') + '</span>' +
+          '</div>' +
+          '<p class="course-meta">' +
+            escapeHtml(c.teacherName ? '學生看到的教師：' + c.teacherName : '還沒有設定教師名稱') +
+            (c.mine ? '' : '・負責教師：' + escapeHtml(c.ownerName)) +
+          '</p>' +
+          (c.description ? '<p class="course-desc">' + escapeHtml(c.description) + '</p>' : '') +
+          '<p class="course-stats"><span>題目 <b>' + escapeHtml(c.questionCount) + '</b> 題</span>' +
+            (c.isDefault ? '<span>改版前的題目都在這門課</span>' : '') +
+            (c.createdAt ? '<span>建立於 ' + escapeHtml(c.createdAt.slice(0, 10)) + '</span>' : '') + '</p>' +
+          '<div class="course-actions">' +
+            (isCurrent
+              ? '<a class="k-btn primary" href="teacher.html">回到教師系統</a><span class="course-current-tag">目前的課程</span>'
+              : '<button type="button" class="k-btn primary" data-action="enter">進入這門課</button>') +
+            '<button type="button" class="k-btn" data-action="edit">編輯</button>' +
+            '<button type="button" class="k-btn" data-action="archive">' + (archived ? '重新開放' : '封存') + '</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="course-code">' +
+          '<span class="code-label">學生加入代碼</span>' +
+          '<span class="code-value">' + escapeHtml(c.code) + '</span>' +
+          '<div class="code-buttons">' +
+            '<button type="button" data-action="copy-code">複製代碼</button>' +
+            '<button type="button" data-action="copy-link">複製學生連結</button>' +
+            '<button type="button" data-action="project">投影</button>' +
+            '<button type="button" data-action="reset-code">換新代碼</button>' +
+          '</div>' +
+        '</div>' +
+      '</article>';
+    };
+
+    const mine = courses.filter(function(c) { return c.mine; });
+    const others = courses.filter(function(c) { return !c.mine; });
+
+    if (isAdmin && others.length) {
+      box.innerHTML =
+        (mine.length ? '<section class="k-section" style="margin-top:0"><h2>我的課程</h2>' + mine.map(card).join('') + '</section>' : '') +
+        '<section class="k-section"><h2>其他教師的課程</h2>' + others.map(card).join('') + '</section>';
+    } else {
+      box.innerHTML = courses.map(card).join('');
+    }
+  }
+
+  function findCourse(id) {
+    return courses.find(function(c) { return c.id === id; });
+  }
+
+  function reload() {
+    return window.TeacherCourse.refresh().then(function(ctx) {
+      courses = ctx.courses;
+      render();
+    });
+  }
+
+
+  /* ---------- 新增 ---------- */
+
+  function ownerOptions(selected) {
+    return accounts
+      .filter(function(a) { return a.status === '啟用'; })
+      .map(function(a) {
+        return '<option value="' + escapeHtml(a.account) + '"' + (a.account === selected ? ' selected' : '') + '>' +
+          escapeHtml(a.name + '（' + a.account + '）') + '</option>';
+      }).join('');
+  }
+
+  function openNewCourse(open) {
+    $('newCourse').hidden = !open;
+    $('newCourseButton').setAttribute('aria-expanded', String(open));
+    if (open) {
+      if (!$('newTeacherName').value && me && !me.isAdmin) $('newTeacherName').value = me.name;
+      if (isAdmin) $('newOwner').innerHTML = ownerOptions(me.account);
+      $('newName').focus();
+    }
+  }
+
+  function createCourse(event) {
+
+    event.preventDefault();
+
+    const data = {
+      name: $('newName').value.trim(),
+      teacherName: $('newTeacherName').value.trim(),
+      description: $('newDescription').value.trim()
+    };
+
+    if (isAdmin) data.owner = $('newOwner').value;
+
+    if (!data.name) {
+      setMessage('newMessage', '請輸入課程名稱', 'error');
+      $('newName').focus();
+      return;
+    }
+
+    $('createButton').disabled = true;
+    setMessage('newMessage', '建立中……');
+
+    api('createCourse', data)
+      .then(function(result) {
+        // 自己的第一門課（或剛建立的課）直接設成目前的課程
+        if (!data.owner || data.owner === me.account) window.TeacherCourse.select(result.id);
+        ['newName', 'newDescription'].forEach(function(id) { $(id).value = ''; });
+        openNewCourse(false);
+        setMessage('newMessage', '');
+        return reload().then(function() {
+          toast('已建立「' + data.name + '」，加入代碼 ' + result.code);
+          const el = document.querySelector('.course[data-id="' + result.id + '"]');
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      })
+      .catch(function(error) { setMessage('newMessage', error.message, 'error'); })
+      .then(function() { $('createButton').disabled = false; });
+  }
+
+
+  /* ---------- 編輯 ---------- */
+
+  function openEdit(c) {
+    editingId = c.id;
+    $('editName').value = c.name;
+    $('editTeacherName').value = c.teacherName;
+    $('editDescription').value = c.description;
+    $('editOwnerField').hidden = !isAdmin;
+    if (isAdmin) $('editOwner').innerHTML = ownerOptions(c.owner);
+    setMessage('editMessage', '');
+    $('editDialog').showModal();
+    $('editName').focus();
+  }
+
+  function saveEdit(event) {
+
+    event.preventDefault();
+
+    const data = {
+      id: editingId,
+      name: $('editName').value.trim(),
+      teacherName: $('editTeacherName').value.trim(),
+      description: $('editDescription').value.trim()
+    };
+
+    if (isAdmin) data.owner = $('editOwner').value;
+
+    if (!data.name) {
+      setMessage('editMessage', '請輸入課程名稱', 'error');
+      return;
+    }
+
+    $('editSaveButton').disabled = true;
+    setMessage('editMessage', '儲存中……');
+
+    api('updateCourse', data)
+      .then(function() {
+        $('editDialog').close();
+        return reload().then(function() { toast('已儲存'); });
+      })
+      .catch(function(error) { setMessage('editMessage', error.message, 'error'); })
+      .then(function() { $('editSaveButton').disabled = false; });
+  }
+
+
+  /* ---------- 投影 ---------- */
+
+  let qrLoading = null;
+
+  function loadQrLibrary() {
+    if (window.QRCode) return Promise.resolve();
+    if (qrLoading) return qrLoading;
+    qrLoading = new Promise(function(resolve, reject) {
+      const script = document.createElement('script');
+      script.src = QR_LIBRARY;
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+    return qrLoading;
+  }
+
+  function openProjector(c) {
+
+    const link = studentLink(c.code);
+
+    $('projectorCourse').textContent = c.name;
+    $('projectorCode').textContent = c.code;
+    $('projectorLink').textContent = link.replace(/^https?:\/\//, '');
+    $('projectorQr').innerHTML = '';
+    $('projectorQr').hidden = true;
+    $('projectorLinkLead').textContent = '也可以直接打開';
+    $('projector').hidden = false;
+    $('projectorClose').focus();
+
+    // QR code 載入失敗時只顯示代碼和網址
+    loadQrLibrary().then(function() {
+      new window.QRCode($('projectorQr'), { text: link, width: 480, height: 480, correctLevel: window.QRCode.CorrectLevel.M });
+      $('projectorQr').hidden = false;
+      $('projectorLinkLead').textContent = '或用手機掃描 QR code，也可以直接打開';
+    }).catch(function() { /* 不顯示 QR code */ });
+  }
+
+  function closeProjector() {
+    $('projector').hidden = true;
+  }
+
+
+  /* ---------- 卡片上的按鈕 ---------- */
+
+  function handleAction(event) {
+
+    const button = event.target.closest('[data-action]');
+    if (!button) return;
+
+    const c = findCourse(button.closest('.course').dataset.id);
+    if (!c) return;
+
+    const action = button.dataset.action;
+
+    if (action === 'enter') {
+      window.TeacherCourse.select(c.id);
+      window.location.href = 'teacher.html';
+    }
+
+    if (action === 'edit') openEdit(c);
+
+    if (action === 'project') openProjector(c);
+
+    if (action === 'copy-code') {
+      copyText(c.code).then(function() { toast('已複製代碼 ' + c.code); }, function() { window.prompt('請複製代碼：', c.code); });
+    }
+
+    if (action === 'copy-link') {
+      const link = studentLink(c.code);
+      copyText(link).then(function() { toast('已複製學生連結，學生點開就會加入這門課'); }, function() { window.prompt('請複製連結：', link); });
+    }
+
+    if (action === 'reset-code') {
+      if (!confirm('要換一組新的加入代碼嗎？\n\n舊代碼會立刻失效。已經加入的學生下次打開時，需要輸入新的代碼。\n適合在代碼外流、或新學期重新使用這門課時使用。')) return;
+      button.disabled = true;
+      api('resetCourseCode', c.id)
+        .then(function(result) { return reload().then(function() { toast('新的加入代碼是 ' + result.code); }); })
+        .catch(function(error) { alert(error.message); button.disabled = false; });
+    }
+
+    if (action === 'archive') {
+      const archiving = !c.archived;
+      if (archiving && !confirm('要封存「' + c.name + '」嗎？\n\n封存後學生看不到題目，也不能再作答，但仍可查看自己的作答紀錄。\n資料都會保留，之後可以重新開放。')) return;
+      button.disabled = true;
+      api('setCourseStatus', c.id, archiving ? '封存' : '開放')
+        .then(function() { return reload().then(function() { toast(archiving ? '已封存' : '已重新開放'); }); })
+        .catch(function(error) { alert(error.message); button.disabled = false; });
+    }
+  }
+
+
+  /* ---------- 開始 ---------- */
+
+  document.addEventListener('DOMContentLoaded', function() {
+
+    $('newCourseButton').addEventListener('click', function() { openNewCourse($('newCourse').hidden); });
+    $('cancelNewButton').addEventListener('click', function() { openNewCourse(false); setMessage('newMessage', ''); });
+    $('newCourseForm').addEventListener('submit', createCourse);
+    $('editForm').addEventListener('submit', saveEdit);
+    $('editCancelButton').addEventListener('click', function() { $('editDialog').close(); });
+    $('courseList').addEventListener('click', handleAction);
+    $('projectorClose').addEventListener('click', closeProjector);
+
+    document.addEventListener('keydown', function(event) {
+      if (event.key === 'Escape' && !$('projector').hidden) closeProjector();
+    });
+
+    window.TeacherCourse.ready(function(ctx) {
+
+      courses = ctx.courses;
+      me = ctx.teacher;
+      isAdmin = !!(me && me.isAdmin);
+
+      $('newOwnerField').hidden = !isAdmin;
+
+      const done = isAdmin
+        ? api('listTeacherAccounts').then(function(list) { accounts = list; }).catch(function() { accounts = []; })
+        : Promise.resolve();
+
+      done.then(function() {
+        render();
+        if (!courses.length) openNewCourse(true);
+      });
+    });
+  });
+
+})();
+</script>
+
+</body>
+</html>

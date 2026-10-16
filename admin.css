@@ -1,0 +1,178 @@
+/*
+ * 課程管理（courses.html）與帳號管理（accounts.html）共用的元件
+ * 顏色、字型沿用 theme.css 的變數。
+ */
+
+.k-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 22px 24px;
+}
+
+.k-card + .k-card { margin-top: 16px; }
+
+.k-card h2 { margin: 0 0 4px; font-size: 20px; }
+.k-card > .k-sub { margin: 0 0 18px; color: var(--ink-2); font-size: 15px; }
+
+.k-section { margin-top: 36px; }
+.k-section > h2 { margin: 0 0 14px; font-size: 18px; color: var(--ink-2); font-weight: 700; }
+
+/* ---------- 表單 ---------- */
+.k-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; }
+.k-form .wide { grid-column: 1 / -1; }
+
+.k-field label {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.k-field .k-hint { margin: 4px 0 0; font-size: 13px; color: var(--ink-2); }
+
+.k-field input,
+.k-field select,
+.k-field textarea {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+}
+
+.k-field textarea { height: auto; min-height: 84px; padding: 10px 12px; line-height: 1.7; resize: vertical; }
+
+.k-field input:focus,
+.k-field select:focus,
+.k-field textarea:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-soft);
+}
+
+.k-field input[readonly] { background: var(--surface-2); color: var(--ink-2); }
+
+.k-input-row { display: flex; gap: 8px; }
+.k-input-row input { flex: 1; min-width: 0; }
+
+.k-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 18px; }
+
+.k-message { font-size: 14px; font-weight: 700; }
+.k-message.ok { color: var(--green); }
+.k-message.error { color: var(--red); }
+
+/* ---------- 按鈕 ---------- */
+.k-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.k-btn:hover { background: var(--surface-2); }
+.k-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+.k-btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+.k-btn.primary:hover { background: var(--blue-dark); }
+
+.k-btn.danger { color: var(--red); border-color: #e9c3bd; }
+.k-btn.danger:hover { background: var(--red-soft); }
+
+.k-btn.small { height: 34px; padding: 0 12px; font-size: 14px; }
+
+.k-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--blue);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---------- 標籤 ---------- */
+.k-badge {
+  display: inline-block;
+  padding: 1px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.k-badge.open { background: var(--green-soft); border-color: #bfe0cf; color: var(--green); }
+.k-badge.admin { background: var(--purple-soft); border-color: #d9d0f3; color: var(--purple); }
+.k-badge.off { background: var(--red-soft); border-color: #f0c9c3; color: var(--red); }
+
+/* ---------- 對話框 ---------- */
+.k-dialog {
+  width: min(520px, calc(100vw - 32px));
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  box-shadow: 0 24px 60px rgba(16, 24, 40, .3);
+  color: var(--ink);
+}
+
+.k-dialog::backdrop { background: rgba(10, 16, 28, .5); }
+
+.k-dialog form { padding: 22px 24px 20px; }
+.k-dialog h2 { margin: 0 0 4px; font-size: 20px; }
+.k-dialog .k-sub { margin: 0 0 18px; color: var(--ink-2); font-size: 15px; }
+.k-dialog .k-form { grid-template-columns: 1fr; }
+
+/* ---------- 提示 ---------- */
+.k-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  z-index: 200;
+  transform: translateX(-50%);
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: var(--head);
+  color: #fff;
+  font-size: 15px;
+  box-shadow: var(--shadow-lift);
+}
+
+.k-empty { padding: 32px 16px; text-align: center; color: var(--ink-2); }
+
+@media (max-width: 760px) {
+  .k-card { padding: 18px; }
+  .k-form { grid-template-columns: 1fr; }
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
