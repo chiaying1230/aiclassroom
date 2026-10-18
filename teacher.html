@@ -34,6 +34,9 @@
 
     .card > h2:first-child { margin-bottom: 4px; }
 
+    /* 設成 hidden 的元素一定要藏起來（有些元素有自己的 display 設定） */
+    [hidden] { display: none !important; }
+
     .section { display: none; }
     .section.active { display: block; }
 
@@ -457,6 +460,65 @@
     }
 
     .drawer-foot button { margin: 0; }
+
+    /* ---------- 複製題目 ---------- */
+    .copy-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-s);
+    }
+
+    .copy-list li + li { border-top: 1px solid var(--line); }
+
+    .copy-list label {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin: 0;
+      padding: 11px 14px;
+      color: var(--ink);
+      font-weight: 400;
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    .copy-list label:hover { background: var(--surface-2); }
+    .copy-list input { width: 18px; height: 18px; margin: 3px 0 0; padding: 0; flex: none; }
+    .copy-list b { display: block; font-weight: 700; }
+    .copy-list small { display: block; color: var(--ink-2); font-size: 13px; }
+
+    .copy-all {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 20px 0 8px;
+    }
+
+    .copy-all label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      color: var(--ink);
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    .copy-all input { width: 18px; height: 18px; margin: 0; padding: 0; }
+    .copy-all button { margin: 0; padding: 4px 10px; font-size: 14px; }
+
+    .copy-done {
+      padding: 14px 16px;
+      border-radius: var(--radius-s);
+      background: var(--green-soft);
+      color: var(--ink);
+      line-height: 1.75;
+    }
+
+    .copy-done button { margin: 10px 8px 0 0; }
     .drawer-foot #editMessage > * { margin: 0; }
 
     .toast {
@@ -639,7 +701,10 @@
         <h2>題目管理</h2>
         <p>發布、關閉題目，或進入學生回答與課堂討論。</p>
       </div>
-      <button type="button" class="ghost" onclick="loadQuestions()">🔄 重新整理</button>
+      <div class="page-actions">
+        <button type="button" class="ghost" onclick="openCopyDialog('')">📋 複製題目到其他課程</button>
+        <button type="button" class="ghost" onclick="loadQuestions()">🔄 重新整理</button>
+      </div>
     </div>
     <div id="questionList"><div class="empty">載入中……</div></div>
   </section>
@@ -801,6 +866,49 @@
 
 </dialog>
 
+<!-- 複製題目（從題目管理打開） -->
+<dialog id="copyDialog" class="drawer" aria-labelledby="copyDialogTitle">
+
+  <div class="drawer-head">
+    <div>
+      <h2 id="copyDialogTitle">複製題目</h2>
+      <p>複製到另一門課，或新學期重開同一門課時使用。</p>
+    </div>
+    <button type="button" class="ghost" onclick="closeCopyDialog()">✕ 關閉</button>
+  </div>
+
+  <div class="drawer-body">
+
+    <div id="copyDone" class="copy-done" role="status" hidden></div>
+
+    <div id="copyForm">
+
+    <div class="edit-notice">
+      複製出來的題目都是<b>草稿</b>，截止時間會清空，學生作答和課堂討論不會跟著複製。
+      確認內容、設定好截止時間後，再到那門課發布。
+    </div>
+
+    <label for="copyTarget" style="margin-top:0">複製到哪一門課</label>
+    <select id="copyTarget"></select>
+
+    <div class="copy-all">
+      <label><input type="checkbox" id="copySelectAll"> 全選</label>
+      <span class="hint" id="copyCount"></span>
+    </div>
+    <ul class="copy-list" id="copyList"></ul>
+
+    </div>
+
+  </div>
+
+  <div class="drawer-foot">
+    <button type="button" id="copyButton" onclick="submitCopy()">複製</button>
+    <button type="button" class="ghost" onclick="closeCopyDialog()">取消</button>
+    <div id="copyMessage" role="status"></div>
+  </div>
+
+</dialog>
+
 <div id="toast" class="toast" role="status" hidden></div>
 
 
@@ -824,7 +932,13 @@
         ? '目前課程：' + course.name + (course.archived ? '（已封存）' : '')
         : '還沒有課程，請先到「課程管理」建立';
 
-      loadQuestions();
+      // 從「複製題目」切換課程過來時，直接打開題目管理
+      if (window.location.hash === '#questions') {
+        try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch (error) { /* 忽略 */ }
+        showSection('questions');
+      } else {
+        loadQuestions();
+      }
 
       // 資料試算表裡有所有課程的資料，只有管理員看得到這個按鈕
       spreadsheetUrl = ctx.config && ctx.config.spreadsheetUrl ? ctx.config.spreadsheetUrl : '';
@@ -1280,9 +1394,14 @@ function previewQuestionRAG() {
   }
 
 
+  // 題目管理目前顯示的題目（新的在前），複製題目時用
+  let currentQuestions = [];
+
   function renderQuestions(data) {
 
     const box = document.getElementById('questionList');
+
+    currentQuestions = data || [];
 
     if (!data || data.length === 0) {
       box.innerHTML = '<div class="empty">目前沒有題目</div>';
@@ -1329,6 +1448,7 @@ function previewQuestionRAG() {
         <div class="q-actions">
           <button type="button" onclick="openAnswers('${q.id}')">查看學生回答</button>
           <button type="button" class="purple" onclick="openDiscuss('${q.id}')">🗣 課堂討論</button>
+          <button type="button" class="ghost" onclick="openCopyDialog('${q.id}')">📋 複製到…</button>
           <div class="seg" role="group" aria-label="題目狀態">
             ${statusButton('發布')}${statusButton('草稿')}${statusButton('關閉')}
           </div>
@@ -1533,6 +1653,177 @@ function previewQuestionRAG() {
 
     dialog.addEventListener('click', function(event) {
       if (event.target === dialog) closeEditDialog();
+    });
+  });
+
+
+  /* ==================================================
+     複製題目到其他課程
+  ================================================== */
+
+  function openCopyDialog(questionId) {
+
+    const ctx = window.TeacherCourse;
+    const current = ctx.current();
+
+    if (!currentQuestions.length) {
+      alert('這門課程還沒有題目可以複製');
+      return;
+    }
+
+    // 目標課程：開放中的課程；預設選「不是目前這門」的第一門課
+    const targets = (ctx.courses ? ctx.courses() : []).filter(function(c) { return !c.archived; });
+    const select = document.getElementById('copyTarget');
+
+    select.innerHTML = targets.map(function(c) {
+      const isCurrent = current && c.id === current.id;
+      return '<option value="' + escapeHtml(c.id) + '">' +
+        escapeHtml(c.name + (isCurrent ? '（目前這門課，會加上「副本」）' : c.mine ? '' : '（' + c.ownerName + '）')) +
+        '</option>';
+    }).join('');
+
+    const other = targets.find(function(c) { return !current || c.id !== current.id; });
+    if (other) select.value = other.id;
+
+    // 題目清單：照建立順序（舊的在前），預設勾選
+    const list = currentQuestions.slice().reverse();
+
+    document.getElementById('copyList').innerHTML = list.map(function(q) {
+      const checked = !questionId || q.id === questionId;
+      return '<li><label>' +
+        '<input type="checkbox" value="' + escapeHtml(q.id) + '"' + (checked ? ' checked' : '') + '>' +
+        '<span><b>' + escapeHtml(q.title) + '</b>' +
+        '<small>' + escapeHtml(q.status + '・' + q.points + ' 分' + (q.enableAI ? '・AI 批改' : '')) + '</small></span>' +
+        '</label></li>';
+    }).join('');
+
+    document.getElementById('copyMessage').innerHTML = '';
+    document.getElementById('copyButton').disabled = false;
+    document.getElementById('copyForm').hidden = false;
+    document.getElementById('copyDone').hidden = true;
+    document.querySelector('#copyDialog .drawer-foot').hidden = false;
+    updateCopyCount();
+
+    document.getElementById('copyDialog').showModal();
+
+    // 從單一題目打開時，把那一題捲到看得到的地方
+    if (questionId) {
+      const box = document.querySelector('#copyList input[value="' + questionId + '"]');
+      if (box) box.closest('li').scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+
+  function selectedCopyIds() {
+    return Array.from(document.querySelectorAll('#copyList input:checked')).map(function(box) {
+      return box.value;
+    });
+  }
+
+
+  function updateCopyCount() {
+    const all = document.querySelectorAll('#copyList input').length;
+    const n = selectedCopyIds().length;
+    const selectAll = document.getElementById('copySelectAll');
+    selectAll.checked = n === all && all > 0;
+    selectAll.indeterminate = n > 0 && n < all;
+    document.getElementById('copyCount').textContent = '已選 ' + n + '／' + all + ' 題';
+    document.getElementById('copyButton').textContent = n ? '複製 ' + n + ' 題' : '複製';
+  }
+
+
+  function closeCopyDialog() {
+    document.getElementById('copyDialog').close();
+  }
+
+
+  function submitCopy() {
+
+    const ids = selectedCopyIds();
+    const select = document.getElementById('copyTarget');
+    const targetId = select.value;
+    const targetName = select.options[select.selectedIndex] ? select.options[select.selectedIndex].text : '';
+    const message = document.getElementById('copyMessage');
+    const button = document.getElementById('copyButton');
+
+    if (!ids.length) {
+      message.className = 'error-message';
+      message.textContent = '請至少勾選一題';
+      return;
+    }
+
+    if (!targetId) {
+      message.className = 'error-message';
+      message.textContent = '沒有可以複製過去的課程，請先到「課程管理」建立或重新開放課程';
+      return;
+    }
+
+    button.disabled = true;
+    message.className = '';
+    message.textContent = '複製中……';
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+
+        const toCurrent = result.courseId === window.TeacherCourse.id();
+
+        message.textContent = '';
+
+        const done = document.getElementById('copyDone');
+        done.innerHTML =
+          '<b>已複製 ' + escapeHtml(result.count) + ' 題到「' + escapeHtml(result.courseName) + '」</b>，都存成草稿。<br>' +
+          '確認內容、設定截止時間後再發布。' +
+          '<div>' +
+            (toCurrent
+              ? '<button type="button" onclick="closeCopyDialog()">查看題目</button>'
+              : '<button type="button" id="copyGoButton">切換到「' + escapeHtml(result.courseName) + '」</button>' +
+                '<button type="button" class="ghost" onclick="closeCopyDialog()">留在這門課</button>') +
+          '</div>';
+
+        if (!toCurrent) {
+          document.getElementById('copyGoButton').addEventListener('click', function() {
+            goToCourseQuestions(result.courseId);
+          });
+        }
+
+        done.hidden = false;
+        document.getElementById('copyForm').hidden = true;
+        document.querySelector('#copyDialog .drawer-foot').hidden = true;
+
+        if (toCurrent) loadQuestions();
+      })
+      .withFailureHandler(function(error) {
+        button.disabled = false;
+        message.className = 'error-message';
+        message.textContent = /不允許呼叫的功能/.test(error.message)
+          ? '這個功能要等 Apps Script 換上新版 Code.gs 並部署後才能使用'
+          : '複製失敗：' + error.message;
+      })
+      .copyQuestions(ids, targetId);
+  }
+
+
+  function goToCourseQuestions(courseId) {
+    window.TeacherCourse.select(courseId);
+    window.location.hash = 'questions';
+    window.location.reload();
+  }
+
+
+  document.addEventListener('DOMContentLoaded', function() {
+
+    document.getElementById('copyList').addEventListener('change', updateCopyCount);
+
+    document.getElementById('copySelectAll').addEventListener('change', function(event) {
+      document.querySelectorAll('#copyList input').forEach(function(box) {
+        box.checked = event.target.checked;
+      });
+      updateCopyCount();
+    });
+
+    // 點面板外面也可以關閉
+    document.getElementById('copyDialog').addEventListener('click', function(event) {
+      if (event.target === event.currentTarget) closeCopyDialog();
     });
   });
 

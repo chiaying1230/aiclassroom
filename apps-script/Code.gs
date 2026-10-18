@@ -1234,6 +1234,7 @@ function getTeacherApiHandlers_() {
     updateQuestionStatus: updateQuestionStatus,
     getTeacherAnswers: getTeacherAnswers,
     deleteQuestion: deleteQuestion,
+    copyQuestions: copyQuestions,
     saveTeacherReview: saveTeacherReview,
     runAIReview: runAIReview,
     getAISettings: getAISettings,
@@ -2364,6 +2365,95 @@ function updateQuestion(data) {
       id: questionId,
       answerCount: answerCount,
       overScoreCount: overScoreCount
+    };
+  });
+}
+
+
+/* =====================================================
+   教師：複製題目到其他課程（也可以複製到同一門課）
+   - 只複製題目本身：名稱、內容、配分、參考答案、評分規準、AI 批改設定、截止後的處理方式
+   - 一律存成「草稿」、清空截止時間，老師確認後再發布
+   - 學生作答、討論類別與分類都不會複製
+===================================================== */
+
+const MAX_COPY_QUESTIONS = 100;
+
+function copyQuestions(questionIds, targetCourseId) {
+
+  if (!Array.isArray(questionIds) || !questionIds.length) {
+    throw new Error('請至少選一題');
+  }
+
+  if (questionIds.length > MAX_COPY_QUESTIONS) {
+    throw new Error('一次最多複製 ' + MAX_COPY_QUESTIONS + ' 題');
+  }
+
+  const target = requireCourse_(targetCourseId);
+
+  if (target.status === COURSE_STATUS.ARCHIVED) {
+    throw new Error('「' + target.name + '」已封存，請先重新開放再複製題目過去');
+  }
+
+  // 先全部檢查權限，有一題不行就整批不複製
+  const seen = {};
+  const sources = questionIds
+    .map(cleanText_)
+    .filter(function(id) {
+      if (!id || seen[id]) return false;
+      seen[id] = true;
+      return true;
+    })
+    .map(requireQuestion_);
+
+  return withLock_(function() {
+
+    const sheet = getQuestionSheet_();
+
+    ensureQuestionColumns_(sheet);
+
+    const rows = sheet.getDataRange().getValues();
+    const now = new Date();
+    const newIds = [];
+
+    // 依建立順序複製，題目管理裡的先後順序才會和原本一樣
+    const ordered = sources.slice().sort(function(a, b) {
+      return a.rowNumber - b.rowNumber;
+    });
+
+    const newRows = ordered.map(function(q) {
+
+      const row = rows[q.rowNumber - 1];
+      const id = generateId_('Q');
+      const sameCourse = q.courseId === target.id;
+
+      newIds.push(id);
+
+      return [
+        id,
+        sameCourse ? truncate_(q.title + '（副本）', 200) : q.title,
+        q.content,
+        q.points,
+        q.referenceAnswer,
+        q.rubric,
+        q.enableAI ? '是' : '否',
+        '草稿',
+        now,
+        '',
+        cleanText_(row[QCOL.LATE_POLICY - 1]) || LATE_POLICY.CLOSE,
+        '',
+        target.id
+      ];
+    });
+
+    appendRows_(sheet, newRows, QUESTION_HEADERS.length);
+
+    return {
+      success: true,
+      count: newIds.length,
+      ids: newIds,
+      courseId: target.id,
+      courseName: target.name
     };
   });
 }

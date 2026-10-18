@@ -318,6 +318,10 @@
       return state.course;
     },
 
+    courses: function () {
+      return state.courses.slice();
+    },
+
     teacher: function () {
       return state.teacher;
     },
