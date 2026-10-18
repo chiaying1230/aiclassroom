@@ -4,7 +4,8 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>課堂討論</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <title>課堂討論｜AI 課堂</title>
 
   <script src="config.js"></script>
   <script src="gas-bridge.js"></script>
@@ -64,11 +65,24 @@
     }
 
     .topbar h1 {
-      margin: 0 6px 0 0;
+      margin: 0;
       font-family: var(--serif);
       font-weight: 900;
       font-size: 24px;
+      line-height: 1.25;
       letter-spacing: .02em;
+    }
+
+    .topbar-title { margin-right: 6px; }
+
+    .topbar-course {
+      display: block;
+      max-width: 16em;
+      overflow: hidden;
+      color: var(--ink-2);
+      font-size: 13px;
+      white-space: nowrap;
+      text-overflow: ellipsis;
     }
 
     .topbar select {
@@ -434,7 +448,8 @@
 
     @media (max-width: 900px) {
       .topbar { position: static; }
-      .topbar h1 { flex-basis: 100%; }
+      .topbar-title { flex-basis: 100%; }
+      .topbar-course { max-width: none; }
       .topbar-buttons { margin-left: 0; width: 100%; }
       .topbar-buttons button { flex: 1 1 auto; }
       .container { padding: 16px 12px 60px; }
@@ -452,7 +467,10 @@
 <main class="container">
 
   <header class="topbar teacher-only">
-    <h1>課堂討論</h1>
+    <div class="topbar-title">
+      <h1>課堂討論</h1>
+      <span class="topbar-course" id="courseName"></span>
+    </div>
 
     <select id="questionSelect" aria-label="選擇題目" onchange="changeQuestion()">
       <option value="">載入中……</option>
@@ -591,7 +609,12 @@
     };
 
     // 登入、讀到目前課程之後才載入資料
-    TeacherCourse.ready(function() {
+    TeacherCourse.ready(function(ctx) {
+
+      // 左側選單在這一頁預設收合，所以在標題下方標出目前課程
+      $('courseName').textContent = ctx.course ? ctx.course.name : '還沒有課程';
+      $('courseName').title = ctx.course ? '目前課程：' + ctx.course.name : '';
+
 
       google.script.url.getLocation(function(location) {
 

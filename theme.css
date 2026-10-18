@@ -318,6 +318,7 @@ body.shell-collapsed .shell-user { justify-content: center; padding: 4px 0 10px;
   border-radius: var(--radius);
 }
 
+.course-banner[hidden] { display: none; }
 .course-banner strong { flex: 1 1 100%; font-size: 17px; }
 .course-banner span { flex: 1 1 320px; color: var(--ink-2); }
 
@@ -339,6 +340,8 @@ body.shell-collapsed .shell-user { justify-content: center; padding: 4px 0 10px;
 .course-banner.muted { border-left-color: var(--gray); }
 .course-banner.muted a { background: var(--navy); }
 .course-banner.error { border-left-color: var(--red); }
+.course-banner.warn { border-left-color: var(--orange); background: #fffaf3; }
+.course-banner.warn button { background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong); }
 
 /* 手機上方列 */
 .shell-bar { display: none; }

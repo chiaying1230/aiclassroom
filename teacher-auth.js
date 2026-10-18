@@ -205,11 +205,14 @@
       overlay = document.createElement('div');
       overlay.id = 'teacherAuthOverlay';
       overlay.className = 'auth-overlay';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
+      overlay.setAttribute('aria-labelledby', 'teacherAuthTitle');
 
       overlay.innerHTML = `
         <form class="auth-card" id="teacherAuthForm">
           <header>
-            <h1>教師登入</h1>
+            <h1 id="teacherAuthTitle">教師登入</h1>
             <p class="auth-sub">還沒有帳號，請向管理員申請。</p>
           </header>
           <div class="auth-body">

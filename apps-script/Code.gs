@@ -369,13 +369,27 @@ function publicTeacher_(teacher) {
 function getTeacherConfig() {
 
   const teacher = currentTeacher_();
+  const warnings = [];
+
+  // 管理員能看所有課程、新增帳號，密碼太簡單時提醒
+  if (teacher.account === ADMIN_ACCOUNT) {
+
+    const password = cleanText_(
+      PropertiesService.getScriptProperties().getProperty('TEACHER_PASSWORD')
+    );
+
+    if (password.length < 10 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+      warnings.push('adminPasswordWeak');
+    }
+  }
 
   return {
     // 試算表裡有所有課程的資料，只給管理員
     spreadsheetUrl: isAdmin_(teacher)
       ? 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/edit'
       : '',
-    teacher: publicTeacher_(teacher)
+    teacher: publicTeacher_(teacher),
+    warnings: warnings
   };
 }
 
@@ -591,7 +605,7 @@ function updateTeacherAccount(data) {
 
     getTeacherSheet_()
       .getRange(row.rowNumber, TCOL.NAME, 1, 3)
-      .setValues([[name, role, status]]);
+      .setValues(cells_([[name, role, status]]));
 
     return { success: true };
   });
@@ -639,7 +653,7 @@ function setTeacherPassword_(account, password) {
 
     getTeacherSheet_()
       .getRange(row.rowNumber, TCOL.HASH, 1, 2)
-      .setValues([[hashPassword_(password, salt), salt]]);
+      .setValues(cells_([[hashPassword_(password, salt), salt]]));
 
     return { success: true };
   });
@@ -1098,7 +1112,7 @@ function updateCourse(data) {
 
     getCourseSheet_()
       .getRange(course.rowNumber, COURSE_COL.NAME, 1, 4)
-      .setValues([[input.name, owner, input.teacherName, input.description]]);
+      .setValues(cells_([[input.name, owner, input.teacherName, input.description]]));
 
     getCourseSheet_().getRange(course.rowNumber, COURSE_COL.UPDATED).setValue(new Date());
 
@@ -1382,7 +1396,7 @@ function setupSystem() {
     });
 
     if (count) {
-      range.setValues(values);
+      range.setValues(cells_(values));
     }
 
     return count;
@@ -1398,13 +1412,69 @@ function setupSystem() {
     .getRange(1, ACOL.STUDENT_ID, answerSheet.getMaxRows(), 1)
     .setNumberFormat('@');
 
+  const repaired = repairFormulaCells();
+
   const message =
     '系統初始化完成。預設課程「' + course.name + '」的加入代碼是 ' + course.code +
-    (moved ? '，已把 ' + moved + ' 題舊題目歸到這門課' : '');
+    (moved ? '，已把 ' + moved + ' 題舊題目歸到這門課' : '') +
+    (repaired ? '，已修復 ' + repaired + ' 格顯示成 #ERROR! 的文字' : '');
 
   Logger.log(message);
 
   return message;
+}
+
+
+/*
+ * 修復被試算表當成公式的文字。
+ * 改版前，開頭是 = + - 的回答、題目、評語會被當成公式，顯示成 #ERROR!。
+ * 原本的文字其實還留在儲存格的「公式」裡，這裡把它改回純文字。
+ * 只檢查系統自己寫入文字的欄位，老師自己在其他欄位加的公式不會被動到。
+ * setupSystem 會自動執行；也可以在編輯器單獨執行。
+ */
+function repairFormulaCells() {
+
+  const targets = [
+    [QUESTION_SHEET, [QCOL.TITLE, QCOL.CONTENT, QCOL.REFERENCE, QCOL.RUBRIC]],
+    [ANSWER_SHEET, [ACOL.NAME, ACOL.ANSWER, ACOL.AI_FEEDBACK, ACOL.TEACHER_FEEDBACK, ACOL.AI_STUDENT_FEEDBACK]],
+    [CATEGORY_SHEET, [CCOL.NAME, CCOL.DESCRIPTION, CCOL.SUMMARY, CCOL.DISCUSSION]],
+    [CODING_SHEET, [KCOL.REASON]]
+  ];
+
+  return withLock_(function() {
+
+    let fixed = 0;
+
+    targets.forEach(function(target) {
+
+      const sheet = getSpreadsheet_().getSheetByName(target[0]);
+
+      if (!sheet || sheet.getLastRow() < 2) {
+        return;
+      }
+
+      target[1].forEach(function(col) {
+
+        if (col > sheet.getMaxColumns()) {
+          return;
+        }
+
+        const range = sheet.getRange(2, col, sheet.getLastRow() - 1, 1);
+        const formulas = range.getFormulas();
+
+        formulas.forEach(function(row, i) {
+          if (row[0]) {
+            sheet.getRange(i + 2, col).setValue(cell_(row[0]));
+            fixed++;
+          }
+        });
+      });
+    });
+
+    Logger.log(fixed ? '已修復 ' + fixed + ' 格被當成公式的文字' : '沒有需要修復的儲存格');
+
+    return fixed;
+  });
 }
 
 
@@ -1453,7 +1523,7 @@ function ensureSheet_(ss, name, headers, color, backupIfIncompatible) {
       if (matched < headers.length) {
         sheet
           .getRange(1, matched + 1, 1, headers.length - matched)
-          .setValues([headers.slice(matched)]);
+          .setValues(cells_([headers.slice(matched)]));
       }
 
     } else if (backupIfIncompatible) {
@@ -1594,6 +1664,29 @@ function withLock_(callback) {
 }
 
 
+/*
+ * 寫進試算表前的處理。
+ * Google 試算表會把開頭是 = + - @ 的文字當成公式，
+ * 例如學生回答「- 需要陽光」會變成 #ERROR!，「=IMAGE(...)」甚至會執行。
+ * 前面加一個 ' 就會存成純文字，畫面上和讀出來都不會有這個 '。
+ */
+function cell_(value) {
+
+  if (typeof value === 'string' && /^[=+\-@']/.test(value)) {
+    return "'" + value;
+  }
+
+  return value;
+}
+
+
+function cells_(rows) {
+  return rows.map(function(row) {
+    return row.map(cell_);
+  });
+}
+
+
 function cleanText_(value) {
   return String(value == null ? '' : value).trim();
 }
@@ -1724,7 +1817,7 @@ function appendRows_(sheet, rows, width) {
 
   sheet
     .getRange(startRow, 1, rows.length, width)
-    .setValues(rows);
+    .setValues(cells_(rows));
 
   return startRow;
 }
@@ -1823,7 +1916,7 @@ function ensureQuestionColumns_(sheet) {
   });
 
   if (changed) {
-    header.setValues([fixed]).setFontWeight('bold');
+    header.setValues(cells_([fixed])).setFontWeight('bold');
   }
 }
 
@@ -1969,6 +2062,10 @@ function submitAnswer(data) {
     throw new Error('請完整填寫學號、姓名與回答');
   }
 
+  if (studentId.length > 30 || name.length > 40) {
+    throw new Error('學號或姓名太長，請確認有沒有打錯');
+  }
+
   if (answer.length > MAX_ANSWER_LENGTH) {
     throw new Error('回答太長，請控制在 ' + MAX_ANSWER_LENGTH + ' 字以內');
   }
@@ -2031,7 +2128,7 @@ function submitAnswer(data) {
       // D 姓名、E 學生回答、F 送出時間
       sheet
         .getRange(rowNumber, ACOL.NAME, 1, 3)
-        .setValues([[name, answer, now]]);
+        .setValues(cells_([[name, answer, now]]));
 
       // G~K 清除舊的 AI 與教師批改
       sheet
@@ -2041,7 +2138,7 @@ function submitAnswer(data) {
       // L 狀態、M 最後更新、N AI教師口吻評語
       sheet
         .getRange(rowNumber, ACOL.STATUS, 1, 3)
-        .setValues([[initialStatus, now, '']]);
+        .setValues(cells_([[initialStatus, now, '']]));
 
       // 回答內容變了，舊的分類也要清掉
       deleteCodingForAnswers_([answerId]);
@@ -2063,7 +2160,7 @@ function submitAnswer(data) {
     sheet
       .getRange(rowNumber, ACOL.STUDENT_ID)
       .setNumberFormat('@')
-      .setValue(studentId);
+      .setValue(cell_(studentId));
 
     return { success: true, updated: false, answerId: answerId, late: late };
   });
@@ -2225,7 +2322,7 @@ function updateQuestion(data) {
     // B 標題 ~ H 狀態
     sheet
       .getRange(rowNumber, QCOL.TITLE, 1, 7)
-      .setValues([[
+      .setValues(cells_([[
         q.title,
         q.content,
         q.points,
@@ -2233,12 +2330,12 @@ function updateQuestion(data) {
         q.rubric,
         q.enableAI ? '是' : '否',
         q.status
-      ]]);
+      ]]));
 
     // J 截止時間、K 截止後、L 最後修改
     sheet
       .getRange(rowNumber, QCOL.DEADLINE, 1, 3)
-      .setValues([[q.deadline, q.latePolicy, new Date()]]);
+      .setValues(cells_([[q.deadline, q.latePolicy, new Date()]]));
 
     sheet.getRange(rowNumber, QCOL.DEADLINE).setNumberFormat('yyyy/mm/dd hh:mm');
     sheet.getRange(rowNumber, QCOL.UPDATED).setNumberFormat('yyyy/mm/dd hh:mm');
@@ -2584,7 +2681,7 @@ function saveTeacherReview(data) {
     // J 教師分數、K 教師評語、L 狀態、M 最後更新
     sheet
       .getRange(index + 1, ACOL.TEACHER_SCORE, 1, 4)
-      .setValues([[teacherScore, feedback, status, new Date()]]);
+      .setValues(cells_([[teacherScore, feedback, status, new Date()]]));
 
     return { success: true };
   });
@@ -2661,12 +2758,12 @@ function runAIReview(answerId) {
     // G AI分數、H AI評語、I AI信心
     answerSheet
       .getRange(rowNumber, ACOL.AI_SCORE, 1, 3)
-      .setValues([[ai.score, ai.feedback, ai.confidence]]);
+      .setValues(cells_([[ai.score, ai.feedback, ai.confidence]]));
 
     // L 狀態、M 最後更新、N AI教師口吻評語
     answerSheet
       .getRange(rowNumber, ACOL.STATUS, 1, 3)
-      .setValues([[newStatus, new Date(), ai.studentFeedback]]);
+      .setValues(cells_([[newStatus, new Date(), ai.studentFeedback]]));
 
     return {
       success: true,
@@ -2934,11 +3031,11 @@ function saveCategories(questionId, list) {
 
         sheet
           .getRange(old.rowNumber, CCOL.NAME, 1, 2)
-          .setValues([[category.name, category.description]]);
+          .setValues(cells_([[category.name, category.description]]));
 
         sheet
           .getRange(old.rowNumber, CCOL.ORDER, 1, 2)
-          .setValues([[index + 1, now]]);
+          .setValues(cells_([[index + 1, now]]));
 
       } else {
 
@@ -3223,13 +3320,13 @@ function setAnswerCategory(answerId, categoryId) {
 
       sheet
         .getRange(codingIndex + 1, KCOL.CATEGORY_ID, 1, 5)
-        .setValues([[
+        .setValues(cells_([[
           categoryId,
           same ? row[KCOL.REASON - 1] : '教師手動分類',
           same ? row[KCOL.CONFIDENCE - 1] : '',
           '是',
           now
-        ]]);
+        ]]));
 
     } else {
 
@@ -3279,7 +3376,7 @@ function confirmClassifications(questionId, categoryId) {
 
       sheet
         .getRange(index + 2, KCOL.CONFIRMED, 1, 2)
-        .setValues([['是', now]]);
+        .setValues(cells_([['是', now]]));
 
       count++;
     });
@@ -3357,11 +3454,11 @@ function summarizeCategories(questionId) {
 
       sheet
         .getRange(current.rowNumber, CCOL.SUMMARY, 1, 3)
-        .setValues([[
+        .setValues(cells_([[
           truncate_(result.summary, 200),
           truncate_(result.discussionQuestion, 150),
           representativeOk ? result.representativeAnswerId : ''
-        ]]);
+        ]]));
 
       sheet.getRange(current.rowNumber, CCOL.UPDATED).setValue(now);
       count++;
@@ -3433,7 +3530,7 @@ function setRagDocCourse_(docId, courseId) {
     const index = findRowIndex_(values, docId);
 
     if (index >= 0) {
-      sheet.getRange(index + 1, 2, 1, 2).setValues([[courseId, new Date()]]);
+      sheet.getRange(index + 1, 2, 1, 2).setValues(cells_([[courseId, new Date()]]));
     } else {
       appendRows_(sheet, [[docId, courseId, new Date()]], RAG_COURSE_HEADERS.length);
     }

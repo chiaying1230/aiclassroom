@@ -248,11 +248,41 @@
   }
 
 
+  const WARNING_DISMISS_KEY = 'aiclassroom_password_warning_dismissed';
+
+  function passwordWarningNeeded() {
+    const warnings = (state.config && state.config.warnings) || [];
+    let dismissed = false;
+    try { dismissed = sessionStorage.getItem(WARNING_DISMISS_KEY) === '1'; } catch (error) { /* 忽略 */ }
+    return warnings.indexOf('adminPasswordWeak') !== -1 && !dismissed;
+  }
+
   function renderEmptyNotice() {
 
-    if (document.body.hasAttribute('data-course-optional')) return;
-
     const banner = document.getElementById('courseBanner');
+    const optional = document.body.hasAttribute('data-course-optional');
+
+    if (optional || state.courses.length && !(state.course && state.course.archived)) {
+
+      // 沒有課程方面的提醒時，才提醒管理員密碼太簡單
+      if (passwordWarningNeeded()) {
+        showBanner(
+          '<strong>管理員密碼太簡單</strong>' +
+          '<span>管理員看得到所有課程的學生資料，也能新增帳號。建議到 Apps Script「專案設定 → 指令碼屬性」，' +
+          '把 TEACHER_PASSWORD 改成 10 個字元以上、包含英文和數字的密碼，改完不用重新部署。</span>' +
+          '<button type="button" id="dismissPasswordWarning">這次先不要</button>',
+          'warn'
+        );
+        document.getElementById('dismissPasswordWarning').addEventListener('click', function () {
+          try { sessionStorage.setItem(WARNING_DISMISS_KEY, '1'); } catch (error) { /* 忽略 */ }
+          document.getElementById('courseBanner').hidden = true;
+        });
+        return;
+      }
+
+      if (banner) banner.hidden = true;
+      return;
+    }
 
     if (!state.courses.length) {
       showBanner(
@@ -267,8 +297,6 @@
         '<a href="courses.html">課程管理</a>',
         'muted'
       );
-    } else if (banner) {
-      banner.hidden = true;
     }
   }
 
