@@ -148,6 +148,120 @@
 
     .instant-box { margin-top: 10px; border-left: 4px solid var(--purple); background: var(--purple-soft); }
 
+    /* ---------- 學習診斷 ---------- */
+    .insight-status {
+      margin: 0 0 16px;
+      padding: 12px 16px;
+      border-radius: var(--radius-s);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      color: var(--ink-2);
+      font-size: 15px;
+    }
+
+    .insight-status.stale { border-left: 4px solid var(--orange); background: #fffaf3; color: var(--ink); }
+    .insight-status.working { border-left: 4px solid var(--purple); color: var(--ink); }
+    .insight-status button { margin: 0 0 0 10px; padding: 5px 12px; font-size: 14px; }
+
+    .insight-overview {
+      padding: 24px 26px;
+      background: var(--head);
+      color: var(--head-text);
+      border-radius: var(--radius);
+    }
+
+    .insight-overview p.lead {
+      margin: 0;
+      font-family: var(--serif);
+      font-size: 21px;
+      line-height: 1.75;
+      color: #fff;
+    }
+
+    .insight-overview .meta { margin: 12px 0 0; font-size: 13px; color: var(--head-soft); }
+    .insight-overview .tools { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+    .insight-overview .tools button { margin: 0; background: transparent; border: 1px solid rgba(255,255,255,.35); color: #fff; padding: 6px 12px; font-size: 14px; }
+
+    .insight-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+
+    .insight-col h3 { margin: 0 0 10px; font-size: 17px; }
+    .insight-col h3 small { color: var(--ink-2); font-weight: 400; font-size: 14px; }
+
+    .finding {
+      padding: 16px 18px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--orange);
+      border-radius: var(--radius-s);
+    }
+
+    .finding + .finding { margin-top: 10px; }
+    .finding.gap { border-left-color: var(--blue); }
+    .finding-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+    .finding-head b { font-size: 16px; }
+    .finding-count { flex: none; font-size: 13px; font-weight: 700; color: var(--orange); }
+    .finding.gap .finding-count { color: var(--blue-dark); }
+    .finding p { margin: 6px 0 0; line-height: 1.75; }
+    .finding details { margin-top: 8px; font-size: 14px; }
+    .finding summary { cursor: pointer; color: var(--ink-2); }
+    .finding .names { margin-top: 6px; color: var(--ink); line-height: 1.8; }
+
+    .mastered { margin: 16px 0 0; padding: 14px 18px; background: var(--green-soft); border-radius: var(--radius-s); }
+    .mastered h3 { margin: 0 0 6px; font-size: 16px; color: var(--green); }
+    .mastered ul { margin: 0; padding-left: 1.2em; line-height: 1.85; }
+
+    .steps-title { margin: 26px 0 10px; font-size: 18px; }
+
+    .step {
+      display: grid;
+      grid-template-columns: 40px 1fr;
+      gap: 4px 14px;
+      padding: 18px 20px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-s);
+    }
+
+    .step + .step { margin-top: 10px; }
+
+    .step-num {
+      grid-row: span 3;
+      width: 40px;
+      height: 40px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--purple-soft);
+      color: var(--purple);
+      font-weight: 700;
+      font-size: 18px;
+    }
+
+    .step-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 17px; font-weight: 700; }
+    .step-target { font-size: 13px; font-weight: 700; color: var(--ink-2); border: 1px solid var(--line-strong); border-radius: 999px; padding: 0 8px; }
+    .step-why { color: var(--ink-2); font-size: 14px; }
+    .step-how { line-height: 1.8; white-space: pre-wrap; }
+
+    .check-question {
+      margin-top: 16px;
+      padding: 16px 18px;
+      border: 2px dashed var(--purple);
+      border-radius: var(--radius-s);
+      background: var(--surface);
+    }
+
+    .check-question h3 { margin: 0 0 6px; font-size: 16px; color: var(--purple); }
+    .check-question p { margin: 0; font-size: 17px; line-height: 1.75; }
+    .check-question .tools { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .check-question .tools button { margin: 0; padding: 6px 12px; font-size: 14px; }
+
+    .insight-empty { padding: 28px; text-align: center; color: var(--ink-2); background: var(--surface); border: 1px dashed var(--line-strong); border-radius: var(--radius); }
+
+    @media (max-width: 860px) {
+      .insight-grid { grid-template-columns: 1fr; }
+      .insight-overview p.lead { font-size: 18px; }
+    }
+
     /* 批改區：之前的版本 */
     details.history { margin-top: 14px; }
     details.history summary { cursor: pointer; color: var(--blue-dark); font-weight: 700; font-size: 14px; }
@@ -597,6 +711,7 @@
   <button type="button" data-section="create" class="active" onclick="showSection('create')">＋ 新增題目</button>
   <button type="button" data-section="questions" onclick="showSection('questions')">題目管理</button>
   <button type="button" data-section="answers" onclick="showSection('answers')">AI 批改／教師審核</button>
+  <button type="button" data-section="insights" onclick="showSection('insights')">學習診斷</button>
   <button type="button" data-section="settings" onclick="showSection('settings')">AI 評語風格</button>
 </nav>
 
@@ -792,6 +907,27 @@
     </div>
 
     <div id="answerList"><div class="card empty">目前尚未載入學生作答</div></div>
+  </section>
+
+  <!-- 學習診斷 -->
+  <section id="insights" class="section">
+    <div class="section-top">
+      <div>
+        <h2>學習診斷</h2>
+        <p>AI 讀全班的回答，找出待釐清的概念和普遍缺少的部分，給你下一步教學的建議。</p>
+      </div>
+    </div>
+
+    <div class="card filter-bar">
+      <div>
+        <label for="insightQuestion">選擇題目</label>
+        <select id="insightQuestion" onchange="loadInsight()"></select>
+      </div>
+      <button type="button" class="purple" id="insightRun" onclick="runInsight()">AI 分析這一題</button>
+    </div>
+
+    <div id="insightStatus" class="insight-status" role="status" aria-live="polite" hidden></div>
+    <div id="insightResult"></div>
   </section>
 
   <!-- AI 評語風格 -->
@@ -1084,6 +1220,7 @@
 
     if (id === 'questions') loadQuestions();
     if (id === 'answers') loadTeacherArea();
+    if (id === 'insights') loadInsightArea('');
     if (id === 'settings') loadSettings();
   }
 
@@ -1551,6 +1688,282 @@ function previewQuestionRAG() {
   }
 
 
+  /* ==================================================
+     學習診斷
+  ================================================== */
+
+  let insightData = null;
+
+  function openInsights(questionId) {
+    showSectionOnly('insights');
+    loadInsightArea(questionId);
+  }
+
+
+  function loadInsightArea(preferredId) {
+
+    const select = document.getElementById('insightQuestion');
+    const current = preferredId || select.value;
+
+    google.script.run
+      .withSuccessHandler(function(questions) {
+
+        questions = questions || [];
+
+        if (!questions.length) {
+          select.innerHTML = '<option value="">（這門課還沒有題目）</option>';
+          document.getElementById('insightRun').disabled = true;
+          document.getElementById('insightResult').innerHTML = '<div class="insight-empty">這門課還沒有題目。</div>';
+          return;
+        }
+
+        select.innerHTML = questions.map(function(q) {
+          return '<option value="' + escapeHtml(q.id) + '">' +
+            escapeHtml(q.title + '（' + q.answerCount + ' 份回答）') + '</option>';
+        }).join('');
+
+        const exists = questions.some(function(q) { return q.id === current; });
+
+        // 預設選回答最多的題目
+        if (exists) {
+          select.value = current;
+        } else {
+          const most = questions.slice().sort(function(a, b) { return b.answerCount - a.answerCount; })[0];
+          select.value = most.id;
+        }
+
+        loadInsight();
+      })
+      .withFailureHandler(function(error) {
+        document.getElementById('insightResult').innerHTML =
+          '<div class="error-message">' + escapeHtml(error.message) + '</div>';
+      })
+      .getTeacherQuestions(TeacherCourse.id());
+  }
+
+
+  function setInsightStatus(html, kind) {
+    const box = document.getElementById('insightStatus');
+    box.className = 'insight-status' + (kind ? ' ' + kind : '');
+    box.innerHTML = html;
+    box.hidden = !html;
+  }
+
+
+  function loadInsight() {
+
+    const questionId = document.getElementById('insightQuestion').value;
+    const result = document.getElementById('insightResult');
+
+    if (!questionId) return;
+
+    insightData = null;
+    setInsightStatus('');
+    result.innerHTML = '<div class="insight-empty">讀取中……</div>';
+    document.getElementById('insightRun').disabled = false;
+
+    google.script.run
+      .withSuccessHandler(function(data) {
+        if (questionId !== document.getElementById('insightQuestion').value) return;
+        renderInsight(data);
+      })
+      .withFailureHandler(function(error) {
+        result.innerHTML = '<div class="error-message">' + escapeHtml(
+          /不允許呼叫的功能/.test(error.message)
+            ? '學習診斷要等 Apps Script 換上新版 Code.gs 與 ai_instant.gs 並部署後才能使用。'
+            : error.message
+        ) + '</div>';
+      })
+      .getQuestionInsight(questionId);
+  }
+
+
+  function runInsight() {
+
+    const select = document.getElementById('insightQuestion');
+    const questionId = select.value;
+    const button = document.getElementById('insightRun');
+
+    if (!questionId) return;
+
+    button.disabled = true;
+    button.textContent = 'AI 分析中……';
+    setInsightStatus('AI 正在讀全班的回答並整理，大約需要 20 到 60 秒，請稍候。', 'working');
+
+    google.script.run
+      .withSuccessHandler(function(data) {
+        button.disabled = false;
+        button.textContent = 'AI 重新分析';
+        if (questionId !== select.value) return;
+        renderInsight(data);
+      })
+      .withFailureHandler(function(error) {
+        button.disabled = false;
+        button.textContent = insightData ? 'AI 重新分析' : 'AI 分析這一題';
+        setInsightStatus(escapeHtml(
+          /不允許呼叫的功能/.test(error.message)
+            ? '學習診斷要等 Apps Script 換上新版 Code.gs 與 ai_instant.gs 並部署後才能使用。'
+            : '分析失敗：' + error.message
+        ), 'stale');
+      })
+      .analyzeQuestionLearning(questionId);
+  }
+
+
+  function renderInsight(data) {
+
+    const result = document.getElementById('insightResult');
+    const button = document.getElementById('insightRun');
+    const ins = data && data.insight;
+
+    insightData = data;
+
+    if (!ins) {
+      button.textContent = 'AI 分析這一題';
+      setInsightStatus('');
+      result.innerHTML = data.answerCount < data.minAnswers
+        ? '<div class="insight-empty">這一題目前有 ' + escapeHtml(data.answerCount) + ' 份回答，至少要 ' +
+          escapeHtml(data.minAnswers) + ' 份才能分析。</div>'
+        : '<div class="insight-empty">這一題有 ' + escapeHtml(data.answerCount) +
+          ' 份回答，還沒有分析過。按「AI 分析這一題」開始。</div>';
+      button.disabled = data.answerCount < data.minAnswers;
+      return;
+    }
+
+    button.textContent = 'AI 重新分析';
+
+    const newer = data.answerCount - ins.analyzedCount;
+
+    setInsightStatus(newer > 0
+      ? '分析之後又多了 <b>' + escapeHtml(newer) + ' 份</b>回答。<button type="button" class="purple" onclick="runInsight()">重新分析</button>'
+      : '', newer > 0 ? 'stale' : '');
+
+    const finding = function(item, kind) {
+      const label = kind === 'gap' ? item.item : item.concept;
+      const n = item.students.length;
+      return '<div class="finding' + (kind === 'gap' ? ' gap' : '') + '">' +
+        '<div class="finding-head"><b>' + escapeHtml(label) + '</b>' +
+        (n ? '<span class="finding-count">' + n + ' 位學生</span>' : '') + '</div>' +
+        '<p>' + escapeHtml(item.description) + '</p>' +
+        (n ? '<details><summary>看是哪些學生</summary><div class="names">' +
+          item.students.map(function(st) { return escapeHtml(st.name + '（' + st.studentId + '）'); }).join('、') +
+          '</div></details>' : '') +
+        '</div>';
+    };
+
+    const column = function(title, hint, items, kind) {
+      return '<div class="insight-col"><h3>' + title + ' <small>' + hint + '</small></h3>' +
+        (items.length ? items.map(function(item) { return finding(item, kind); }).join('')
+          : '<div class="insight-empty">沒有明顯的問題</div>') +
+        '</div>';
+    };
+
+    result.innerHTML =
+      '<div class="insight-overview">' +
+        '<p class="lead">' + escapeHtml(ins.overview) + '</p>' +
+        '<p class="meta">分析了 ' + escapeHtml(ins.analyzedCount) + ' 份回答・' + escapeHtml(ins.analyzedAt) +
+          (ins.analyzedBy ? '・' + escapeHtml(ins.analyzedBy) : '') + '</p>' +
+        '<div class="tools"><button type="button" onclick="copyInsightText()">複製整份診斷</button></div>' +
+      '</div>' +
+
+      '<div class="insight-grid">' +
+        column('待釐清的概念', '學生有、但還不正確或不完整的想法', ins.misconceptions, 'concept') +
+        column('普遍缺少的部分', '多數回答沒有做到的地方', ins.gaps, 'gap') +
+      '</div>' +
+
+      (ins.mastered.length
+        ? '<div class="mastered"><h3>多數學生已經掌握</h3><ul>' +
+          ins.mastered.map(function(m) { return '<li>' + escapeHtml(m) + '</li>'; }).join('') + '</ul></div>'
+        : '') +
+
+      '<h3 class="steps-title">下一步教學建議</h3>' +
+      ins.nextSteps.map(function(st, i) {
+        return '<div class="step">' +
+          '<span class="step-num">' + (i + 1) + '</span>' +
+          '<div class="step-title">' + escapeHtml(st.title) + '<span class="step-target">' + escapeHtml(st.target) + '</span></div>' +
+          '<div class="step-why">' + escapeHtml(st.why) + '</div>' +
+          '<div class="step-how">' + escapeHtml(st.how) + '</div>' +
+        '</div>';
+      }).join('') +
+
+      (ins.checkQuestion
+        ? '<div class="check-question"><h3>教完之後，用這題確認學生懂了沒</h3>' +
+          '<p>' + escapeHtml(ins.checkQuestion) + '</p>' +
+          '<div class="tools">' +
+            '<button type="button" onclick="useCheckQuestion()">帶到新增題目</button>' +
+            '<button type="button" class="ghost" onclick="copyText(insightData.insight.checkQuestion).then(function(){ showToast(\'已複製\'); })">複製</button>' +
+          '</div></div>'
+        : '');
+  }
+
+
+  // 把診斷整理成純文字，方便貼到教案或筆記
+  function copyInsightText() {
+
+    if (!insightData || !insightData.insight) return;
+
+    const ins = insightData.insight;
+    const lines = [];
+    const select = document.getElementById('insightQuestion');
+
+    lines.push('學習診斷：' + (insightData.question ? insightData.question.title : select.options[select.selectedIndex].text));
+    lines.push('（分析 ' + ins.analyzedCount + ' 份回答，' + ins.analyzedAt + '）', '');
+    lines.push('【整體狀況】', ins.overview, '');
+
+    if (ins.misconceptions.length) {
+      lines.push('【待釐清的概念】');
+      ins.misconceptions.forEach(function(m) {
+        lines.push('・' + m.concept + (m.students.length ? '（' + m.students.length + ' 位）' : '') + '：' + m.description);
+      });
+      lines.push('');
+    }
+
+    if (ins.gaps.length) {
+      lines.push('【普遍缺少的部分】');
+      ins.gaps.forEach(function(g) {
+        lines.push('・' + g.item + (g.students.length ? '（' + g.students.length + ' 位）' : '') + '：' + g.description);
+      });
+      lines.push('');
+    }
+
+    if (ins.mastered.length) {
+      lines.push('【多數已經掌握】');
+      ins.mastered.forEach(function(m) { lines.push('・' + m); });
+      lines.push('');
+    }
+
+    lines.push('【下一步教學建議】');
+    ins.nextSteps.forEach(function(st, i) {
+      lines.push((i + 1) + '. ' + st.title + '（' + st.target + '）', '   為什麼：' + st.why, '   怎麼做：' + st.how);
+    });
+
+    if (ins.checkQuestion) {
+      lines.push('', '【確認理解的提問】', ins.checkQuestion);
+    }
+
+    copyText(lines.join('\n')).then(
+      function() { showToast('已複製整份診斷，可以貼到教案或筆記'); },
+      function() { window.prompt('請複製下面的文字：', lines.join(' ')); }
+    );
+  }
+
+
+  function useCheckQuestion() {
+
+    if (!insightData || !insightData.insight) return;
+
+    const title = (insightData.question ? insightData.question.title : '') + '（確認理解）';
+
+    document.getElementById('title').value = title;
+    document.getElementById('content').value = insightData.insight.checkQuestion;
+    document.getElementById('status').value = '草稿';
+
+    showSection('create');
+    document.getElementById('title').focus();
+    showToast('已帶入題目內容，補上參考答案和配分後再儲存');
+  }
+
+
   function createQuestion() {
 
     const data = {
@@ -1689,6 +2102,7 @@ function previewQuestionRAG() {
           <button type="button" onclick="openAnswers('${q.id}')">查看學生回答</button>
           <button type="button" class="purple" onclick="openDiscuss('${q.id}')">🗣 課堂討論</button>
           <button type="button" class="ghost" onclick="openCopyDialog('${q.id}')">📋 複製到…</button>
+          <button type="button" class="ghost" onclick="openInsights('${q.id}')">📈 學習診斷</button>
           <div class="seg" role="group" aria-label="題目狀態">
             ${statusButton('發布')}${statusButton('草稿')}${statusButton('關閉')}
           </div>

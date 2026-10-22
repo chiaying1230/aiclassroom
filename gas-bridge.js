@@ -27,7 +27,7 @@
     runAIReview: true, suggestCategories: true, classifyAnswers: true, summarizeCategories: true,
     setQuestionAutoClassify: true, runAutoClassifyNow: true, requestInstantFeedback: true,
     previewInstantFeedback: true, previewRAGForTeacher: true, ragChat: true, ragUploadPdf: true,
-    ragRetryDocument: true, copyQuestions: true
+    ragRetryDocument: true, copyQuestions: true, analyzeQuestionLearning: true
   };
 
   // 只讀資料、重送也不會改到任何東西的功能

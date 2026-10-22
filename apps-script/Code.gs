@@ -1256,6 +1256,8 @@ function getTeacherApiHandlers_() {
     deleteQuestion: deleteQuestion,
     copyQuestions: copyQuestions,
     previewInstantFeedback: previewInstantFeedback,
+    analyzeQuestionLearning: analyzeQuestionLearning,
+    getQuestionInsight: getQuestionInsight,
     saveTeacherReview: saveTeacherReview,
     runAIReview: runAIReview,
     getAISettings: getAISettings,
@@ -1395,6 +1397,7 @@ function setupSystem() {
   ensureSheet_(ss, TEACHER_SHEET, TEACHER_HEADERS, '#e8e1f7', false);
   ensureSheet_(ss, RAG_COURSE_SHEET, RAG_COURSE_HEADERS, '#e3f3eb', false);
   ensureSheet_(ss, HISTORY_SHEET, HISTORY_HEADERS, '#eef0f3', false);
+  ensureSheet_(ss, INSIGHT_SHEET, INSIGHT_HEADERS, '#fff6d6', false);
 
   // 即時回饋與自動分類的背景工作
   const trigger = installAutoTrigger_();
@@ -2933,6 +2936,14 @@ function deleteQuestion(questionId) {
       });
     }
 
+    const insightSheet = getSpreadsheet_().getSheetByName(INSIGHT_SHEET);
+
+    if (insightSheet) {
+      deleteRowsWhere_(insightSheet, function(row) {
+        return cleanText_(row[1]) === questionId;
+      });
+    }
+
     deleteRowsWhere_(questionSheet, function(row) {
       return cleanText_(row[0]) === questionId;
     });
@@ -4321,6 +4332,168 @@ function installAutoTrigger_() {
 
 
 /* =====================================================
+   學習診斷
+   AI 讀全班的回答，整理待釐清的概念、普遍缺少的部分和下一步教學建議。
+   每次分析都存一列在「學習診斷」工作表，畫面顯示最新的一次。
+===================================================== */
+
+const INSIGHT_SHEET = '學習診斷';
+const INSIGHT_HEADERS = ['診斷ID', '題目ID', '課程ID', '分析回答數', '結果', '建立時間', '建立者'];
+const INSIGHT_MIN_ANSWERS = 3;
+
+
+function getInsightSheet_() {
+
+  const ss = getSpreadsheet_();
+
+  return (
+    ss.getSheetByName(INSIGHT_SHEET) ||
+    ensureSheet_(ss, INSIGHT_SHEET, INSIGHT_HEADERS, '#fff6d6', false)
+  );
+}
+
+
+/*
+ * 老師按「AI 分析」。
+ */
+function analyzeQuestionLearning(questionId) {
+
+  const question = requireQuestion_(questionId);
+  const teacher = currentTeacher_();
+  const answers = getAnswersForQuestion_(question.id);
+
+  if (answers.length < INSIGHT_MIN_ANSWERS) {
+    throw new Error('至少要有 ' + INSIGHT_MIN_ANSWERS + ' 份學生回答才能分析，目前只有 ' + answers.length + ' 份');
+  }
+
+  // 老師給的分數、課堂討論的分類，一起給 AI 參考
+  const scores = {};
+
+  getAnswerSheet_().getDataRange().getValues().slice(1).forEach(function(row) {
+    scores[cleanText_(row[ACOL.ID - 1])] = row[ACOL.TEACHER_SCORE - 1];
+  });
+
+  const categories = getCategoriesForQuestion_(question.id);
+  const coding = getCodingMap_(question.id);
+  const categoryName = {};
+  const categoryCount = {};
+
+  categories.forEach(function(c) {
+    categoryName[c.id] = c.name;
+    categoryCount[c.id] = 0;
+  });
+
+  // 最新送出的排前面，回答太多時先分析最近的
+  const list = answers.slice().reverse().map(function(a) {
+
+    const k = coding[a.answerId];
+    const catId = k && categoryName[k.categoryId] ? k.categoryId : '';
+
+    if (catId) categoryCount[catId]++;
+
+    return {
+      answerId: a.answerId,
+      answer: a.answer,
+      teacherScore: scores[a.answerId] === undefined ? '' : scores[a.answerId],
+      categoryName: catId ? categoryName[catId] : ''
+    };
+  });
+
+  const result = analyzeLearningWithAI_(
+    question,
+    list,
+    categories.map(function(c) { return { name: c.name, count: categoryCount[c.id] }; })
+  );
+
+  const now = new Date();
+
+  withLock_(function() {
+    appendRows_(getInsightSheet_(), [[
+      generateId_('D'), question.id, question.courseId, result.analyzedCount,
+      JSON.stringify(result), now, teacher.name || teacher.account
+    ]], INSIGHT_HEADERS.length);
+  });
+
+  return publicInsight_(question, result, now, teacher.name || teacher.account, answers);
+}
+
+
+/*
+ * 讀出這一題最新的一次分析。沒有分析過回傳 { insight: null, answerCount }。
+ */
+function getQuestionInsight(questionId) {
+
+  const question = requireQuestion_(questionId);
+  const answers = getAnswersForQuestion_(question.id);
+  const sheet = getSpreadsheet_().getSheetByName(INSIGHT_SHEET);
+
+  let latest = null;
+
+  if (sheet && sheet.getLastRow() >= 2) {
+    sheet.getDataRange().getValues().slice(1).forEach(function(row) {
+      if (cleanText_(row[1]) === question.id) {
+        latest = row;   // 越下面越新
+      }
+    });
+  }
+
+  if (!latest) {
+    return { insight: null, answerCount: answers.length, minAnswers: INSIGHT_MIN_ANSWERS };
+  }
+
+  let result;
+
+  try {
+    result = JSON.parse(latest[4]);
+  } catch (error) {
+    return { insight: null, answerCount: answers.length, minAnswers: INSIGHT_MIN_ANSWERS };
+  }
+
+  return publicInsight_(question, result, latest[5], cleanText_(latest[6]), answers);
+}
+
+
+/*
+ * 加上學生姓名，讓老師知道是哪些學生需要協助。
+ */
+function publicInsight_(question, result, analyzedAt, analyzedBy, answers) {
+
+  const students = {};
+
+  answers.forEach(function(a) {
+    students[a.answerId] = { name: a.name, studentId: a.studentId };
+  });
+
+  const withStudents = function(items) {
+    return (items || []).map(function(item) {
+      return Object.assign({}, item, {
+        students: (item.answerIds || [])
+          .filter(function(id) { return students[id]; })
+          .map(function(id) { return students[id]; })
+      });
+    });
+  };
+
+  return {
+    insight: {
+      overview: result.overview || '',
+      mastered: result.mastered || [],
+      misconceptions: withStudents(result.misconceptions),
+      gaps: withStudents(result.gaps),
+      nextSteps: result.nextSteps || [],
+      checkQuestion: result.checkQuestion || '',
+      analyzedCount: result.analyzedCount || 0,
+      analyzedAt: formatDate_(analyzedAt),
+      analyzedBy: analyzedBy
+    },
+    answerCount: answers.length,
+    minAnswers: INSIGHT_MIN_ANSWERS,
+    question: { id: question.id, title: question.title }
+  };
+}
+
+
+/* =====================================================
    教材庫分課程
    RAG 的教材存在另一份試算表。這裡用主試算表的「教材課程」工作表
    記錄每份教材屬於哪門課；沒有紀錄的舊教材算預設課程。
@@ -4620,6 +4793,7 @@ function checkTeacherApiHandlers() {
     'ai.gs：suggestCategoriesWithAI_': typeof suggestCategoriesWithAI_,
     'ai.gs：classifyAnswersWithAI_': typeof classifyAnswersWithAI_,
     'ai_instant.gs：instantFeedbackWithAI_': typeof instantFeedbackWithAI_,
+    'ai_instant.gs：analyzeLearningWithAI_': typeof analyzeLearningWithAI_,
     'ai_instant.gs：INSTANT_FEEDBACK_STYLES': typeof INSTANT_FEEDBACK_STYLES === 'object' ? 'function' : 'undefined',
     'ai.gs：saveAISettings': typeof saveAISettings,
     'RAG_Admin.gs：ragListDocuments': typeof ragListDocuments,
