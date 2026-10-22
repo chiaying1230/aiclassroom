@@ -153,6 +153,8 @@
       <div><dt>學生</dt><dd>輸入老師給的 6 碼加入代碼，或打開 <code>student.html?course=代碼</code>，只看得到那門課的題目和自己的紀錄。</dd></div>
       <div><dt>教師</dt><dd>用自己的帳號登入，只看得到、只改得到自己開的課程。權限檢查在後端，每個教師功能執行前都會確認課程屬於登入者。</dd></div>
       <div><dt>管理員</dt><dd>帳號 <code>admin</code>，密碼是指令碼屬性的 <code>TEACHER_PASSWORD</code>。看得到所有課程，可以新增教師帳號、修改全站的 AI 評語風格。</dd></div>
+      <div><dt>學生送出之後</dt><dd>舊版本存到「作答歷程」；依題目設定給即時 AI 回饋（<code>ai_instant.gs</code>）；開啟自動分類的題目由每分鐘的背景工作 <code>autoProcessTick</code> 分類並確認。</dd></div>
+      <div><dt>連線</dt><dd><code>gas-bridge.js</code> 處理逾時、離線和 Apps Script 的錯誤頁；只在不會重複寫入時自動重試。</dd></div>
       <div><dt>預設課程</dt><dd>改版前的題目和教材都歸在「人工智慧（小教）」，課程ID 存在指令碼屬性 <code>DEFAULT_COURSE_ID</code>。</dd></div>
     </dl>
   </section>

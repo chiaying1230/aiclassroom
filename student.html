@@ -359,6 +359,33 @@
 
     .waiting { color: var(--ink-2); margin: 0; }
 
+    /* ---------- AI 即時回饋 ---------- */
+    .instant {
+      margin-top: 14px;
+      padding: 14px 16px;
+      border-left: 4px solid var(--purple);
+      border-radius: 0 var(--radius-s) var(--radius-s) 0;
+      background: var(--purple-soft);
+    }
+
+    .instant-title { margin: 0 0 4px; color: var(--purple); font-size: 14px; font-weight: 700; }
+    .instant-text { white-space: pre-wrap; line-height: 1.8; }
+    .instant.loading .instant-text { color: var(--ink-2); }
+    .instant.loading .instant-text::after { content: '…'; animation: blink 1.2s steps(1) infinite; }
+    .instant-note { margin: 8px 0 0; font-size: 13px; color: var(--ink-2); }
+
+    @keyframes blink { 50% { opacity: 0; } }
+
+    .r-instant { margin-top: 14px; }
+
+    /* 作答紀錄：之前的版本 */
+    details.history { border-top: 1px solid var(--line); padding: 12px 22px 16px; }
+    details.history summary { cursor: pointer; color: var(--blue-dark); font-weight: 700; font-size: 14px; }
+    .history-item { margin-top: 12px; padding: 12px 14px; border: 1px dashed var(--line-strong); border-radius: var(--radius-s); }
+    .history-item .h-meta { font-size: 13px; color: var(--ink-2); margin-bottom: 4px; }
+    .history-item .h-text { white-space: pre-wrap; line-height: 1.75; }
+    .history-item .h-sub { margin-top: 8px; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+
     /* ---------- 課程 ---------- */
     .course-teacher { margin: 6px 0 0; color: var(--ink-2); }
 
@@ -1023,6 +1050,8 @@
 
       if (!mine) {
         box.hidden = true;
+        const instantBox = document.getElementById('instant_' + id);
+        if (instantBox && !instantBox.classList.contains('loading')) instantBox.hidden = true;
         return;
       }
 
@@ -1033,7 +1062,14 @@
       }
 
       const time = String(mine.submittedAt || '').replace(/:\d\d$/, '');
-      let text = '✓ 你已在 ' + time + ' 送出' + (mine.late ? '（遲交）' : '') + '・' + mine.status;
+      let text = '✓ 你已在 ' + time + ' 送出' + (mine.version > 1 ? '（第 ' + mine.version + ' 次）' : '') +
+        (mine.late ? '（遲交）' : '') + '・' + mine.status;
+
+      // 存好的 AI 即時回饋（正在等新回饋時不要蓋掉）
+      const instantBox = document.getElementById('instant_' + id);
+      if (instantBox && !instantBox.classList.contains('loading') && mine.instantFeedback) {
+        showInstant(id, mine.instantFeedback, '');
+      }
       let extra = '';
 
       box.className = 'mine';
@@ -1135,6 +1171,7 @@
       card.dataset.allowLate = q.allowLate ? 'true' : 'false';
       card.dataset.title = q.title || '';
       card.dataset.count = q.submittedCount == null ? '' : q.submittedCount;
+      card.dataset.instant = q.instantFeedback ? 'true' : 'false';
 
       card.innerHTML = `
         <div class="q-head">
@@ -1161,6 +1198,8 @@
             <div id="message_${q.id}" class="message"></div>
             <button type="button" id="submit_${q.id}" onclick="submitAnswer('${q.id}')">送出回答</button>
           </div>
+
+          <div class="instant" id="instant_${q.id}" role="status" aria-live="polite" hidden></div>
         </div>
       `;
 
@@ -1409,7 +1448,13 @@
         button.disabled = false;
         button.textContent = '重新送出';
         message.className = 'message success';
-        message.textContent = (result.updated ? '✓ 回答已更新' : '✓ 回答已送出') + (result.late ? '（遲交）' : '');
+        message.textContent = (result.updated ? '✓ 回答已更新，之前的回答也保留著' : '✓ 回答已送出') + (result.late ? '（遲交）' : '');
+
+        if (result.instantFeedback) {
+          fetchInstantFeedback(questionId, result.answerId, identity);
+        } else {
+          document.getElementById('instant_' + questionId).hidden = true;
+        }
         // 第一次交：這一題的繳交人數加一
         const card = document.querySelector('.q-card[data-id="' + questionId + '"]');
         if (!result.updated && card && card.dataset.count !== '') {
@@ -1433,6 +1478,57 @@
         questionId: questionId,
         answer: answer,
         courseCode: currentCourse ? currentCourse.code : ''
+      });
+  }
+
+
+  /* ==================================================
+     AI 即時回饋
+     送出後向伺服器要回饋。AI 忙碌時，回饋稍後會出現在「我的作答紀錄」。
+  ================================================== */
+
+  function showInstant(questionId, text, note, loading) {
+
+    const box = document.getElementById('instant_' + questionId);
+
+    if (!box) return;
+
+    box.className = 'instant' + (loading ? ' loading' : '');
+    box.innerHTML =
+      '<p class="instant-title">🤖 AI 小助教的回饋</p>' +
+      '<div class="instant-text">' + escapeHtml(text) + '</div>' +
+      (note ? '<p class="instant-note">' + escapeHtml(note) + '</p>' : '');
+    box.hidden = false;
+  }
+
+
+  function fetchInstantFeedback(questionId, answerId, identity) {
+
+    showInstant(questionId, 'AI 小助教正在讀你的回答', '', true);
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.feedback) {
+          showInstant(questionId, result.feedback, '這是 AI 給你的學習提示，不是分數。老師審核後的評語會出現在「我的作答紀錄」。');
+          if (myAnswers[questionId]) myAnswers[questionId].instantFeedback = result.feedback;
+        } else if (result && result.pending) {
+          showInstant(questionId, result.message, '');
+        } else {
+          document.getElementById('instant_' + questionId).hidden = true;
+        }
+      })
+      .withFailureHandler(function(error) {
+        // 舊版後端沒有這個功能時，不顯示任何東西
+        if (/不允許呼叫的功能/.test(error.message)) {
+          document.getElementById('instant_' + questionId).hidden = true;
+          return;
+        }
+        showInstant(questionId, 'AI 回饋暫時拿不到（' + error.message + '）。稍後會出現在「我的作答紀錄」。', '');
+      })
+      .requestInstantFeedback({
+        answerId: answerId,
+        studentId: identity.studentId,
+        name: identity.name
       });
   }
 
@@ -1523,16 +1619,40 @@
 
         <div class="r-body">
           <div>
-            <div class="r-label">我的回答</div>
+            <div class="r-label">我的回答${item.version > 1 ? `（第 ${escapeHtml(item.version)} 次）` : ''}</div>
             <div class="feedback">${escapeHtml(item.answer)}</div>
             <p class="meta">送出時間：${escapeHtml(item.submittedAt)}</p>
+            ${item.instantFeedback
+              ? `<div class="r-instant instant"><p class="instant-title">🤖 AI 小助教的回饋</p><div class="instant-text">${escapeHtml(item.instantFeedback)}</div></div>`
+              : ''}
           </div>
           <div>${reviewHtml}</div>
         </div>
+        ${historyHtml(item.history)}
       `;
 
       box.appendChild(div);
     });
+  }
+
+
+  function historyHtml(history) {
+
+    if (!history || !history.length) return '';
+
+    const items = history.slice().reverse().map(function(h) {
+      const reviewed = h.teacherScore !== '' && h.teacherScore != null;
+      return '<div class="history-item">' +
+        '<div class="h-meta">第 ' + escapeHtml(h.version) + ' 次・' + escapeHtml(h.submittedAt) + (h.status ? '・' + escapeHtml(h.status) : '') + '</div>' +
+        '<div class="h-text">' + escapeHtml(h.answer) + '</div>' +
+        (h.instantFeedback ? '<div class="h-sub">AI 小助教的回饋</div><div class="h-text">' + escapeHtml(h.instantFeedback) + '</div>' : '') +
+        (reviewed || h.teacherFeedback
+          ? '<div class="h-sub">老師' + (reviewed ? '給的分數 ' + escapeHtml(h.teacherScore) + '・' : '') + '評語</div><div class="h-text">' + escapeHtml(h.teacherFeedback || '（沒有評語）') + '</div>'
+          : '') +
+        '</div>';
+    }).join('');
+
+    return '<details class="history"><summary>我之前交過的 ' + history.length + ' 個版本</summary>' + items + '</details>';
   }
 
 

@@ -125,6 +125,37 @@
     .form-block-title { margin: 0; font-size: 16px; }
     .form-block-title + label { margin-top: 12px; }
 
+    /* ---------- 學生送出後（即時回饋、自動分類） ---------- */
+    textarea.short { min-height: 76px; }
+
+    .check-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-top: 20px;
+      color: var(--ink);
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    .check-row input { width: 18px; height: 18px; margin: 2px 0 0; padding: 0; flex: none; }
+    .check-row + .hint { margin: 4px 0 0 28px; }
+
+    .instant-try { margin-top: 4px; }
+    .try-row { display: flex; gap: 8px; }
+    .try-row input { flex: 1; min-width: 0; }
+    .try-row button { margin: 0; flex: none; }
+
+    .instant-box { margin-top: 10px; border-left: 4px solid var(--purple); background: var(--purple-soft); }
+
+    /* 批改區：之前的版本 */
+    details.history { margin-top: 14px; }
+    details.history summary { cursor: pointer; color: var(--blue-dark); font-weight: 700; font-size: 14px; }
+    .history-item { margin-top: 10px; padding: 12px 14px; border: 1px dashed var(--line-strong); border-radius: var(--radius-s); background: var(--surface); }
+    .history-item .h-meta { font-size: 13px; color: var(--ink-2); margin-bottom: 6px; }
+    .history-item .h-text { white-space: pre-wrap; line-height: 1.75; }
+    .history-item .h-sub { margin-top: 8px; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+
     .field-row { display: grid; grid-template-columns: 140px 1fr 1fr; gap: 14px; }
 
     .form-actions {
@@ -659,6 +690,38 @@
 表達清楚 2 分"></textarea>
         </div>
 
+        <div class="form-block automation">
+          <h2 class="form-block-title">學生送出後</h2>
+
+          <label for="instantStyle">即時 AI 回饋</label>
+          <select id="instantStyle" onchange="updateInstantHint('')">
+            <option value="">不提供</option>
+            <option value="hint">鼓勵與提示（不直接給答案）</option>
+            <option value="question">提問引導思考</option>
+            <option value="rubric">對照評分規準給建議</option>
+            <option value="brief">簡短鼓勵</option>
+            <option value="custom">自訂（照我寫的指示）</option>
+          </select>
+          <p class="hint" id="instantStyleHint"></p>
+
+          <div id="instantOptions">
+            <label for="instantNote">給 AI 的補充指示 <span class="optional" id="instantNoteOptional">（可不填）</span></label>
+            <textarea id="instantNote" class="short" maxlength="500" placeholder="例如：用國小五年級聽得懂的話；不要超過 80 字；鼓勵學生舉生活中的例子。"></textarea>
+
+            <div class="instant-try">
+              <label for="instantSample">試試看：輸入一段學生可能寫的回答</label>
+              <div class="try-row">
+                <input id="instantSample" placeholder="例如：因為冷空氣跑進水裡">
+                <button type="button" class="ghost" id="instantTryButton" onclick="previewInstant('')">看 AI 回饋</button>
+              </div>
+              <div class="text-box instant-box" id="instantPreview" role="status" hidden></div>
+            </div>
+          </div>
+
+          <label class="check-row"><input type="checkbox" id="autoClassify"> 學生送出後，自動分類到課堂討論並標成已確認</label>
+          <p class="hint">還沒有類別時，滿 5 份回答會自動建立類別；也可以先到課堂討論自己設定類別。之後每份新回答約 1 分鐘內會分好。</p>
+        </div>
+
         <div class="form-actions">
           <button type="button" onclick="createQuestion()">儲存題目</button>
           <div id="createMessage"></div>
@@ -854,6 +917,40 @@
         </div>
         <textarea id="editRubric"></textarea>
       </div>
+    </div>
+
+    <div class="card">
+        <div class="form-block automation">
+          <h2 class="form-block-title">學生送出後</h2>
+
+          <label for="editInstantStyle">即時 AI 回饋</label>
+          <select id="editInstantStyle" onchange="updateInstantHint('edit')">
+            <option value="">不提供</option>
+            <option value="hint">鼓勵與提示（不直接給答案）</option>
+            <option value="question">提問引導思考</option>
+            <option value="rubric">對照評分規準給建議</option>
+            <option value="brief">簡短鼓勵</option>
+            <option value="custom">自訂（照我寫的指示）</option>
+          </select>
+          <p class="hint" id="editInstantStyleHint"></p>
+
+          <div id="editInstantOptions">
+            <label for="editInstantNote">給 AI 的補充指示 <span class="optional" id="editInstantNoteOptional">（可不填）</span></label>
+            <textarea id="editInstantNote" class="short" maxlength="500" placeholder="例如：用國小五年級聽得懂的話；不要超過 80 字；鼓勵學生舉生活中的例子。"></textarea>
+
+            <div class="instant-try">
+              <label for="editInstantSample">試試看：輸入一段學生可能寫的回答</label>
+              <div class="try-row">
+                <input id="editInstantSample" placeholder="例如：因為冷空氣跑進水裡">
+                <button type="button" class="ghost" id="editInstantTryButton" onclick="previewInstant('edit')">看 AI 回饋</button>
+              </div>
+              <div class="text-box instant-box" id="editInstantPreview" role="status" hidden></div>
+            </div>
+          </div>
+
+          <label class="check-row"><input type="checkbox" id="editAutoClassify"> 學生送出後，自動分類到課堂討論並標成已確認</label>
+          <p class="hint">還沒有類別時，滿 5 份回答會自動建立類別；也可以先到課堂討論自己設定類別。之後每份新回答約 1 分鐘內會分好。</p>
+        </div>
     </div>
 
   </div>
@@ -1325,6 +1422,135 @@ function previewQuestionRAG() {
   }
 
 
+  /* ==================================================
+     學生送出後：即時 AI 回饋、自動分類
+  ================================================== */
+
+  const INSTANT_STYLE_LABELS = {
+    hint: '鼓勵與提示', question: '提問引導思考', rubric: '對照評分規準', brief: '簡短鼓勵', custom: '自訂'
+  };
+
+  const INSTANT_STYLE_HINTS = {
+    '': '學生送出後不會看到 AI 回饋，只會看到你審核後的評語。',
+    hint: '先肯定做得好的地方，再給一個提示讓學生自己想，不會直接說出答案。',
+    question: '用一兩個問題引導學生檢查、延伸自己的想法，不評斷對錯。',
+    rubric: '對照你的評分規準，說明已經做到和可以補強的地方。不會顯示分數。',
+    brief: '一兩句肯定，加上一個最重要的小建議。',
+    custom: '完全照你在下面寫的指示給回饋。'
+  };
+
+  const INSTANT_DEFAULTS_KEY = 'aiclassroom_instant_defaults';
+
+
+  function updateInstantHint(mode) {
+
+    const id = function(name) { return formFieldId(mode, name); };
+    const style = document.getElementById(id('instantStyle')).value;
+
+    document.getElementById(id('instantStyleHint')).textContent = INSTANT_STYLE_HINTS[style] || '';
+    document.getElementById(id('instantOptions')).hidden = !style;
+    document.getElementById(id('instantNoteOptional')).textContent = style === 'custom' ? '（必填）' : '（可不填）';
+  }
+
+
+  function previewInstant(mode) {
+
+    const id = function(name) { return formFieldId(mode, name); };
+    const value = function(name) { return document.getElementById(id(name)).value.trim(); };
+    const box = document.getElementById(id('instantPreview'));
+    const button = document.getElementById(id('instantTryButton'));
+
+    box.hidden = false;
+
+    if (!value('content')) {
+      box.textContent = '請先填寫題目內容。';
+      return;
+    }
+
+    if (!value('instantSample')) {
+      box.textContent = '請先輸入一段範例回答。';
+      document.getElementById(id('instantSample')).focus();
+      return;
+    }
+
+    button.disabled = true;
+    box.textContent = 'AI 正在讀這段回答……';
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        button.disabled = false;
+        box.textContent = result.feedback;
+      })
+      .withFailureHandler(function(error) {
+        button.disabled = false;
+        box.textContent = /不允許呼叫的功能/.test(error.message)
+          ? '這個功能要等 Apps Script 換上新版 Code.gs 並部署後才能使用。'
+          : '無法產生回饋：' + error.message;
+      })
+      .previewInstantFeedback({
+        content: value('content'),
+        referenceAnswer: value('referenceAnswer'),
+        rubric: value('rubric'),
+        feedbackStyle: value('instantStyle'),
+        feedbackNote: value('instantNote'),
+        sampleAnswer: value('instantSample')
+      });
+  }
+
+
+  function loadInstantDefaults() {
+
+    let saved = null;
+
+    try { saved = JSON.parse(localStorage.getItem(INSTANT_DEFAULTS_KEY) || 'null'); } catch (error) { saved = null; }
+
+    // 第一次使用：預設提供「鼓勵與提示」並自動分類
+    saved = saved || { style: 'hint', note: '', auto: true };
+
+    document.getElementById('instantStyle').value = INSTANT_STYLE_HINTS.hasOwnProperty(saved.style) ? saved.style : 'hint';
+    document.getElementById('instantNote').value = saved.note || '';
+    document.getElementById('autoClassify').checked = saved.auto !== false;
+    updateInstantHint('');
+  }
+
+
+  function saveInstantDefaults() {
+    try {
+      localStorage.setItem(INSTANT_DEFAULTS_KEY, JSON.stringify({
+        style: document.getElementById('instantStyle').value,
+        note: document.getElementById('instantNote').value.trim(),
+        auto: document.getElementById('autoClassify').checked
+      }));
+    } catch (error) { /* 忽略 */ }
+  }
+
+
+  document.addEventListener('DOMContentLoaded', loadInstantDefaults);
+
+
+  function historyHtml(history) {
+
+    if (!history || !history.length) return '';
+
+    const items = history.slice().reverse().map(function(h) {
+
+      const reviewed = h.teacherScore !== '' && h.teacherScore != null;
+
+      return '<div class="history-item">' +
+        '<div class="h-meta">第 ' + escapeHtml(h.version) + ' 次・' + escapeHtml(h.submittedAt) + '・' + escapeHtml(h.status || '') + '</div>' +
+        '<div class="h-text">' + escapeHtml(h.answer) + '</div>' +
+        (h.instantFeedback ? '<div class="h-sub">AI 即時回饋</div><div class="h-text">' + escapeHtml(h.instantFeedback) + '</div>' : '') +
+        (h.aiScore !== '' && h.aiScore != null ? '<div class="h-sub">AI 建議分數 ' + escapeHtml(h.aiScore) + '</div>' : '') +
+        (reviewed || h.teacherFeedback
+          ? '<div class="h-sub">教師' + (reviewed ? '分數 ' + escapeHtml(h.teacherScore) + '・' : '') + '評語</div><div class="h-text">' + escapeHtml(h.teacherFeedback || '（沒有評語）') + '</div>'
+          : '') +
+      '</div>';
+    }).join('');
+
+    return '<details class="history"><summary>之前的 ' + history.length + ' 個版本</summary>' + items + '</details>';
+  }
+
+
   function createQuestion() {
 
     const data = {
@@ -1337,8 +1563,17 @@ function previewQuestionRAG() {
       status: document.getElementById('status').value,
       deadline: readDeadline('deadline'),
       allowLate: document.getElementById('allowLate').value === 'true',
-      courseId: TeacherCourse.id()
+      courseId: TeacherCourse.id(),
+      feedbackStyle: document.getElementById('instantStyle').value,
+      feedbackNote: document.getElementById('instantNote').value.trim(),
+      autoClassify: document.getElementById('autoClassify').checked
     };
+
+    if (data.feedbackStyle === 'custom' && !data.feedbackNote) {
+      alert('選「自訂」時，請在「給 AI 的補充指示」寫下你希望 AI 怎麼回饋');
+      document.getElementById('instantNote').focus();
+      return;
+    }
 
     if (!data.title || !data.content) {
       alert('請輸入題目名稱與題目內容');
@@ -1360,6 +1595,9 @@ function previewQuestionRAG() {
         const course = TeacherCourse.current();
         message.className = 'success-message';
         message.textContent = '✓ 題目已建立在「' + (course ? course.name : '目前課程') + '」';
+
+        // 記住這次的設定，下次出題預設一樣
+        saveInstantDefaults();
 
         ['title', 'content', 'referenceAnswer', 'rubric'].forEach(function(id) {
           document.getElementById(id).value = '';
@@ -1436,6 +1674,8 @@ function previewQuestionRAG() {
             <span class="${q.pendingCount > 0 ? 'pending' : ''}">待審核 <b>${escapeHtml(q.pendingCount)}</b></span>
             <span>配分 <b>${escapeHtml(q.points)}</b></span>
             <span>AI ${q.enableAI ? '啟用' : '未啟用'}</span>
+            ${q.feedbackStyle ? `<span>即時回饋 <b>${escapeHtml(INSTANT_STYLE_LABELS[q.feedbackStyle] || q.feedbackStyle)}</b></span>` : ''}
+            ${q.autoClassify ? '<span><b>自動分類</b></span>' : ''}
             ${q.lateCount > 0 ? `<span class="late">遲交 <b>${escapeHtml(q.lateCount)}</b></span>` : ''}
           </div>
 
@@ -1574,12 +1814,14 @@ function previewQuestionRAG() {
 
   const EDIT_FIELDS = [
     'editTitle', 'editContent', 'editPoints', 'editEnableAI', 'editStatus',
-    'editDeadline', 'editAllowLate', 'editReferenceAnswer', 'editRubric'
+    'editDeadline', 'editAllowLate', 'editReferenceAnswer', 'editRubric',
+    'editInstantStyle', 'editInstantNote', 'editAutoClassify'
   ];
 
   function editFormSnapshot() {
     return EDIT_FIELDS.map(function(id) {
-      return document.getElementById(id).value;
+      const el = document.getElementById(id);
+      return el.type === 'checkbox' ? String(el.checked) : el.value;
     }).join('\u0001');
   }
 
@@ -1608,6 +1850,12 @@ function previewQuestionRAG() {
     set('editAllowLate', q.allowLate ? 'true' : 'false');
     set('editReferenceAnswer', q.referenceAnswer);
     set('editRubric', q.rubric);
+    set('editInstantStyle', q.feedbackStyle || '');
+    set('editInstantNote', q.feedbackNote || '');
+    set('editInstantSample', '');
+    document.getElementById('editAutoClassify').checked = !!q.autoClassify;
+    document.getElementById('editInstantPreview').hidden = true;
+    updateInstantHint('edit');
 
     document.getElementById('editDialogSub').textContent =
       '建立於 ' + (q.createdAt || '—') + (q.updatedAt ? '，最後修改 ' + q.updatedAt : '');
@@ -1848,8 +2096,17 @@ function previewQuestionRAG() {
       enableAI: value('editEnableAI') === 'true',
       status: value('editStatus'),
       deadline: readDeadline('editDeadline'),
-      allowLate: value('editAllowLate') === 'true'
+      allowLate: value('editAllowLate') === 'true',
+      feedbackStyle: value('editInstantStyle'),
+      feedbackNote: value('editInstantNote'),
+      autoClassify: document.getElementById('editAutoClassify').checked
     };
+
+    if (data.feedbackStyle === 'custom' && !data.feedbackNote) {
+      alert('選「自訂」時，請在「給 AI 的補充指示」寫下你希望 AI 怎麼回饋');
+      document.getElementById('editInstantNote').focus();
+      return;
+    }
 
     if (!data.title || !data.content) {
       alert('請輸入題目名稱與題目內容');
@@ -2044,6 +2301,7 @@ function previewQuestionRAG() {
               <span>學號 ${escapeHtml(a.studentId)}</span>
               <span>${escapeHtml(a.name)}</span>
               <span>送出時間 ${escapeHtml(a.submittedAt)}</span>
+              ${a.version > 1 ? `<span>第 ${escapeHtml(a.version)} 次繳交</span>` : ''}
               ${a.late ? `<span class="late-tag" title="截止時間 ${escapeHtml(a.deadlineText)}">遲交</span>` : ''}
             </div>
           </div>
@@ -2058,6 +2316,12 @@ function previewQuestionRAG() {
 
             <h4>學生回答</h4>
             <div class="text-box student-answer">${escapeHtml(a.answer)}</div>
+
+            ${a.instantFeedback
+              ? `<h4>學生收到的 AI 即時回饋</h4><div class="text-box instant-box">${escapeHtml(a.instantFeedback)}</div>`
+              : a.feedbackStyle ? '<p class="hint">AI 即時回饋還在產生，稍後重新整理就會看到。</p>' : ''}
+
+            ${historyHtml(a.history)}
 
             ${
               a.enableAI

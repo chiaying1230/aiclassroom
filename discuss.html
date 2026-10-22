@@ -115,6 +115,23 @@
     .toggle:hover { color: var(--ink); }
     .toggle input { width: 16px; height: 16px; accent-color: var(--blue); }
 
+    .toggle.auto-classify { color: var(--ink); font-weight: 700; }
+    .toggle.auto-classify input { accent-color: var(--green); }
+
+    .auto-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 10px;
+      border-radius: 999px;
+      background: var(--green-soft);
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .auto-status.waiting { background: var(--orange-soft); color: var(--orange); }
+
     /* ---------- 看板＋右側工具面板 ---------- */
     .workspace {
       display: grid;
@@ -480,6 +497,9 @@
       <label class="toggle"><input type="checkbox" id="showNames" onchange="rerender()"> 顯示姓名</label>
       <label class="toggle"><input type="checkbox" id="confirmedOnly" onchange="rerender()"> 只顯示已確認的分類</label>
       <label class="toggle"><input type="checkbox" id="autoRefresh" checked onchange="setupAutoRefresh()"> 每 10 秒自動更新</label>
+      <label class="toggle auto-classify" title="學生送出後，AI 自動把回答分到類別並標成已確認">
+        <input type="checkbox" id="autoClassifyToggle" onchange="toggleAutoClassify()" disabled> 自動分類並確認
+      </label>
     </div>
 
     <div class="topbar-buttons">
@@ -535,6 +555,7 @@
           </p>
 
           <div class="button-stack">
+            <button type="button" class="green ai-action" onclick="runAutoNow()">⚡ 立即自動分類並確認</button>
             <button type="button" class="ai-action" onclick="classifyUnclassified()">🤖 分類尚未分類的回答</button>
             <button type="button" class="orange ai-action" onclick="reclassifyUnconfirmed()">🔄 重新分類未確認的回答</button>
             <button type="button" class="green ai-action" onclick="confirmAll()">✓ 全部標為已確認</button>
@@ -851,7 +872,120 @@
       <span class="teacher-only">已分類 <b>${classified}</b></span>
       <span class="teacher-only">已確認 <b>${confirmed}</b></span>
       <span class="teacher-only">更新時間 ${escapeHtml(state.lastLoadedAt)}</span>
+      ${autoStatusHtml()}
     `;
+
+    const toggle = $('autoClassifyToggle');
+
+    if (toggle && !state.autoBusy) {
+      toggle.disabled = false;
+      toggle.checked = !!state.board.question.autoClassify;
+    }
+  }
+
+
+  function autoStatusHtml() {
+
+    const q = state.board && state.board.question;
+
+    if (!q || !q.autoClassify) {
+      return '';
+    }
+
+    if (q.autoWaiting > 0) {
+      return '<span class="auto-status waiting teacher-only">🤖 自動分類：再 ' + escapeHtml(q.autoWaiting) +
+        ' 份回答就會自動建立類別</span>';
+    }
+
+    return '<span class="auto-status teacher-only">🤖 自動分類中：新回答約 1 分鐘內會分好並確認</span>';
+  }
+
+
+  /* ==================================================
+     自動分類（學生送出後由背景工作處理）
+  ================================================== */
+
+  function toggleAutoClassify() {
+
+    const toggle = $('autoClassifyToggle');
+    const on = toggle.checked;
+    const questionId = state.questionId;
+
+    if (!questionId) {
+      toggle.checked = false;
+      return;
+    }
+
+    if (on && !confirm('開啟後，AI 會把這一題的回答自動分到類別並直接標成「已確認」，之後新的回答也會自動處理。\n\n還沒有類別時，滿 5 份回答會自動建立類別。你隨時可以拖動卡片調整，或再關掉。\n\n要開啟嗎？')) {
+      toggle.checked = false;
+      return;
+    }
+
+    state.autoBusy = true;
+    toggle.disabled = true;
+    setBusy(true, on ? '開啟自動分類，正在處理現有的回答……' : '關閉自動分類……', 'aiMessage');
+    // 切到「AI 分類與整理」分頁，讓老師看到處理進度；工具面板收起時先打開
+    if (document.body.classList.contains('tools-hidden')) $('toolsToggle').click();
+    $('toolTabAI').click();
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        state.autoBusy = false;
+        setBusy(false);
+        showMessage('aiMessage', autoResultText(result, on), 'success');
+        if (questionId === state.questionId) loadBoard(true);
+      })
+      .withFailureHandler(function(error) {
+        state.autoBusy = false;
+        setBusy(false);
+        toggle.disabled = false;
+        toggle.checked = !on;
+        showMessage('aiMessage', autoErrorText(error), 'error');
+      })
+      .setQuestionAutoClassify(questionId, on);
+  }
+
+
+  function runAutoNow() {
+
+    if (!state.questionId) return;
+
+    const questionId = state.questionId;
+
+    setBusy(true, '自動分類中……', 'aiMessage');
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        setBusy(false);
+        showMessage('aiMessage', autoResultText(result, true), 'success');
+        if (questionId === state.questionId) loadBoard(true);
+      })
+      .withFailureHandler(function(error) {
+        setBusy(false);
+        showMessage('aiMessage', autoErrorText(error), 'error');
+      })
+      .runAutoClassifyNow(questionId);
+  }
+
+
+  function autoResultText(result, on) {
+
+    result = result || {};
+
+    if (!on) return '已關閉自動分類。';
+    if (result.busy) return '系統正在處理這一題，稍後會自動更新。';
+    if (result.waiting) return '已開啟。還沒有類別，再 ' + result.waiting + ' 份回答就會自動建立；也可以在「設定類別」先自己設定。';
+
+    return (result.created ? '已自動建立 ' + result.created + ' 個類別，' : '') +
+      (result.processed ? '分類並確認了 ' + result.processed + ' 份回答。' : '目前沒有需要分類的回答。') +
+      (result.remaining ? '還有一些沒處理完，背景會繼續。' : '');
+  }
+
+
+  function autoErrorText(error) {
+    return /不允許呼叫的功能/.test(error.message)
+      ? '自動分類要等 Apps Script 換上新版 Code.gs 並部署後才能使用。'
+      : '自動分類失敗：' + error.message;
   }
 
 

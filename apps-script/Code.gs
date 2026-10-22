@@ -20,7 +20,8 @@ const TIME_ZONE = 'Asia/Taipei';
 const QUESTION_HEADERS = [
   '題目ID', '標題', '題目內容', '配分', '標準答案',
   '評分規準', 'AI審核', '狀態', '建立時間',
-  '截止時間', '截止後', '最後修改', '課程ID'
+  '截止時間', '截止後', '最後修改', '課程ID',
+  '即時回饋風格', '回饋補充指示', '自動分類'
 ];
 
 const COURSE_HEADERS = [
@@ -36,8 +37,24 @@ const TEACHER_HEADERS = [
 const ANSWER_HEADERS = [
   '回答ID', '題目ID', '學號', '姓名', '學生回答',
   '送出時間', 'AI分數', 'AI評語', 'AI信心', '教師分數',
-  '教師評語', '狀態', '最後更新', 'AI教師口吻評語'
+  '教師評語', '狀態', '最後更新', 'AI教師口吻評語',
+  'AI即時回饋', '繳交次數'
 ];
+
+/* 學生每次重新送出前，舊的版本存到這裡 */
+const HISTORY_SHEET = '作答歷程';
+
+const HISTORY_HEADERS = [
+  '歷程ID', '回答ID', '題目ID', '學號', '姓名', '第幾次',
+  '學生回答', '送出時間', 'AI即時回饋', 'AI分數', 'AI評語',
+  '教師分數', '教師評語', '狀態', '被取代時間'
+];
+
+const HCOL = {
+  ID: 1, ANSWER_ID: 2, QUESTION_ID: 3, STUDENT_ID: 4, NAME: 5, VERSION: 6,
+  ANSWER: 7, SUBMITTED: 8, INSTANT_FEEDBACK: 9, AI_SCORE: 10, AI_FEEDBACK: 11,
+  TEACHER_SCORE: 12, TEACHER_FEEDBACK: 13, STATUS: 14, REPLACED: 15
+};
 
 const CATEGORY_HEADERS = [
   '類別ID', '題目ID', '類別名稱', '類別說明', 'AI摘要',
@@ -54,7 +71,8 @@ const CODING_HEADERS = [
 const QCOL = {
   ID: 1, TITLE: 2, CONTENT: 3, POINTS: 4, REFERENCE: 5,
   RUBRIC: 6, AI: 7, STATUS: 8, CREATED: 9,
-  DEADLINE: 10, LATE_POLICY: 11, UPDATED: 12, COURSE: 13
+  DEADLINE: 10, LATE_POLICY: 11, UPDATED: 12, COURSE: 13,
+  FEEDBACK_STYLE: 14, FEEDBACK_NOTE: 15, AUTO_CLASSIFY: 16
 };
 
 const COURSE_COL = {
@@ -94,7 +112,8 @@ const ACOL = {
   ID: 1, QUESTION_ID: 2, STUDENT_ID: 3, NAME: 4, ANSWER: 5,
   SUBMITTED: 6, AI_SCORE: 7, AI_FEEDBACK: 8, AI_CONFIDENCE: 9,
   TEACHER_SCORE: 10, TEACHER_FEEDBACK: 11, STATUS: 12,
-  UPDATED: 13, AI_STUDENT_FEEDBACK: 14
+  UPDATED: 13, AI_STUDENT_FEEDBACK: 14,
+  INSTANT_FEEDBACK: 15, VERSION: 16
 };
 
 const CCOL = {
@@ -1205,6 +1224,7 @@ function getPublicApiHandlers_() {
     getPublishedQuestions: getPublishedQuestions,
     submitAnswer: submitAnswer,
     getStudentResults: getStudentResults,
+    requestInstantFeedback: requestInstantFeedback,
     teacherLogin: teacherLogin,
     teacherLogout: teacherLogout
   };
@@ -1235,6 +1255,7 @@ function getTeacherApiHandlers_() {
     getTeacherAnswers: getTeacherAnswers,
     deleteQuestion: deleteQuestion,
     copyQuestions: copyQuestions,
+    previewInstantFeedback: previewInstantFeedback,
     saveTeacherReview: saveTeacherReview,
     runAIReview: runAIReview,
     getAISettings: getAISettings,
@@ -1264,6 +1285,8 @@ function getTeacherApiHandlers_() {
     setAnswerCategory: setAnswerCategory,
     confirmClassifications: confirmClassifications,
     summarizeCategories: summarizeCategories,
+    setQuestionAutoClassify: setQuestionAutoClassify,
+    runAutoClassifyNow: runAutoClassifyNow,
 
     // 教材庫與 AI 助理：網頁用的名稱不變，實際呼叫的是會檢查課程的版本
     // （函式在這個檔案的「教材庫分課程」，再交給 RAG_Admin.gs、RAG_Chat.gs）
@@ -1371,6 +1394,11 @@ function setupSystem() {
   ensureSheet_(ss, COURSE_SHEET, COURSE_HEADERS, '#dff1f4', false);
   ensureSheet_(ss, TEACHER_SHEET, TEACHER_HEADERS, '#e8e1f7', false);
   ensureSheet_(ss, RAG_COURSE_SHEET, RAG_COURSE_HEADERS, '#e3f3eb', false);
+  ensureSheet_(ss, HISTORY_SHEET, HISTORY_HEADERS, '#eef0f3', false);
+
+  // 即時回饋與自動分類的背景工作
+  const trigger = installAutoTrigger_();
+  markAutoWork_();
 
   /*
    * 課程：建立預設課程，把還沒有課程的舊題目都歸到預設課程。
@@ -1418,7 +1446,8 @@ function setupSystem() {
   const message =
     '系統初始化完成。預設課程「' + course.name + '」的加入代碼是 ' + course.code +
     (moved ? '，已把 ' + moved + ' 題舊題目歸到這門課' : '') +
-    (repaired ? '，已修復 ' + repaired + ' 格顯示成 #ERROR! 的文字' : '');
+    (repaired ? '，已修復 ' + repaired + ' 格顯示成 #ERROR! 的文字' : '') +
+    '。自動處理的觸發條件' + trigger + '。';
 
   Logger.log(message);
 
@@ -1838,7 +1867,12 @@ function questionFromRow_(row, rowNumber) {
     status: cleanText_(row[7]),
     deadline: toTime_(row[QCOL.DEADLINE - 1]),
     allowLate: cleanText_(row[QCOL.LATE_POLICY - 1]) === LATE_POLICY.ACCEPT,
-    courseId: courseIdOf_(row)
+    courseId: courseIdOf_(row),
+    // 學生送出後的即時 AI 回饋：空白代表不提供
+    feedbackStyle: cleanText_(row[QCOL.FEEDBACK_STYLE - 1]),
+    feedbackNote: cleanText_(row[QCOL.FEEDBACK_NOTE - 1]),
+    // 學生送出後自動分類到課堂討論並標成已確認
+    autoClassify: cleanText_(row[QCOL.AUTO_CLASSIFY - 1]) === '是'
   };
 }
 
@@ -1895,8 +1929,16 @@ function isLate_(submitted, deadline) {
  * 只會填空白的標題格，不會改到已經有的內容。
  */
 function ensureQuestionColumns_(sheet) {
+  ensureColumns_(sheet, QUESTION_HEADERS);
+}
 
-  const width = QUESTION_HEADERS.length;
+
+/*
+ * 工作表欄數或標題不夠時補上。只會填空白的標題格。
+ */
+function ensureColumns_(sheet, headers) {
+
+  const width = headers.length;
 
   if (sheet.getMaxColumns() < width) {
     sheet.insertColumnsAfter(sheet.getMaxColumns(), width - sheet.getMaxColumns());
@@ -1910,7 +1952,7 @@ function ensureQuestionColumns_(sheet) {
 
     if (cleanText_(value) === '') {
       changed = true;
-      return QUESTION_HEADERS[index];
+      return headers[index];
     }
 
     return value;
@@ -1957,8 +1999,24 @@ function cleanQuestionInput_(data) {
     deadline: parseDeadline_(data.deadline),
     latePolicy: data.allowLate === true || data.allowLate === 'true'
       ? LATE_POLICY.ACCEPT
-      : LATE_POLICY.CLOSE
+      : LATE_POLICY.CLOSE,
+    // 舊版網頁不會送這三項，編輯時就保留原本的設定
+    hasAutomation: data.feedbackStyle !== undefined || data.autoClassify !== undefined,
+    feedbackStyle: cleanFeedbackStyle_(data.feedbackStyle),
+    feedbackNote: cleanText_(data.feedbackNote).substring(0, 500),
+    autoClassify: data.autoClassify === true || data.autoClassify === 'true'
   };
+}
+
+
+/*
+ * 回饋風格只接受 ai_instant.gs 裡定義的代號，其他一律當作「不提供」。
+ */
+function cleanFeedbackStyle_(value) {
+
+  const key = cleanText_(value);
+
+  return key && Object.prototype.hasOwnProperty.call(INSTANT_FEEDBACK_STYLES, key) ? key : '';
 }
 
 
@@ -2040,7 +2098,8 @@ function getPublishedQuestions(courseCode) {
         allowLate: q.allowLate,
         passed: passed,
         closed: passed && !q.allowLate,
-        submittedCount: submitted[q.id] || 0
+        submittedCount: submitted[q.id] || 0,
+        instantFeedback: !!q.feedbackStyle
       };
     });
 }
@@ -2104,11 +2163,20 @@ function submitAnswer(data) {
   return withLock_(function() {
 
     const sheet = getAnswerSheet_();
+
+    ensureColumns_(sheet, ANSWER_HEADERS);
+
     const rows = sheet.getDataRange().getValues();
     const now = new Date();
+    const instantFeedback = !!question.feedbackStyle;
+
+    // 有即時回饋或自動分類的題目，通知背景工作來處理
+    if (instantFeedback || question.autoClassify) {
+      markAutoWork_();
+    }
 
     /*
-     * 同一題＋同一學號：更新原回答。
+     * 同一題＋同一學號：舊的版本先存到「作答歷程」，再更新成新回答。
      */
     for (let i = rows.length - 1; i >= 1; i--) {
 
@@ -2125,6 +2193,9 @@ function submitAnswer(data) {
 
       const rowNumber = i + 1;
       const answerId = cleanText_(rows[i][ACOL.ID - 1]);
+      const oldVersion = Number(rows[i][ACOL.VERSION - 1]) || 1;
+
+      archiveAnswerVersion_(rows[i], oldVersion, now);
 
       // D 姓名、E 學生回答、F 送出時間
       sheet
@@ -2136,15 +2207,22 @@ function submitAnswer(data) {
         .getRange(rowNumber, ACOL.AI_SCORE, 1, 5)
         .clearContent();
 
-      // L 狀態、M 最後更新、N AI教師口吻評語
+      // L 狀態、M 最後更新、N AI教師口吻評語、O AI即時回饋、P 繳交次數
       sheet
-        .getRange(rowNumber, ACOL.STATUS, 1, 3)
-        .setValues(cells_([[initialStatus, now, '']]));
+        .getRange(rowNumber, ACOL.STATUS, 1, 5)
+        .setValues(cells_([[initialStatus, now, '', '', oldVersion + 1]]));
 
       // 回答內容變了，舊的分類也要清掉
       deleteCodingForAnswers_([answerId]);
 
-      return { success: true, updated: true, answerId: answerId, late: late };
+      return {
+        success: true,
+        updated: true,
+        answerId: answerId,
+        late: late,
+        version: oldVersion + 1,
+        instantFeedback: instantFeedback
+      };
     }
 
     /*
@@ -2154,7 +2232,7 @@ function submitAnswer(data) {
 
     const rowNumber = appendRows_(sheet, [[
       answerId, questionId, '', name, answer,
-      now, '', '', '', '', '', initialStatus, now, ''
+      now, '', '', '', '', '', initialStatus, now, '', '', 1
     ]], ANSWER_HEADERS.length);
 
     // 學號設成純文字後再寫入，避免 0123 變成 123
@@ -2163,8 +2241,107 @@ function submitAnswer(data) {
       .setNumberFormat('@')
       .setValue(cell_(studentId));
 
-    return { success: true, updated: false, answerId: answerId, late: late };
+    return {
+      success: true,
+      updated: false,
+      answerId: answerId,
+      late: late,
+      version: 1,
+      instantFeedback: instantFeedback
+    };
   });
+}
+
+
+/* =====================================================
+   作答歷程：學生每次重新送出，舊的版本都留著
+===================================================== */
+
+function getHistorySheet_() {
+
+  const ss = getSpreadsheet_();
+
+  return (
+    ss.getSheetByName(HISTORY_SHEET) ||
+    ensureSheet_(ss, HISTORY_SHEET, HISTORY_HEADERS, '#eef0f3', false)
+  );
+}
+
+
+/*
+ * 把「學生作答」的一列存成歷程。要在 withLock_ 裡呼叫。
+ */
+function archiveAnswerVersion_(row, version, replacedAt) {
+
+  const sheet = getHistorySheet_();
+
+  const rowNumber = appendRows_(sheet, [[
+    generateId_('H'),
+    row[ACOL.ID - 1],
+    row[ACOL.QUESTION_ID - 1],
+    '',
+    row[ACOL.NAME - 1],
+    version,
+    row[ACOL.ANSWER - 1],
+    row[ACOL.SUBMITTED - 1],
+    row[ACOL.INSTANT_FEEDBACK - 1] || '',
+    row[ACOL.AI_SCORE - 1],
+    row[ACOL.AI_FEEDBACK - 1],
+    row[ACOL.TEACHER_SCORE - 1],
+    row[ACOL.TEACHER_FEEDBACK - 1],
+    row[ACOL.STATUS - 1],
+    replacedAt
+  ]], HISTORY_HEADERS.length);
+
+  // 學號存成純文字，避免 0123 變成 123
+  sheet
+    .getRange(rowNumber, HCOL.STUDENT_ID)
+    .setNumberFormat('@')
+    .setValue(cell_(cleanText_(row[ACOL.STUDENT_ID - 1])));
+}
+
+
+/*
+ * 回傳 { 回答ID: [舊版本, …] }，舊的在前。
+ */
+function getHistoryMap_(answerIds) {
+
+  const wanted = {};
+  answerIds.forEach(function(id) { wanted[cleanText_(id)] = true; });
+
+  const sheet = getSpreadsheet_().getSheetByName(HISTORY_SHEET);
+  const map = {};
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return map;
+  }
+
+  sheet.getDataRange().getValues().slice(1).forEach(function(row) {
+
+    const answerId = cleanText_(row[HCOL.ANSWER_ID - 1]);
+
+    if (!wanted[answerId]) {
+      return;
+    }
+
+    (map[answerId] = map[answerId] || []).push({
+      version: Number(row[HCOL.VERSION - 1]) || 1,
+      answer: cleanText_(row[HCOL.ANSWER - 1]),
+      submittedAt: formatDate_(row[HCOL.SUBMITTED - 1]),
+      instantFeedback: cleanText_(row[HCOL.INSTANT_FEEDBACK - 1]),
+      aiScore: row[HCOL.AI_SCORE - 1],
+      aiFeedback: cleanText_(row[HCOL.AI_FEEDBACK - 1]),
+      teacherScore: row[HCOL.TEACHER_SCORE - 1],
+      teacherFeedback: cleanText_(row[HCOL.TEACHER_FEEDBACK - 1]),
+      status: cleanText_(row[HCOL.STATUS - 1])
+    });
+  });
+
+  Object.keys(map).forEach(function(id) {
+    map[id].sort(function(a, b) { return a.version - b.version; });
+  });
+
+  return map;
 }
 
 
@@ -2205,7 +2382,7 @@ function getStudentResults(data) {
     }
   });
 
-  return answers
+  const mine = answers
     .slice(1)
     .filter(function(row) {
       const q = questionMap[cleanText_(row[1])];
@@ -2215,13 +2392,31 @@ function getStudentResults(data) {
         cleanText_(row[3]) === name &&
         !!q && q.courseId === course.id
       );
-    })
+    });
+
+  const history = getHistoryMap_(mine.map(function(row) { return row[0]; }));
+
+  return mine
     .map(function(row) {
 
       const questionId = cleanText_(row[1]);
       const q = questionMap[questionId] || {};
 
       return {
+        instantFeedback: cleanText_(row[ACOL.INSTANT_FEEDBACK - 1]),
+        version: Number(row[ACOL.VERSION - 1]) || 1,
+        // 學生看得到自己之前每一次的回答、AI 回饋與老師評語（不含 AI 給老師的批改說明）
+        history: (history[cleanText_(row[0])] || []).map(function(h) {
+          return {
+            version: h.version,
+            answer: h.answer,
+            submittedAt: h.submittedAt,
+            instantFeedback: h.instantFeedback,
+            teacherScore: h.status === STATUS.PASSED || h.status === STATUS.RETURNED ? h.teacherScore : '',
+            teacherFeedback: h.status === STATUS.PASSED || h.status === STATUS.RETURNED ? h.teacherFeedback : '',
+            status: h.status
+          };
+        }),
         answerId: row[0],
         questionId: questionId,
         title: q.title || '題目',
@@ -2277,7 +2472,10 @@ function createQuestion(data) {
       q.deadline,
       q.latePolicy,
       '',
-      course.id
+      course.id,
+      q.feedbackStyle,
+      q.feedbackNote,
+      q.autoClassify ? '是' : '否'
     ]], QUESTION_HEADERS.length);
 
     sheet.getRange(rowNumber, QCOL.DEADLINE).setNumberFormat('yyyy/mm/dd hh:mm');
@@ -2340,6 +2538,18 @@ function updateQuestion(data) {
 
     sheet.getRange(rowNumber, QCOL.DEADLINE).setNumberFormat('yyyy/mm/dd hh:mm');
     sheet.getRange(rowNumber, QCOL.UPDATED).setNumberFormat('yyyy/mm/dd hh:mm');
+
+    // 即時回饋與自動分類（舊版網頁沒送就不動）
+    if (q.hasAutomation) {
+
+      sheet
+        .getRange(rowNumber, QCOL.FEEDBACK_STYLE, 1, 3)
+        .setValues(cells_([[q.feedbackStyle, q.feedbackNote, q.autoClassify ? '是' : '否']]));
+
+      if (q.autoClassify) {
+        markAutoWork_();
+      }
+    }
 
     // 配分改小時，找出教師分數超過新配分的回答，提醒老師
     let answerCount = 0;
@@ -2442,7 +2652,10 @@ function copyQuestions(questionIds, targetCourseId) {
         '',
         cleanText_(row[QCOL.LATE_POLICY - 1]) || LATE_POLICY.CLOSE,
         '',
-        target.id
+        target.id,
+        q.feedbackStyle,
+        q.feedbackNote,
+        q.autoClassify ? '是' : '否'
       ];
     });
 
@@ -2540,7 +2753,10 @@ function getTeacherQuestions(courseId) {
         deadlineText: formatDeadline_(q.deadline),
         allowLate: q.allowLate,
         updatedAt: row[QCOL.UPDATED - 1] ? formatDate_(row[QCOL.UPDATED - 1]) : '',
-        courseId: course.id
+        courseId: course.id,
+        feedbackStyle: q.feedbackStyle,
+        feedbackNote: q.feedbackNote,
+        autoClassify: q.autoClassify
       };
     })
     .reverse();
@@ -2616,6 +2832,14 @@ function getTeacherAnswers(questionId, courseId) {
 
   const filterId = cleanText_(questionId);
 
+  // 只讀這門課的回答有關的歷程
+  const history = getHistoryMap_(answers.slice(1)
+    .filter(function(row) {
+      const q = questionMap[cleanText_(row[1])];
+      return q && q.courseId === course.id;
+    })
+    .map(function(row) { return row[0]; }));
+
   return answers
     .slice(1)
     .filter(function(row) {
@@ -2658,7 +2882,11 @@ function getTeacherAnswers(questionId, courseId) {
         rubric: q.rubric || '',
         enableAI: q.enableAI === true,
         deadlineText: formatDeadline_(q.deadline),
-        late: isLate_(row[ACOL.SUBMITTED - 1], q.deadline)
+        late: isLate_(row[ACOL.SUBMITTED - 1], q.deadline),
+        instantFeedback: cleanText_(row[ACOL.INSTANT_FEEDBACK - 1]),
+        feedbackStyle: q.feedbackStyle || '',
+        version: Number(row[ACOL.VERSION - 1]) || 1,
+        history: history[cleanText_(row[ACOL.ID - 1])] || []
       };
     })
     .reverse();
@@ -2696,6 +2924,14 @@ function deleteQuestion(questionId) {
     deleteRowsWhere_(getAnswerSheet_(), sameQuestion);
     deleteRowsWhere_(getCodingSheet_(), sameQuestion);
     deleteRowsWhere_(getCategorySheet_(), sameQuestion);
+
+    const historySheet = getSpreadsheet_().getSheetByName(HISTORY_SHEET);
+
+    if (historySheet) {
+      deleteRowsWhere_(historySheet, function(row) {
+        return cleanText_(row[HCOL.QUESTION_ID - 1]) === questionId;
+      });
+    }
 
     deleteRowsWhere_(questionSheet, function(row) {
       return cleanText_(row[0]) === questionId;
@@ -3047,7 +3283,12 @@ function getDiscussionBoard(questionId) {
       title: question.title,
       content: question.content,
       points: question.points,
-      status: question.status
+      status: question.status,
+      autoClassify: question.autoClassify,
+      // 還沒有類別時，還差幾份回答才會自動建立
+      autoWaiting: question.autoClassify && !categories.length
+        ? Math.max(0, AUTO_CATEGORY_MIN - getAnswersForQuestion_(questionId).length)
+        : 0
     },
     categories: categories.map(publicCategory_),
     answers: answers
@@ -3288,7 +3529,10 @@ function getUnclassifiedAnswers_(questionId) {
 }
 
 
-function writeClassifications_(questionId, categories, batch, results) {
+/*
+ * confirmed 為 true：自動分類，直接標成「已確認」。
+ */
+function writeClassifications_(questionId, categories, batch, results, confirmed) {
 
   const answerValues = getAnswerSheet_().getDataRange().getValues();
   const currentText = {};
@@ -3329,13 +3573,15 @@ function writeClassifications_(questionId, categories, batch, results) {
       result.categoryId = '';
     }
 
+    const reason = result.reason || (result.categoryId ? '' : '沒有符合的類別');
+
     rows.push([
       answer.answerId,
       questionId,
       result.categoryId,
-      result.reason || (result.categoryId ? '' : '沒有符合的類別'),
+      confirmed ? 'AI 自動分類' + (reason ? '：' + reason : '') : reason,
       result.confidence,
-      '否',
+      confirmed ? '是' : '否',
       now
     ]);
   });
@@ -3556,6 +3802,521 @@ function summarizeCategories(questionId) {
 
     return { updated: count };
   });
+}
+
+
+/* =====================================================
+   即時 AI 回饋
+   學生送出後，網頁接著呼叫 requestInstantFeedback 取得回饋。
+   AI 一時忙碌或失敗時，背景工作（autoProcessTick）會稍後補上，
+   學生之後在「我的作答紀錄」就看得到。
+===================================================== */
+
+const INSTANT_RATE_LIMIT = 8;              // 同一位學生同一題，每小時最多要幾次
+const INSTANT_MAX_ATTEMPTS = 3;            // 同一份回答 AI 失敗幾次後就不再自動重試
+const INSTANT_BACKFILL_DELAY_MS = 90 * 1000;  // 學生頁面可能還在等，背景工作先不要搶著做
+
+
+/*
+ * 學生用。data：{ answerId, studentId, name }
+ * 回傳 { feedback } 或 { pending: true, message }
+ */
+function requestInstantFeedback(data) {
+
+  data = data || {};
+
+  const answerId = cleanText_(data.answerId);
+  const studentId = cleanText_(data.studentId);
+  const name = cleanText_(data.name);
+
+  const values = getAnswerSheet_().getDataRange().getValues();
+  const index = findRowIndex_(values, answerId);
+
+  // 只有作答的本人（學號＋姓名相同）可以要回饋
+  if (
+    index < 0 ||
+    cleanText_(values[index][ACOL.STUDENT_ID - 1]) !== studentId ||
+    cleanText_(values[index][ACOL.NAME - 1]) !== name
+  ) {
+    throw new Error('找不到你的這份回答，請重新整理頁面');
+  }
+
+  const row = values[index];
+  const existing = cleanText_(row[ACOL.INSTANT_FEEDBACK - 1]);
+
+  if (existing) {
+    return { feedback: existing };
+  }
+
+  const question = findQuestion_(row[ACOL.QUESTION_ID - 1]);
+
+  if (!question || !question.feedbackStyle) {
+    return { feedback: '', disabled: true };
+  }
+
+  // 避免同一位學生一直重送、一直叫 AI
+  const cache = CacheService.getScriptCache();
+  const rateKey = 'instant_rate_' + question.id + '_' + studentId;
+  const used = Number(cache.get(rateKey)) || 0;
+
+  if (used >= INSTANT_RATE_LIMIT) {
+    markAutoWork_();
+    return {
+      pending: true,
+      message: '這一題的 AI 回饋次數暫時用完了，回饋稍後會出現在「我的作答紀錄」。'
+    };
+  }
+
+  cache.put(rateKey, String(used + 1), 3600);
+
+  const result = generateInstantFeedback_(question, row);
+
+  if (result.feedback) {
+    return { feedback: result.feedback };
+  }
+
+  markAutoWork_();
+
+  return {
+    pending: true,
+    message: 'AI 現在比較忙，回饋大約一兩分鐘後會出現在「我的作答紀錄」。'
+  };
+}
+
+
+/*
+ * 呼叫 AI 並存起來。成功回傳 { feedback }，失敗回傳 { error }。
+ */
+function generateInstantFeedback_(question, row) {
+
+  const answerId = cleanText_(row[ACOL.ID - 1]);
+  const answerText = cleanText_(row[ACOL.ANSWER - 1]);
+  const cache = CacheService.getScriptCache();
+  const attemptKey = 'instant_attempt_' + answerId + '_' + (Number(row[ACOL.VERSION - 1]) || 1);
+
+  let feedback;
+
+  try {
+
+    feedback = instantFeedbackWithAI_(question, answerText, question.feedbackStyle, question.feedbackNote).feedback;
+
+  } catch (error) {
+
+    cache.put(attemptKey, String((Number(cache.get(attemptKey)) || 0) + 1), 6 * 3600);
+    return { error: error.message };
+  }
+
+  // 等 AI 的時候學生可能又改了回答，那這份回饋就不用了
+  const saved = withLock_(function() {
+
+    const sheet = getAnswerSheet_();
+    const values = sheet.getDataRange().getValues();
+    const i = findRowIndex_(values, answerId);
+
+    if (i < 0 || cleanText_(values[i][ACOL.ANSWER - 1]) !== answerText) {
+      return false;
+    }
+
+    if (cleanText_(values[i][ACOL.INSTANT_FEEDBACK - 1])) {
+      feedback = cleanText_(values[i][ACOL.INSTANT_FEEDBACK - 1]);
+      return true;
+    }
+
+    ensureColumns_(sheet, ANSWER_HEADERS);
+    sheet.getRange(i + 1, ACOL.INSTANT_FEEDBACK).setValue(cell_(feedback));
+
+    return true;
+  });
+
+  return saved ? { feedback: feedback } : { error: '回答已經更新' };
+}
+
+
+/*
+ * 老師出題時試試看：用老師輸入的範例回答，看看這種風格的回饋長什麼樣子。不會存起來。
+ * data：{ content, referenceAnswer, rubric, feedbackStyle, feedbackNote, sampleAnswer }
+ */
+function previewInstantFeedback(data) {
+
+  data = data || {};
+
+  currentTeacher_();
+
+  const style = cleanFeedbackStyle_(data.feedbackStyle);
+  const sample = cleanText_(data.sampleAnswer);
+
+  if (!style) {
+    throw new Error('請先選一種回饋風格');
+  }
+
+  if (!cleanText_(data.content)) {
+    throw new Error('請先填寫題目內容');
+  }
+
+  if (!sample) {
+    throw new Error('請輸入一段範例回答');
+  }
+
+  return instantFeedbackWithAI_(
+    {
+      content: cleanText_(data.content),
+      referenceAnswer: cleanText_(data.referenceAnswer),
+      rubric: cleanText_(data.rubric)
+    },
+    truncate_(sample, MAX_ANSWER_LENGTH),
+    style,
+    cleanText_(data.feedbackNote).substring(0, 500)
+  );
+}
+
+
+/* =====================================================
+   自動處理（背景工作）
+   setupSystem 會建立一個每分鐘執行的觸發條件，執行 autoProcessTick：
+   1. 補上還沒產生的即時 AI 回饋
+   2. 開啟「自動分類」的題目：滿 AUTO_CATEGORY_MIN 份回答就自動建立類別，
+      把新回答分類並標成「已確認」
+   沒有新回答時只讀一下快取就結束，幾乎不花 Apps Script 的執行時間。
+===================================================== */
+
+const AUTO_FLAG_KEY = 'auto_work_pending';
+const AUTO_RUNNING_KEY = 'auto_work_running';
+const AUTO_CATEGORY_MIN = 5;                 // 還沒有類別時，滿幾份回答才自動建立
+const AUTO_TIME_LIMIT_MS = 240 * 1000;       // 每次最多處理 4 分鐘，避開 6 分鐘上限
+
+
+/*
+ * 有新的工作要做（學生送出、老師開啟自動分類…）。
+ */
+function markAutoWork_() {
+  CacheService.getScriptCache().put(AUTO_FLAG_KEY, String(Date.now()), 6 * 3600);
+}
+
+
+function autoProcessTick() {
+
+  const cache = CacheService.getScriptCache();
+
+  if (!cache.get(AUTO_FLAG_KEY)) {
+    return '沒有新的工作';
+  }
+
+  if (cache.get(AUTO_RUNNING_KEY)) {
+    return '上一次的處理還沒結束';
+  }
+
+  cache.put(AUTO_RUNNING_KEY, '1', 300);
+
+  // 先清掉旗標；處理期間有新回答，submitAnswer 會再設一次
+  cache.remove(AUTO_FLAG_KEY);
+
+  const startedAt = Date.now();
+  const report = { feedback: 0, created: 0, classified: 0 };
+  let remaining = false;
+
+  try {
+
+    const backfill = backfillInstantFeedback_(startedAt);
+    report.feedback = backfill.done;
+    remaining = remaining || backfill.remaining;
+
+    const questions = getQuestionSheet_().getDataRange().getValues().slice(1)
+      .map(function(row, i) { return questionFromRow_(row, i + 2); })
+      .filter(function(q) { return q.id && q.autoClassify; });
+
+    for (let i = 0; i < questions.length; i++) {
+
+      if (Date.now() - startedAt > AUTO_TIME_LIMIT_MS) {
+        remaining = true;
+        break;
+      }
+
+      try {
+        const result = processQuestionAuto_(questions[i], startedAt);
+        report.created += result.created || 0;
+        report.classified += result.processed || 0;
+        remaining = remaining || !!result.remaining;
+      } catch (error) {
+        Logger.log('自動分類失敗（' + questions[i].title + '）：' + error.message);
+        remaining = true;
+      }
+    }
+
+  } finally {
+
+    cache.remove(AUTO_RUNNING_KEY);
+
+    if (remaining) {
+      markAutoWork_();
+    }
+  }
+
+  const message =
+    '即時回饋 ' + report.feedback + ' 份，建立類別 ' + report.created + ' 個，分類 ' + report.classified + ' 份' +
+    (remaining ? '，還有沒做完的，下一分鐘繼續' : '');
+
+  Logger.log(message);
+
+  return message;
+}
+
+
+/*
+ * 補上還沒產生的即時回饋。
+ */
+function backfillInstantFeedback_(startedAt) {
+
+  const cache = CacheService.getScriptCache();
+  const values = getAnswerSheet_().getDataRange().getValues();
+  const questionCache = {};
+  let done = 0;
+  let remaining = false;
+
+  for (let i = 1; i < values.length; i++) {
+
+    const row = values[i];
+
+    if (!cleanText_(row[ACOL.ID - 1]) || !cleanText_(row[ACOL.ANSWER - 1]) || cleanText_(row[ACOL.INSTANT_FEEDBACK - 1])) {
+      continue;
+    }
+
+    const questionId = cleanText_(row[ACOL.QUESTION_ID - 1]);
+
+    if (!(questionId in questionCache)) {
+      questionCache[questionId] = findQuestion_(questionId);
+    }
+
+    const question = questionCache[questionId];
+
+    if (!question || !question.feedbackStyle) {
+      continue;
+    }
+
+    // 剛送出的回答，學生頁面可能正在等回饋，先讓給它
+    if (Date.now() - toTime_(row[ACOL.SUBMITTED - 1]) < INSTANT_BACKFILL_DELAY_MS) {
+      remaining = true;
+      continue;
+    }
+
+    const attemptKey = 'instant_attempt_' + cleanText_(row[ACOL.ID - 1]) + '_' + (Number(row[ACOL.VERSION - 1]) || 1);
+
+    if ((Number(cache.get(attemptKey)) || 0) >= INSTANT_MAX_ATTEMPTS) {
+      continue;
+    }
+
+    if (Date.now() - startedAt > AUTO_TIME_LIMIT_MS / 2) {
+      remaining = true;
+      break;
+    }
+
+    const result = generateInstantFeedback_(question, row);
+
+    if (result.feedback) {
+      done++;
+    } else {
+      remaining = true;
+    }
+  }
+
+  return { done: done, remaining: remaining };
+}
+
+
+/*
+ * 一題的自動分類：需要時先建立類別，再把未分類的回答分類並標成已確認。
+ * 回傳 { created, processed, remaining, waiting }
+ *   waiting：還差幾份回答才會自動建立類別
+ */
+function processQuestionAuto_(question, startedAt) {
+
+  const cache = CacheService.getScriptCache();
+  const busyKey = 'auto_question_' + question.id;
+
+  // 同一題不要同時被兩個地方處理（背景工作和老師按的「立即處理」）
+  if (cache.get(busyKey)) {
+    return { busy: true, remaining: true };
+  }
+
+  cache.put(busyKey, '1', 300);
+
+  try {
+
+    const answers = getAnswersForQuestion_(question.id);
+    let categories = getCategoriesForQuestion_(question.id);
+    let created = 0;
+
+    if (!categories.length) {
+
+      if (answers.length < AUTO_CATEGORY_MIN) {
+        return { created: 0, processed: 0, remaining: false, waiting: AUTO_CATEGORY_MIN - answers.length };
+      }
+
+      const suggestion = suggestCategoriesWithAI_(question, answers, []);
+
+      const list = (suggestion && Array.isArray(suggestion.categories) ? suggestion.categories : [])
+        .map(function(item) {
+          item = item || {};
+          return {
+            name: cleanText_(item.name).substring(0, 20),
+            description: cleanText_(item.description).substring(0, 300)
+          };
+        })
+        .filter(function(item) { return item.name; })
+        .slice(0, MAX_CATEGORIES);
+
+      if (!list.length) {
+        throw new Error('AI 沒有提出類別');
+      }
+
+      created = withLock_(function() {
+
+        // 等 AI 的時候老師可能已經自己設好類別了，那就用老師的
+        if (getCategoriesForQuestion_(question.id).length) {
+          return 0;
+        }
+
+        const now = new Date();
+
+        appendRows_(getCategorySheet_(), list.map(function(item, index) {
+          return [
+            generateId_('C' + (index + 1)), question.id, item.name, item.description,
+            '', '', '', index + 1, now
+          ];
+        }), CATEGORY_HEADERS.length);
+
+        return list.length;
+      });
+
+      categories = getCategoriesForQuestion_(question.id);
+    }
+
+    let processed = 0;
+
+    while (Date.now() - startedAt < AUTO_TIME_LIMIT_MS) {
+
+      const pending = getUnclassifiedAnswers_(question.id);
+
+      if (!pending.length) {
+        break;
+      }
+
+      const batch = pending.slice(0, AI_CONFIG.CLASSIFY_BATCH_SIZE);
+      const results = classifyAnswersWithAI_(question, categories, batch) || {};
+
+      const written = withLock_(function() {
+        return writeClassifications_(question.id, categories, batch, results, true);
+      });
+
+      processed += written;
+
+      if (!written) {
+        break;
+      }
+    }
+
+    const left = getUnclassifiedAnswers_(question.id).length;
+
+    return { created: created, processed: processed, remaining: left > 0, left: left };
+
+  } finally {
+
+    cache.remove(busyKey);
+  }
+}
+
+
+/*
+ * 老師在課堂討論開關「自動分類」。開啟時把這一題已經有的回答也一起處理好。
+ */
+function setQuestionAutoClassify(questionId, on) {
+
+  const question = requireQuestion_(questionId);
+  on = on === true || on === 'true';
+
+  withLock_(function() {
+
+    const sheet = getQuestionSheet_();
+
+    ensureQuestionColumns_(sheet);
+
+    // 在鎖裡重新找列號，避免期間有題目被刪除造成錯位
+    const index = findRowIndex_(sheet.getDataRange().getValues(), question.id);
+
+    if (index < 0) {
+      throw new Error('找不到題目，可能已經被刪除');
+    }
+
+    sheet.getRange(index + 1, QCOL.AUTO_CLASSIFY).setValue(on ? '是' : '否');
+
+    if (on) {
+      // 之前 AI 建議、還沒確認的分類，一起標成已確認
+      const coding = getCodingSheet_();
+      const lastRow = coding.getLastRow();
+
+      if (lastRow >= 2) {
+
+        const range = coding.getRange(2, 1, lastRow - 1, CODING_HEADERS.length);
+        const values = range.getValues();
+        let changed = false;
+
+        values.forEach(function(row) {
+          if (cleanText_(row[KCOL.QUESTION_ID - 1]) === question.id && cleanText_(row[KCOL.CONFIRMED - 1]) !== '是') {
+            row[KCOL.CONFIRMED - 1] = '是';
+            changed = true;
+          }
+        });
+
+        if (changed) {
+          range.setValues(cells_(values));
+        }
+      }
+    }
+  });
+
+  if (!on) {
+    return { autoClassify: false };
+  }
+
+  markAutoWork_();
+
+  question.autoClassify = true;
+
+  const result = processQuestionAuto_(question, Date.now());
+
+  return Object.assign({ autoClassify: true }, result);
+}
+
+
+/*
+ * 老師按「立即自動分類」：不用等背景工作。
+ */
+function runAutoClassifyNow(questionId) {
+
+  const question = requireQuestion_(questionId);
+
+  return processQuestionAuto_(question, Date.now());
+}
+
+
+/*
+ * 建立每分鐘執行 autoProcessTick 的觸發條件（重複執行不會建立第二個）。
+ */
+function installAutoTrigger_() {
+
+  const existing = ScriptApp.getProjectTriggers().filter(function(trigger) {
+    return trigger.getHandlerFunction() === 'autoProcessTick';
+  });
+
+  existing.slice(1).forEach(function(trigger) {
+    ScriptApp.deleteTrigger(trigger);
+  });
+
+  if (!existing.length) {
+    ScriptApp.newTrigger('autoProcessTick').timeBased().everyMinutes(1).create();
+    return '已建立';
+  }
+
+  return '已存在';
 }
 
 
@@ -3856,6 +4617,10 @@ function checkTeacherApiHandlers() {
   const external = {
     'ai.gs：gradeAnswerWithAI_': typeof gradeAnswerWithAI_,
     'ai.gs：getAISettings': typeof getAISettings,
+    'ai.gs：suggestCategoriesWithAI_': typeof suggestCategoriesWithAI_,
+    'ai.gs：classifyAnswersWithAI_': typeof classifyAnswersWithAI_,
+    'ai_instant.gs：instantFeedbackWithAI_': typeof instantFeedbackWithAI_,
+    'ai_instant.gs：INSTANT_FEEDBACK_STYLES': typeof INSTANT_FEEDBACK_STYLES === 'object' ? 'function' : 'undefined',
     'ai.gs：saveAISettings': typeof saveAISettings,
     'RAG_Admin.gs：ragListDocuments': typeof ragListDocuments,
     'RAG_Admin.gs：ragGetDocumentDetail': typeof ragGetDocumentDetail,
