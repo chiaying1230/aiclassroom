@@ -358,6 +358,8 @@
     .tag.ok { background: var(--green-soft); color: var(--green); }
 
     .reason { font-size: 12px; color: var(--ink-2); margin-top: 6px; line-height: 1.5; }
+    .student-reply.agree { color: var(--green-dark, #1f6b45); }
+    .student-reply.disagree { color: var(--orange, #c2410c); font-weight: 700; }
 
     .card-controls { display: flex; gap: 6px; margin-top: 8px; }
 
@@ -648,6 +650,12 @@
       });
     });
   });
+
+
+  function categoryName(id) {
+    const c = (state.board && state.board.categories || []).find(function(x) { return x.id === id; });
+    return c ? c.name : '已刪除的類別';
+  }
 
 
   /* ==================================================
@@ -1147,7 +1155,8 @@
     let tag = '';
 
     if (a.confirmed) {
-      tag = '<span class="tag ok teacher-only">✓ 已確認</span>';
+      tag = '<span class="tag ok teacher-only" title="' + (a.confirmedBy === 'AI自動' ? '自動分類時由 AI 確認' : '老師確認') + '">✓ ' +
+        (a.confirmedBy === 'AI自動' ? 'AI 自動確認' : '老師確認') + '</span>';
     } else if (a.classified) {
       tag = '<span class="tag ai teacher-only">AI 建議' +
         (a.confidence ? '・信心' + escapeHtml(a.confidence) : '') + '</span>';
@@ -1177,6 +1186,12 @@
         </div>
 
         ${a.reason && !a.confirmed ? `<div class="reason teacher-only">AI 理由：${escapeHtml(a.reason)}</div>` : ''}
+        ${a.aiCategoryId && a.aiCategoryId !== a.categoryId
+          ? `<div class="reason teacher-only">AI 原本分在「${escapeHtml(categoryName(a.aiCategoryId))}」${a.aiReason ? '：' + escapeHtml(a.aiReason) : ''}</div>`
+          : ''}
+        ${a.studentAgree
+          ? `<div class="reason teacher-only student-reply ${a.studentAgree === '符合' ? 'agree' : 'disagree'}">學生回覆：${escapeHtml(a.studentAgree)}${a.studentNote ? '・' + escapeHtml(a.studentNote) : ''}</div>`
+          : ''}
 
         <div class="card-controls teacher-only">
           <select aria-label="移動到類別" onchange="moveAnswer('${a.answerId}', this.value)">${options}</select>
@@ -1609,7 +1624,9 @@
     };
 
     // 先更新畫面，再寫回試算表
+    previous.confirmedBy = a.confirmedBy;
     a.categoryId = categoryId || '';
+    a.confirmedBy = '教師';
     a.confirmed = true;
     a.classified = true;
 

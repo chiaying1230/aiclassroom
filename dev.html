@@ -155,6 +155,8 @@
       <div><dt>管理員</dt><dd>帳號 <code>admin</code>，密碼是指令碼屬性的 <code>TEACHER_PASSWORD</code>。看得到所有課程，可以新增教師帳號、修改全站的 AI 評語風格。</dd></div>
       <div><dt>學生送出之後</dt><dd>舊版本存到「作答歷程」；依題目設定給即時 AI 回饋（<code>ai_instant.gs</code>）；開啟自動分類的題目由每分鐘的背景工作 <code>autoProcessTick</code> 分類並確認。</dd></div>
       <div><dt>學習診斷</dt><dd>教師系統的「學習診斷」：<code>analyzeQuestionLearning</code> 讀全班回答，AI 提示詞在 <code>ai_instant.gs</code> 的 <code>analyzeLearningWithAI_</code>，結果存在「學習診斷」工作表。</dd></div>
+      <div><dt>學習歷程紀錄</dt><dd>四個模組裡 AI 提出的建議與老師、學生的決定都由 <code>logEvent_</code> 記一列在「學習歷程紀錄」工作表，不會被之後的操作蓋掉。課程管理的「匯出研究紀錄」（<code>exportResearchRecords</code>）可去識別化匯出 CSV。</dd></div>
+      <div><dt>AI 的界線</dt><dd><code>ai_instant.gs</code> 的 <code>AI_BOUNDARY_RULES</code>：不評斷學生的興趣喜好、不推論個性。所有學生相關的提示詞都要包含。</dd></div>
       <div><dt>連線</dt><dd><code>gas-bridge.js</code> 處理逾時、離線和 Apps Script 的錯誤頁；只在不會重複寫入時自動重試。</dd></div>
       <div><dt>預設課程</dt><dd>改版前的題目和教材都歸在「人工智慧（小教）」，課程ID 存在指令碼屬性 <code>DEFAULT_COURSE_ID</code>。</dd></div>
     </dl>

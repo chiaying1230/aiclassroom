@@ -378,6 +378,34 @@
 
     .r-instant { margin-top: 14px; }
 
+    /* AI 學習建議分三段：已理解之處 → 待釐清之處 → 下一步提示 */
+    .fb-parts { display: grid; gap: 8px; margin-top: 6px; }
+    .fb-part { padding: 8px 12px; border-radius: var(--radius-s); background: var(--surface, #fff); }
+    .fb-part b { display: block; font-size: 13px; color: var(--purple); margin-bottom: 2px; }
+    .fb-part span { white-space: pre-wrap; line-height: 1.75; }
+
+    /* 重新送出時：這次改了什麼、有沒有參考 AI 學習建議 */
+    .revise { margin-top: 12px; padding: 12px 14px; border: 1px dashed var(--line-strong); border-radius: var(--radius-s); }
+    .revise label { margin-top: 0; }
+    .revise textarea { min-height: 64px; }
+    .revise-q { margin: 10px 0 4px; font-size: 14px; font-weight: 700; }
+    .chip-group { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip-group label { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 6px 12px; min-height: 40px;
+      border: 1px solid var(--line-strong); border-radius: 999px; font-weight: 400; cursor: pointer; }
+    .chip-group input { width: auto; margin: 0; }
+    .chip-group label:has(input:checked) { border-color: var(--purple); background: var(--purple-soft); }
+
+    .share-tag { background: var(--green-soft, #e3f3eb); color: var(--green-dark, #1f6b45); }
+
+    /* 課堂討論的分類：學生回覆符不符合自己的想法 */
+    .cls-box { margin-top: 14px; padding: 12px 14px; border-radius: var(--radius-s); background: var(--blue-soft, #eaf1ff); }
+    .cls-box p { margin: 0 0 8px; }
+    .cls-box .cls-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .cls-box input[type=text] { flex: 1 1 200px; min-width: 0; margin: 0; }
+    .cls-box button { min-height: 40px; }
+    .cls-done { font-size: 14px; color: var(--ink-2); }
+    .link-button { background: none; border: none; color: var(--blue-dark); padding: 0 4px; min-height: 0; text-decoration: underline; cursor: pointer; font-size: 14px; font-weight: 400; }
+
     /* 作答紀錄：之前的版本 */
     details.history { border-top: 1px solid var(--line); padding: 12px 22px 16px; }
     details.history summary { cursor: pointer; color: var(--blue-dark); font-weight: 700; font-size: 14px; }
@@ -1050,6 +1078,8 @@
 
       if (!mine) {
         box.hidden = true;
+        const reviseBox = document.getElementById('revise_' + id);
+        if (reviseBox) reviseBox.hidden = true;
         const instantBox = document.getElementById('instant_' + id);
         if (instantBox && !instantBox.classList.contains('loading')) instantBox.hidden = true;
         return;
@@ -1101,6 +1131,9 @@
 
       box.innerHTML = escapeHtml(text) + extra;
       box.hidden = false;
+
+      const revise = document.getElementById('revise_' + id);
+      if (revise) revise.hidden = mine.status === '已通過' || card.classList.contains('is-closed');
     });
 
     if (!document.getElementById('identitySigned').hidden) {
@@ -1183,7 +1216,9 @@
               ${q.submittedCount == null ? '' : '<span class="q-count"></span>'}
             </div>
           </div>
-          <span class="points">${escapeHtml(q.points)} 分</span>
+          ${q.descriptive
+            ? '<span class="points share-tag" title="這一題是分享，沒有對錯，老師不打分數">分享・不評分</span>'
+            : `<span class="points">${escapeHtml(q.points)} 分</span>`}
         </div>
         <div class="question-content">${escapeHtml(q.content)}</div>
 
@@ -1193,6 +1228,18 @@
           <label for="answer_${q.id}">我的回答</label>
           <textarea id="answer_${q.id}" placeholder="請在這裡輸入你的回答……"
             oninput="this.dataset.prefilled = 'false'"></textarea>
+
+          <div class="revise" id="revise_${q.id}" hidden>
+            <label for="revisionNote_${q.id}">這次改了什麼？為什麼這樣改？（選填）</label>
+            <textarea id="revisionNote_${q.id}" maxlength="300" placeholder="例如：補上熱是從哪裡傳到哪裡"></textarea>
+            ${q.instantFeedback ? `
+            <p class="revise-q" id="adoptQ_${q.id}">修改時有參考 AI 學習建議嗎？</p>
+            <div class="chip-group" role="radiogroup" aria-labelledby="adoptQ_${q.id}">
+              <label><input type="radio" name="adopt_${q.id}" value="有參考"> 有參考</label>
+              <label><input type="radio" name="adopt_${q.id}" value="部分參考"> 部分參考</label>
+              <label><input type="radio" name="adopt_${q.id}" value="沒有參考"> 沒有參考</label>
+            </div>` : ''}
+          </div>
 
           <div class="q-foot">
             <div id="message_${q.id}" class="message"></div>
@@ -1439,6 +1486,12 @@
     const button = document.getElementById('submit_' + questionId);
     const message = document.getElementById('message_' + questionId);
 
+    // 重新送出才有修改說明
+    const reviseBox = document.getElementById('revise_' + questionId);
+    const revising = !!myAnswers[questionId] && reviseBox && !reviseBox.hidden;
+    const noteBox = document.getElementById('revisionNote_' + questionId);
+    const adopted = document.querySelector('input[name="adopt_' + questionId + '"]:checked');
+
     button.disabled = true;
     button.textContent = '送出中……';
     message.textContent = '';
@@ -1449,6 +1502,10 @@
         button.textContent = '重新送出';
         message.className = 'message success';
         message.textContent = (result.updated ? '✓ 回答已更新，之前的回答也保留著' : '✓ 回答已送出') + (result.late ? '（遲交）' : '');
+
+        // 修改說明送出後清空，下次修改再填
+        if (noteBox) noteBox.value = '';
+        if (adopted) adopted.checked = false;
 
         if (result.instantFeedback) {
           fetchInstantFeedback(questionId, result.answerId, identity);
@@ -1477,7 +1534,9 @@
         name: identity.name,
         questionId: questionId,
         answer: answer,
-        courseCode: currentCourse ? currentCourse.code : ''
+        courseCode: currentCourse ? currentCourse.code : '',
+        revisionNote: revising && noteBox ? noteBox.value.trim() : '',
+        aiAdopted: revising && adopted ? adopted.value : ''
       });
   }
 
@@ -1495,21 +1554,43 @@
 
     box.className = 'instant' + (loading ? ' loading' : '');
     box.innerHTML =
-      '<p class="instant-title">🤖 AI 小助教的回饋</p>' +
-      '<div class="instant-text">' + escapeHtml(text) + '</div>' +
+      '<p class="instant-title">🤖 AI 學習建議</p>' +
+      (loading ? '<div class="instant-text">' + escapeHtml(text) + '</div>' : feedbackHtml(text)) +
       (note ? '<p class="instant-note">' + escapeHtml(note) + '</p>' : '');
     box.hidden = false;
   }
 
 
+  /*
+   * AI 學習建議存成「【已理解之處】……【待釐清之處】……【下一步提示】……」，分段顯示。
+   * 舊的回饋沒有【】，就整段顯示。
+   */
+  function feedbackHtml(text) {
+
+    const parts = String(text || '').split(/【([^】]{2,10})】/);
+
+    if (parts.length < 3) {
+      return '<div class="instant-text">' + escapeHtml(text) + '</div>';
+    }
+
+    let html = parts[0].trim() ? '<div class="instant-text">' + escapeHtml(parts[0].trim()) + '</div>' : '';
+
+    html += '<div class="fb-parts">';
+    for (let i = 1; i < parts.length; i += 2) {
+      html += '<div class="fb-part"><b>' + escapeHtml(parts[i]) + '</b><span>' + escapeHtml((parts[i + 1] || '').trim()) + '</span></div>';
+    }
+    return html + '</div>';
+  }
+
+
   function fetchInstantFeedback(questionId, answerId, identity) {
 
-    showInstant(questionId, 'AI 小助教正在讀你的回答', '', true);
+    showInstant(questionId, 'AI 正在讀你的回答', '', true);
 
     google.script.run
       .withSuccessHandler(function(result) {
         if (result && result.feedback) {
-          showInstant(questionId, result.feedback, '這是 AI 給你的學習提示，不是分數。老師審核後的評語會出現在「我的作答紀錄」。');
+          showInstant(questionId, result.feedback, '這是 AI 給你的學習建議，不是分數。要不要照著改由你決定；老師審核後的評語會出現在「我的作答紀錄」。');
           if (myAnswers[questionId]) myAnswers[questionId].instantFeedback = result.feedback;
         } else if (result && result.pending) {
           showInstant(questionId, result.message, '');
@@ -1523,7 +1604,7 @@
           document.getElementById('instant_' + questionId).hidden = true;
           return;
         }
-        showInstant(questionId, 'AI 回饋暫時拿不到（' + error.message + '）。稍後會出現在「我的作答紀錄」。', '');
+        showInstant(questionId, 'AI 學習建議暫時拿不到（' + error.message + '）。稍後會出現在「我的作答紀錄」。', '');
       })
       .requestInstantFeedback({
         answerId: answerId,
@@ -1589,7 +1670,14 @@
 
       let reviewHtml = '';
 
-      if (item.status === '已通過' || item.status === '退回修改') {
+      if ((item.status === '已通過' || item.status === '退回修改') && item.descriptive) {
+
+        reviewHtml = `
+          <div class="r-label">老師的回應</div>
+          <div class="feedback">${escapeHtml(item.teacherFeedback || '老師尚未留下回應')}</div>
+        `;
+
+      } else if (item.status === '已通過' || item.status === '退回修改') {
 
         const scoreText =
           item.teacherScore !== '' && item.teacherScore != null
@@ -1622,9 +1710,13 @@
             <div class="r-label">我的回答${item.version > 1 ? `（第 ${escapeHtml(item.version)} 次）` : ''}</div>
             <div class="feedback">${escapeHtml(item.answer)}</div>
             <p class="meta">送出時間：${escapeHtml(item.submittedAt)}</p>
-            ${item.instantFeedback
-              ? `<div class="r-instant instant"><p class="instant-title">🤖 AI 小助教的回饋</p><div class="instant-text">${escapeHtml(item.instantFeedback)}</div></div>`
+            ${item.revisionNote || item.aiAdopted
+              ? `<p class="meta">這次的修改：${escapeHtml(item.revisionNote || '（沒有寫）')}${item.aiAdopted ? `・${escapeHtml(item.aiAdopted)} AI 學習建議` : ''}</p>`
               : ''}
+            ${item.instantFeedback
+              ? `<div class="r-instant instant"><p class="instant-title">🤖 AI 學習建議</p>${feedbackHtml(item.instantFeedback)}</div>`
+              : ''}
+            ${classificationHtml(item)}
           </div>
           <div>${reviewHtml}</div>
         </div>
@@ -1633,6 +1725,72 @@
 
       box.appendChild(div);
     });
+  }
+
+
+  /*
+   * 課堂討論的分類。學生回覆這個分類符不符合自己想表達的。
+   */
+  function classificationHtml(item) {
+
+    const c = item.classification;
+
+    if (!c) return '';
+
+    const id = escapeHtml(item.answerId);
+    const head = `<p>在課堂討論中，你的回答被歸在「<b>${escapeHtml(c.categoryName)}</b>」${c.description ? '：' + escapeHtml(c.description) : ''}</p>`;
+
+    if (c.agree) {
+      return `<div class="cls-box" id="cls_${id}">${head}
+        <p class="cls-done">你回覆：${escapeHtml(c.agree)}${c.note ? '・' + escapeHtml(c.note) : ''}
+          <button type="button" class="link-button" onclick="this.closest('.cls-box').querySelector('.cls-actions').hidden = false; this.parentNode.hidden = true;">改回覆</button></p>
+        ${classificationForm(item, true)}</div>`;
+    }
+
+    return `<div class="cls-box" id="cls_${id}">${head}
+      <p class="cls-done" style="margin-bottom:6px">這個分類符合你想表達的嗎？</p>
+      ${classificationForm(item, false)}</div>`;
+  }
+
+
+  function classificationForm(item, hidden) {
+
+    const id = escapeHtml(item.answerId);
+    const c = item.classification;
+
+    return `<div class="cls-actions"${hidden ? ' hidden' : ''}>
+        <input type="text" id="clsNote_${id}" maxlength="300" placeholder="想補充的話（選填）" value="${escapeHtml(c.note || '')}" aria-label="想補充的話">
+        <button type="button" onclick="replyClassification('${id}', '符合')">符合</button>
+        <button type="button" class="secondary" onclick="replyClassification('${id}', '不太符合')">不太符合</button>
+        <span class="cls-msg" id="clsMsg_${id}" role="status"></span>
+      </div>`;
+  }
+
+
+  function replyClassification(answerId, agree) {
+
+    const identity = getIdentity();
+    const msg = document.getElementById('clsMsg_' + answerId);
+    const note = document.getElementById('clsNote_' + answerId);
+
+    msg.textContent = '儲存中……';
+
+    google.script.run
+      .withSuccessHandler(function() {
+        msg.textContent = '';
+        loadMyResults();
+      })
+      .withFailureHandler(function(error) {
+        msg.textContent = '沒有存到：' + error.message;
+      })
+      .confirmMyClassification({
+        studentId: identity.studentId,
+        name: identity.name,
+        answerId: answerId,
+        agree: agree,
+        note: note ? note.value.trim() : '',
+        courseCode: currentCourse ? currentCourse.code : ''
+      });
   }
 
 
@@ -1645,7 +1803,8 @@
       return '<div class="history-item">' +
         '<div class="h-meta">第 ' + escapeHtml(h.version) + ' 次・' + escapeHtml(h.submittedAt) + (h.status ? '・' + escapeHtml(h.status) : '') + '</div>' +
         '<div class="h-text">' + escapeHtml(h.answer) + '</div>' +
-        (h.instantFeedback ? '<div class="h-sub">AI 小助教的回饋</div><div class="h-text">' + escapeHtml(h.instantFeedback) + '</div>' : '') +
+        (h.revisionNote || h.aiAdopted ? '<div class="h-sub">這次的修改</div><div class="h-text">' + escapeHtml(h.revisionNote || '（沒有寫）') + (h.aiAdopted ? '・' + escapeHtml(h.aiAdopted) + ' AI 學習建議' : '') + '</div>' : '') +
+        (h.instantFeedback ? '<div class="h-sub">AI 學習建議</div><div class="h-text">' + escapeHtml(h.instantFeedback) + '</div>' : '') +
         (reviewed || h.teacherFeedback
           ? '<div class="h-sub">老師' + (reviewed ? '給的分數 ' + escapeHtml(h.teacherScore) + '・' : '') + '評語</div><div class="h-text">' + escapeHtml(h.teacherFeedback || '（沒有評語）') + '</div>'
           : '') +

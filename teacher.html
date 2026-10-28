@@ -125,6 +125,15 @@
     .form-block-title { margin: 0; font-size: 16px; }
     .form-block-title + label { margin-top: 12px; }
 
+    /* ---------- AI 學習建議分三段 ---------- */
+    .fb-parts { display: grid; gap: 6px; }
+    .fb-part b { display: block; font-size: 13px; color: var(--purple); }
+    .fb-part span { white-space: pre-wrap; line-height: 1.7; }
+    .pre { white-space: pre-wrap; }
+    .q-objective { margin: 8px 0 0; font-size: 14px; color: var(--ink-2); }
+    .adopt-tag { background: var(--purple-soft); color: var(--purple); border-radius: 999px; padding: 0 8px; }
+    .q-objective b { margin-right: 8px; color: var(--ink); }
+
     /* ---------- 學生送出後（即時回饋、自動分類） ---------- */
     textarea.short { min-height: 76px; }
 
@@ -205,6 +214,26 @@
     .finding details { margin-top: 8px; font-size: 14px; }
     .finding summary { cursor: pointer; color: var(--ink-2); }
     .finding .names { margin-top: 6px; color: var(--ink); line-height: 1.8; }
+    .evidence { margin-top: 8px; display: grid; gap: 4px; font-size: 14px; }
+    .evidence span { font-size: 12px; font-weight: 700; color: var(--ink-2); }
+    .evidence q { display: block; padding: 4px 10px; border-left: 3px solid var(--line-strong); background: var(--surface-2, #f6f4ef); quotes: '「' '」'; }
+    .judge { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; font-size: 14px; }
+    .judge > span { color: var(--ink-2); margin-right: 2px; }
+    .judge label { display: inline-flex; align-items: center; gap: 4px; margin: 0; padding: 4px 10px; min-height: 36px;
+      border: 1px solid var(--line-strong); border-radius: 999px; font-weight: 400; cursor: pointer; }
+    .judge input { width: auto; margin: 0; }
+    .judge label:has(input:checked) { border-color: var(--purple); background: var(--purple-soft); }
+    .insight-grid.single { grid-template-columns: 1fr; }
+    .objective-box { margin-top: 16px; padding: 12px 16px; border-radius: var(--radius-s); background: var(--surface); border: 1px solid var(--line); line-height: 1.8; }
+    .objective-box b { margin-right: 8px; }
+    .unknown, .cannot-judge h3 { color: var(--orange); }
+    .cannot-judge { margin-top: 16px; padding: 12px 16px; border: 1px dashed var(--orange); border-radius: var(--radius-s); background: #fffaf3; }
+    .cannot-judge h3 { margin: 0 0 6px; font-size: 16px; }
+    .cannot-judge ul { margin: 0; padding-left: 20px; line-height: 1.8; }
+    .adopt-step { grid-column: 2; justify-self: start; display: inline-flex; align-items: center; gap: 6px; margin: 8px 0 0; font-size: 14px; font-weight: 400; color: var(--purple); }
+    .adopt-step input { width: auto; margin: 0; }
+    .judgement { margin-top: 22px; }
+    .judgement h3 { margin: 0 0 4px; }
 
     .mastered { margin: 16px 0 0; padding: 14px 18px; background: var(--green-soft); border-radius: var(--radius-s); }
     .mastered h3 { margin: 0 0 6px; font-size: 16px; color: var(--green); }
@@ -743,6 +772,16 @@
           <label for="content">題目內容</label>
           <textarea id="content" placeholder="請輸入要讓學生回答的問題"></textarea>
 
+          <label for="objective">學習目標 <span class="optional">（建議填寫：AI 學習建議、AI 批改和學習診斷都會以這個為準）</span></label>
+          <textarea id="objective" class="short" maxlength="500" placeholder="例如：能說明熱會從溫度高的地方傳到溫度低的地方"></textarea>
+
+          <label for="assessment">評量方式</label>
+          <select id="assessment" onchange="updateAssessment('')">
+            <option value="評分">評分</option>
+            <option value="描述性回饋">描述性回饋（不給分，例如「認識你我他」）</option>
+          </select>
+          <p class="hint" id="assessmentHint"></p>
+
           <div class="field-row">
             <div>
               <label for="points">配分</label>
@@ -808,7 +847,7 @@
         <div class="form-block automation">
           <h2 class="form-block-title">學生送出後</h2>
 
-          <label for="instantStyle">即時 AI 回饋</label>
+          <label for="instantStyle">AI 學習建議 <span class="optional">（學生送出後馬上看到）</span></label>
           <select id="instantStyle" onchange="updateInstantHint('')">
             <option value="">不提供</option>
             <option value="hint">鼓勵與提示（不直接給答案）</option>
@@ -827,7 +866,7 @@
               <label for="instantSample">試試看：輸入一段學生可能寫的回答</label>
               <div class="try-row">
                 <input id="instantSample" placeholder="例如：因為冷空氣跑進水裡">
-                <button type="button" class="ghost" id="instantTryButton" onclick="previewInstant('')">看 AI 回饋</button>
+                <button type="button" class="ghost" id="instantTryButton" onclick="previewInstant('')">看 AI 學習建議</button>
               </div>
               <div class="text-box instant-box" id="instantPreview" role="status" hidden></div>
             </div>
@@ -935,7 +974,7 @@
     <div class="section-top">
       <div>
         <h2>AI 評語風格</h2>
-        <p>設定 AI 寫給學生的「教師口吻評語」要用什麼語氣。</p>
+        <p id="settingsScope">設定 AI 寫給學生的「教師口吻評語」要用你的什麼語氣。每位老師各自設定。</p>
       </div>
     </div>
 
@@ -994,6 +1033,16 @@
 
         <label for="editContent">題目內容</label>
         <textarea id="editContent"></textarea>
+
+          <label for="editObjective">學習目標 <span class="optional">（建議填寫：AI 學習建議、AI 批改和學習診斷都會以這個為準）</span></label>
+          <textarea id="editObjective" class="short" maxlength="500" placeholder="例如：能說明熱會從溫度高的地方傳到溫度低的地方"></textarea>
+
+          <label for="editAssessment">評量方式</label>
+          <select id="editAssessment" onchange="updateAssessment('edit')">
+            <option value="評分">評分</option>
+            <option value="描述性回饋">描述性回饋（不給分，例如「認識你我他」）</option>
+          </select>
+          <p class="hint" id="editAssessmentHint"></p>
 
         <div class="field-row">
           <div>
@@ -1059,7 +1108,7 @@
         <div class="form-block automation">
           <h2 class="form-block-title">學生送出後</h2>
 
-          <label for="editInstantStyle">即時 AI 回饋</label>
+          <label for="editInstantStyle">AI 學習建議 <span class="optional">（學生送出後馬上看到）</span></label>
           <select id="editInstantStyle" onchange="updateInstantHint('edit')">
             <option value="">不提供</option>
             <option value="hint">鼓勵與提示（不直接給答案）</option>
@@ -1078,7 +1127,7 @@
               <label for="editInstantSample">試試看：輸入一段學生可能寫的回答</label>
               <div class="try-row">
                 <input id="editInstantSample" placeholder="例如：因為冷空氣跑進水裡">
-                <button type="button" class="ghost" id="editInstantTryButton" onclick="previewInstant('edit')">看 AI 回饋</button>
+                <button type="button" class="ghost" id="editInstantTryButton" onclick="previewInstant('edit')">看 AI 學習建議</button>
               </div>
               <div class="text-box instant-box" id="editInstantPreview" role="status" hidden></div>
             </div>
@@ -1177,15 +1226,10 @@
       spreadsheetUrl = ctx.config && ctx.config.spreadsheetUrl ? ctx.config.spreadsheetUrl : '';
       document.getElementById('sheetButton').hidden = !spreadsheetUrl;
 
-      // 評語風格是全站共用的設定，只有管理員能改
-      if (!TeacherCourse.isAdmin()) {
-        ['feedbackStyle', 'feedbackExamples'].forEach(function(id) {
-          document.getElementById(id).readOnly = true;
-        });
-        document.getElementById('saveSettingsButton').disabled = true;
-        document.getElementById('settingsMessage').textContent =
-          '評語風格是全站共用的設定，只有管理員可以修改。';
-      }
+      // 管理員改的是全站預設；其他老師改的是自己的口吻
+      document.getElementById('settingsScope').textContent = TeacherCourse.isAdmin()
+        ? '你是管理員：這裡改的是「全站預設」的評語口吻，還沒有自己設定的老師都會用這個。'
+        : '這裡是你自己的評語口吻，只套用在你按的 AI 批改，不會影響其他老師。';
     });
   });
 
@@ -1568,7 +1612,7 @@ function previewQuestionRAG() {
   };
 
   const INSTANT_STYLE_HINTS = {
-    '': '學生送出後不會看到 AI 回饋，只會看到你審核後的評語。',
+    '': '學生送出後不會看到 AI 學習建議，只會看到你審核後的評語。',
     hint: '先肯定做得好的地方，再給一個提示讓學生自己想，不會直接說出答案。',
     question: '用一兩個問題引導學生檢查、延伸自己的想法，不評斷對錯。',
     rubric: '對照你的評分規準，說明已經做到和可以補強的地方。不會顯示分數。',
@@ -1577,6 +1621,31 @@ function previewQuestionRAG() {
   };
 
   const INSTANT_DEFAULTS_KEY = 'aiclassroom_instant_defaults';
+
+  const ASSESSMENT_HINTS = {
+    '評分': 'AI 批改會給分數建議，你審核後給正式分數。AI 學習建議分成「已理解之處、待釐清之處、下一步提示」。',
+    '描述性回饋': '適合分享型的題目，沒有對錯。AI 不給分、不評斷學生的興趣喜好，只整理學生分享的內容並幫你草擬回應。'
+  };
+
+
+  function updateAssessment(mode) {
+
+    const id = function(name) { return formFieldId(mode, name); };
+    const value = document.getElementById(id('assessment')).value;
+    const points = document.getElementById(id('points'));
+    const descriptive = value === '描述性回饋';
+
+    document.getElementById(id('assessmentHint')).textContent = ASSESSMENT_HINTS[value] || '';
+
+    if (descriptive) {
+      if (points.value !== '0') points.dataset.before = points.value;
+      points.value = 0;
+    } else if (points.disabled) {
+      points.value = points.dataset.before || 10;
+    }
+
+    points.disabled = descriptive;
+  }
 
 
   function updateInstantHint(mode) {
@@ -1616,7 +1685,7 @@ function previewQuestionRAG() {
     google.script.run
       .withSuccessHandler(function(result) {
         button.disabled = false;
-        box.textContent = result.feedback;
+        box.innerHTML = feedbackHtml(result.feedback);
       })
       .withFailureHandler(function(error) {
         button.disabled = false;
@@ -1628,6 +1697,8 @@ function previewQuestionRAG() {
         content: value('content'),
         referenceAnswer: value('referenceAnswer'),
         rubric: value('rubric'),
+        objective: value('objective'),
+        assessment: value('assessment'),
         feedbackStyle: value('instantStyle'),
         feedbackNote: value('instantNote'),
         sampleAnswer: value('instantSample')
@@ -1648,6 +1719,7 @@ function previewQuestionRAG() {
     document.getElementById('instantNote').value = saved.note || '';
     document.getElementById('autoClassify').checked = saved.auto !== false;
     updateInstantHint('');
+    updateAssessment('');
   }
 
 
@@ -1676,8 +1748,10 @@ function previewQuestionRAG() {
       return '<div class="history-item">' +
         '<div class="h-meta">第 ' + escapeHtml(h.version) + ' 次・' + escapeHtml(h.submittedAt) + '・' + escapeHtml(h.status || '') + '</div>' +
         '<div class="h-text">' + escapeHtml(h.answer) + '</div>' +
-        (h.instantFeedback ? '<div class="h-sub">AI 即時回饋</div><div class="h-text">' + escapeHtml(h.instantFeedback) + '</div>' : '') +
+        (h.revisionNote || h.aiAdopted ? '<div class="h-sub">學生的修改說明</div><div class="h-text">' + escapeHtml(h.revisionNote || '（沒有寫）') + (h.aiAdopted ? '・' + escapeHtml(h.aiAdopted) + ' AI 學習建議' : '') + '</div>' : '') +
+        (h.instantFeedback ? '<div class="h-sub">AI 學習建議</div><div class="h-text">' + escapeHtml(h.instantFeedback) + '</div>' : '') +
         (h.aiScore !== '' && h.aiScore != null ? '<div class="h-sub">AI 建議分數 ' + escapeHtml(h.aiScore) + '</div>' : '') +
+        (h.draftAdoption ? '<div class="h-sub">AI 草稿：' + escapeHtml(h.draftAdoption) + '</div>' : '') +
         (reviewed || h.teacherFeedback
           ? '<div class="h-sub">教師' + (reviewed ? '分數 ' + escapeHtml(h.teacherScore) + '・' : '') + '評語</div><div class="h-text">' + escapeHtml(h.teacherFeedback || '（沒有評語）') + '</div>'
           : '') +
@@ -1838,23 +1912,44 @@ function previewQuestionRAG() {
       ? '分析之後又多了 <b>' + escapeHtml(newer) + ' 份</b>回答。<button type="button" class="purple" onclick="runInsight()">重新分析</button>'
       : '', newer > 0 ? 'stale' : '');
 
-    const finding = function(item, kind) {
+    const judged = (ins.judgement && ins.judgement.findings) || {};
+    const adopted = (ins.judgement && ins.judgement.adoptedSteps) || [];
+
+    // 老師對每個發現的判斷：同意／部分同意／不同意
+    const judgeChips = function(key) {
+      return '<div class="judge" role="radiogroup" aria-label="你的判斷">' +
+        '<span>你的判斷</span>' +
+        ['同意', '部分同意', '不同意'].map(function(v) {
+          return '<label><input type="radio" name="judge_' + key + '" value="' + v + '"' + (judged[key] === v ? ' checked' : '') + '> ' + v + '</label>';
+        }).join('') + '</div>';
+    };
+
+    const finding = function(item, kind, index) {
       const label = kind === 'gap' ? item.item : item.concept;
+      const key = (kind === 'gap' ? 'g' : 'm') + index;
       const n = item.students.length;
+      const names = {};
+      item.students.forEach(function(st, i) { names[(item.answerIds || [])[i]] = st.name; });
       return '<div class="finding' + (kind === 'gap' ? ' gap' : '') + '">' +
         '<div class="finding-head"><b>' + escapeHtml(label) + '</b>' +
         (n ? '<span class="finding-count">' + n + ' 位學生</span>' : '') + '</div>' +
         '<p>' + escapeHtml(item.description) + '</p>' +
+        ((item.evidence || []).length
+          ? '<div class="evidence"><span>學生原文</span>' + item.evidence.map(function(ev) {
+              return '<q>' + escapeHtml(ev.quote) + '</q>';
+            }).join('') + '</div>'
+          : '') +
         (n ? '<details><summary>看是哪些學生</summary><div class="names">' +
           item.students.map(function(st) { return escapeHtml(st.name + '（' + st.studentId + '）'); }).join('、') +
           '</div></details>' : '') +
+        judgeChips(key) +
         '</div>';
     };
 
     const column = function(title, hint, items, kind) {
       return '<div class="insight-col"><h3>' + title + ' <small>' + hint + '</small></h3>' +
-        (items.length ? items.map(function(item) { return finding(item, kind); }).join('')
-          : '<div class="insight-empty">沒有明顯的問題</div>') +
+        (items.length ? items.map(function(item, i) { return finding(item, kind, i); }).join('')
+          : '<div class="insight-empty">' + (ins.cannotJudge.length ? '沒有看到有證據的問題（部分項目尚無法判斷，見下方）' : '沒有明顯的問題') + '</div>') +
         '</div>';
     };
 
@@ -1866,10 +1961,21 @@ function previewQuestionRAG() {
         '<div class="tools"><button type="button" onclick="copyInsightText()">複製整份診斷</button></div>' +
       '</div>' +
 
-      '<div class="insight-grid">' +
-        column('待釐清的概念', '學生有、但還不正確或不完整的想法', ins.misconceptions, 'concept') +
+      (ins.objective
+        ? '<div class="objective-box"><b>學習目標</b>' + escapeHtml(ins.objective) +
+          '<div><b>目前離目標</b>' + (ins.objectiveProgress ? escapeHtml(ins.objectiveProgress) : '<span class="unknown">尚無法判斷</span>') + '</div></div>'
+        : '<p class="hint">這一題沒有填學習目標。到題目管理補上，AI 就能對照目標來診斷。</p>') +
+
+      '<div class="insight-grid' + (ins.descriptive ? ' single' : '') + '">' +
+        (ins.descriptive ? '' : column('待釐清的概念', '學生有、但還不正確或不完整的想法', ins.misconceptions, 'concept')) +
         column('普遍缺少的部分', '多數回答沒有做到的地方', ins.gaps, 'gap') +
       '</div>' +
+
+      (ins.cannotJudge.length
+        ? '<div class="cannot-judge"><h3>尚無法判斷</h3><ul>' +
+          ins.cannotJudge.map(function(c) { return '<li><b>' + escapeHtml(c.item) + '</b>：' + escapeHtml(c.reason) + '</li>'; }).join('') +
+          '</ul></div>'
+        : '') +
 
       (ins.mastered.length
         ? '<div class="mastered"><h3>多數學生已經掌握</h3><ul>' +
@@ -1883,6 +1989,7 @@ function previewQuestionRAG() {
           '<div class="step-title">' + escapeHtml(st.title) + '<span class="step-target">' + escapeHtml(st.target) + '</span></div>' +
           '<div class="step-why">' + escapeHtml(st.why) + '</div>' +
           '<div class="step-how">' + escapeHtml(st.how) + '</div>' +
+          '<label class="adopt-step"><input type="checkbox" name="adoptStep" value="' + i + '"' + (adopted.indexOf(i) >= 0 ? ' checked' : '') + '> 我採用這個建議</label>' +
         '</div>';
       }).join('') +
 
@@ -1893,7 +2000,71 @@ function previewQuestionRAG() {
             '<button type="button" onclick="useCheckQuestion()">帶到新增題目</button>' +
             '<button type="button" class="ghost" onclick="copyText(insightData.insight.checkQuestion).then(function(){ showToast(\'已複製\'); })">複製</button>' +
           '</div></div>'
+        : '') +
+
+      // 老師的判斷與實際教學（研究紀錄）
+      (ins.id
+        ? '<div class="judgement card">' +
+            '<h3>我的判斷與教學紀錄</h3>' +
+            '<p class="hint">上面每個發現選「同意／部分同意／不同意」、勾選採用的建議，再寫下實際怎麼教、效果如何。這些會存成研究紀錄。</p>' +
+            '<label for="judgeNote">我對這份診斷的看法</label>' +
+            '<textarea id="judgeNote" class="short" maxlength="1000" placeholder="例如：學生其實知道方向，只是用詞不精確">' + escapeHtml(ins.judgement.note || '') + '</textarea>' +
+            '<label for="judgeAction">實際的教學行動</label>' +
+            '<textarea id="judgeAction" class="short" maxlength="2000" placeholder="例如：下一堂用兩杯水做對照實驗 10 分鐘">' + escapeHtml(ins.action || '') + '</textarea>' +
+            '<label for="judgeOutcome">行動之後的效果</label>' +
+            '<textarea id="judgeOutcome" class="short" maxlength="2000" placeholder="例如：再問一次，22 人中 18 人能說出熱的方向">' + escapeHtml(ins.outcome || '') + '</textarea>' +
+            '<div class="form-actions"><button type="button" class="green" id="judgeSave" onclick="saveJudgement()">儲存判斷與教學紀錄</button>' +
+            '<span id="judgeMessage" role="status">' + (ins.judgedAt ? '上次儲存：' + escapeHtml(ins.judgedAt) : '') + '</span></div>' +
+          '</div>'
         : '');
+  }
+
+
+  function saveJudgement() {
+
+    const ins = insightData && insightData.insight;
+
+    if (!ins || !ins.id) return;
+
+    const findings = {};
+
+    document.querySelectorAll('#insightResult .judge input:checked').forEach(function(input) {
+      findings[input.name.replace('judge_', '')] = input.value;
+    });
+
+    const adoptedSteps = Array.prototype.map.call(
+      document.querySelectorAll('#insightResult input[name="adoptStep"]:checked'),
+      function(input) { return Number(input.value); }
+    );
+
+    const data = {
+      findings: findings,
+      adoptedSteps: adoptedSteps,
+      note: document.getElementById('judgeNote').value.trim(),
+      action: document.getElementById('judgeAction').value.trim(),
+      outcome: document.getElementById('judgeOutcome').value.trim()
+    };
+
+    const button = document.getElementById('judgeSave');
+    const message = document.getElementById('judgeMessage');
+
+    button.disabled = true;
+    message.textContent = '儲存中……';
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        button.disabled = false;
+        message.textContent = '✓ 已儲存（' + result.updatedAt + '）';
+        ins.judgement = { findings: findings, adoptedSteps: adoptedSteps, note: data.note };
+        ins.action = data.action;
+        ins.outcome = data.outcome;
+        ins.judgedAt = result.updatedAt;
+      })
+      .withFailureHandler(function(error) {
+        button.disabled = false;
+        message.textContent = '沒有存到：' + error.message;
+      })
+      .saveInsightJudgement(ins.id, data);
   }
 
 
@@ -1910,10 +2081,15 @@ function previewQuestionRAG() {
     lines.push('（分析 ' + ins.analyzedCount + ' 份回答，' + ins.analyzedAt + '）', '');
     lines.push('【整體狀況】', ins.overview, '');
 
+    if (ins.objective) {
+      lines.push('【學習目標】', ins.objective, '目前離目標：' + (ins.objectiveProgress || '尚無法判斷'), '');
+    }
+
     if (ins.misconceptions.length) {
       lines.push('【待釐清的概念】');
       ins.misconceptions.forEach(function(m) {
-        lines.push('・' + m.concept + (m.students.length ? '（' + m.students.length + ' 位）' : '') + '：' + m.description);
+        lines.push('・' + m.concept + (m.students.length ? '（' + m.students.length + ' 位）' : '') + '：' + m.description +
+          ((m.evidence || []).length ? ' 學生原文：' + m.evidence.map(function(e) { return '「' + e.quote + '」'; }).join('') : ''));
       });
       lines.push('');
     }
@@ -1921,8 +2097,15 @@ function previewQuestionRAG() {
     if (ins.gaps.length) {
       lines.push('【普遍缺少的部分】');
       ins.gaps.forEach(function(g) {
-        lines.push('・' + g.item + (g.students.length ? '（' + g.students.length + ' 位）' : '') + '：' + g.description);
+        lines.push('・' + g.item + (g.students.length ? '（' + g.students.length + ' 位）' : '') + '：' + g.description +
+          ((g.evidence || []).length ? ' 學生原文：' + g.evidence.map(function(e) { return '「' + e.quote + '」'; }).join('') : ''));
       });
+      lines.push('');
+    }
+
+    if ((ins.cannotJudge || []).length) {
+      lines.push('【尚無法判斷】');
+      ins.cannotJudge.forEach(function(c) { lines.push('・' + c.item + '：' + c.reason); });
       lines.push('');
     }
 
@@ -1977,6 +2160,8 @@ function previewQuestionRAG() {
       deadline: readDeadline('deadline'),
       allowLate: document.getElementById('allowLate').value === 'true',
       courseId: TeacherCourse.id(),
+      objective: document.getElementById('objective').value.trim(),
+      assessment: document.getElementById('assessment').value,
       feedbackStyle: document.getElementById('instantStyle').value,
       feedbackNote: document.getElementById('instantNote').value.trim(),
       autoClassify: document.getElementById('autoClassify').checked
@@ -2012,9 +2197,11 @@ function previewQuestionRAG() {
         // 記住這次的設定，下次出題預設一樣
         saveInstantDefaults();
 
-        ['title', 'content', 'referenceAnswer', 'rubric'].forEach(function(id) {
+        ['title', 'content', 'referenceAnswer', 'rubric', 'objective'].forEach(function(id) {
           document.getElementById(id).value = '';
         });
+        document.getElementById('assessment').value = '評分';
+        updateAssessment('');
 
         loadQuestions();
       })
@@ -2085,9 +2272,9 @@ function previewQuestionRAG() {
           <div class="q-stats">
             <span>作答 <b>${escapeHtml(q.answerCount)}</b></span>
             <span class="${q.pendingCount > 0 ? 'pending' : ''}">待審核 <b>${escapeHtml(q.pendingCount)}</b></span>
-            <span>配分 <b>${escapeHtml(q.points)}</b></span>
+            ${q.assessment === '描述性回饋' ? '<span><b>描述性回饋</b>・不給分</span>' : `<span>配分 <b>${escapeHtml(q.points)}</b></span>`}
             <span>AI ${q.enableAI ? '啟用' : '未啟用'}</span>
-            ${q.feedbackStyle ? `<span>即時回饋 <b>${escapeHtml(INSTANT_STYLE_LABELS[q.feedbackStyle] || q.feedbackStyle)}</b></span>` : ''}
+            ${q.feedbackStyle ? `<span>AI 學習建議 <b>${escapeHtml(INSTANT_STYLE_LABELS[q.feedbackStyle] || q.feedbackStyle)}</b></span>` : ''}
             ${q.autoClassify ? '<span><b>自動分類</b></span>' : ''}
             ${q.lateCount > 0 ? `<span class="late">遲交 <b>${escapeHtml(q.lateCount)}</b></span>` : ''}
           </div>
@@ -2095,6 +2282,7 @@ function previewQuestionRAG() {
           ${deadlineBoxHtml(q)}
 
           <div class="text-box clamp">${escapeHtml(q.content)}</div>
+          ${q.objective ? `<p class="q-objective"><b>學習目標</b>${escapeHtml(q.objective)}</p>` : ''}
           ${q.updatedAt ? `<p class="q-updated">最後修改 ${escapeHtml(q.updatedAt)}</p>` : ''}
         </div>
 
@@ -2229,7 +2417,7 @@ function previewQuestionRAG() {
   const EDIT_FIELDS = [
     'editTitle', 'editContent', 'editPoints', 'editEnableAI', 'editStatus',
     'editDeadline', 'editAllowLate', 'editReferenceAnswer', 'editRubric',
-    'editInstantStyle', 'editInstantNote', 'editAutoClassify'
+    'editInstantStyle', 'editInstantNote', 'editAutoClassify', 'editObjective', 'editAssessment'
   ];
 
   function editFormSnapshot() {
@@ -2264,6 +2452,10 @@ function previewQuestionRAG() {
     set('editAllowLate', q.allowLate ? 'true' : 'false');
     set('editReferenceAnswer', q.referenceAnswer);
     set('editRubric', q.rubric);
+    set('editObjective', q.objective || '');
+    set('editAssessment', q.assessment === '描述性回饋' ? '描述性回饋' : '評分');
+    document.getElementById('editPoints').disabled = false;
+    updateAssessment('edit');
     set('editInstantStyle', q.feedbackStyle || '');
     set('editInstantNote', q.feedbackNote || '');
     set('editInstantSample', '');
@@ -2511,6 +2703,8 @@ function previewQuestionRAG() {
       status: value('editStatus'),
       deadline: readDeadline('editDeadline'),
       allowLate: value('editAllowLate') === 'true',
+      objective: value('editObjective'),
+      assessment: value('editAssessment'),
       feedbackStyle: value('editInstantStyle'),
       feedbackNote: value('editInstantNote'),
       autoClassify: document.getElementById('editAutoClassify').checked
@@ -2716,6 +2910,8 @@ function previewQuestionRAG() {
               <span>${escapeHtml(a.name)}</span>
               <span>送出時間 ${escapeHtml(a.submittedAt)}</span>
               ${a.version > 1 ? `<span>第 ${escapeHtml(a.version)} 次繳交</span>` : ''}
+              ${a.descriptive ? '<span>描述性回饋・不給分</span>' : ''}
+              ${a.draftAdoption ? `<span class="adopt-tag" title="上次審核時，你的評語和 AI 草稿的關係">AI 草稿：${escapeHtml(a.draftAdoption)}</span>` : ''}
               ${a.late ? `<span class="late-tag" title="截止時間 ${escapeHtml(a.deadlineText)}">遲交</span>` : ''}
             </div>
           </div>
@@ -2728,19 +2924,25 @@ function previewQuestionRAG() {
             <h4>題目</h4>
             <div class="text-box">${escapeHtml(a.questionContent)}</div>
 
+            ${a.objective ? `<p class="q-objective"><b>學習目標</b>${escapeHtml(a.objective)}</p>` : ''}
+
             <h4>學生回答</h4>
             <div class="text-box student-answer">${escapeHtml(a.answer)}</div>
 
+            ${a.revisionNote || a.aiAdopted
+              ? `<h4>學生的修改說明</h4><div class="text-box">${escapeHtml(a.revisionNote || '（沒有寫）')}${a.aiAdopted ? `<br><span class="hint">學生自評：${escapeHtml(a.aiAdopted)} AI 學習建議</span>` : ''}</div>`
+              : ''}
+
             ${a.instantFeedback
-              ? `<h4>學生收到的 AI 即時回饋</h4><div class="text-box instant-box">${escapeHtml(a.instantFeedback)}</div>`
-              : a.feedbackStyle ? '<p class="hint">AI 即時回饋還在產生，稍後重新整理就會看到。</p>' : ''}
+              ? `<h4>學生收到的 AI 學習建議</h4><div class="text-box instant-box">${feedbackHtml(a.instantFeedback)}</div>`
+              : a.feedbackStyle ? '<p class="hint">AI 學習建議還在產生，稍後重新整理就會看到。</p>' : ''}
 
             ${historyHtml(a.history)}
 
             ${
               a.enableAI
                 ? `<button type="button" class="orange" id="ai_${a.answerId}" onclick="runAI('${a.answerId}')">
-                     ${a.aiScore !== '' ? '🤖 重新 AI 批改' : '🤖 AI 批改'}
+                     ${hasAI(a) ? '🤖 重新 AI ' + (a.descriptive ? '草擬回應' : '批改') : '🤖 AI ' + (a.descriptive ? '草擬回應' : '批改')}
                    </button>`
                 : '<p class="hint">本題未啟用 AI。</p>'
             }
@@ -2753,11 +2955,11 @@ function previewQuestionRAG() {
               <h4>👩‍🏫 教師最終審核</h4>
 
               <div class="grid2">
-                <div>
+                <div${a.descriptive ? ' hidden' : ''}>
                   <label for="score_${a.answerId}">教師分數</label>
                   <input id="score_${a.answerId}" type="number" min="0"
                     max="${escapeHtml(a.points)}" step="0.5"
-                    value="${escapeHtml(defaultScore)}">
+                    value="${a.descriptive ? '' : escapeHtml(defaultScore)}">
                 </div>
 
                 <div>
@@ -2770,7 +2972,7 @@ function previewQuestionRAG() {
                 </div>
               </div>
 
-              <label for="feedback_${a.answerId}">教師評語</label>
+              <label for="feedback_${a.answerId}">${a.descriptive ? '給學生的回應' : '教師評語'}</label>
               <textarea id="feedback_${a.answerId}" placeholder="輸入正式給學生看的評語">${escapeHtml(a.teacherFeedback || '')}</textarea>
 
               <button type="button" class="green" onclick="saveReview('${a.answerId}')">儲存教師審核</button>
@@ -2789,9 +2991,14 @@ function previewQuestionRAG() {
   }
 
 
+  function hasAI(a) {
+    return (a.aiScore !== '' && a.aiScore != null) || !!a.aiStudentFeedback;
+  }
+
+
   function buildAIBox(a) {
 
-    if (a.aiScore === '' || a.aiScore == null) {
+    if (!hasAI(a)) {
       return '';
     }
 
@@ -2799,25 +3006,39 @@ function previewQuestionRAG() {
       ? `<div class="text-box teacher-voice">${escapeHtml(a.aiStudentFeedback)}</div>`
       : '<p class="hint">這份批改是舊版產生的，沒有教師口吻評語。可以重新 AI 批改，或直接帶入上面的批改說明。</p>';
 
+    // 之前每一次的 AI 建議（最後一次就是上面顯示的這次）
+    const earlier = (a.aiSuggestions || []).slice(0, -1);
+    const earlierHtml = earlier.length
+      ? `<details class="history"><summary>之前 ${earlier.length} 次 AI 建議</summary>${earlier.slice().reverse().map(function(g) {
+          return '<div class="history-item"><div class="h-meta">' + escapeHtml(g.time) + '・第 ' + escapeHtml(g.version) + ' 版回答' +
+            (g.score !== '' ? '・建議 ' + escapeHtml(g.score) + ' 分' : '') + (g.confidence ? '・信心 ' + escapeHtml(g.confidence) : '') + '</div>' +
+            (g.studentFeedback ? '<div class="h-text">' + escapeHtml(g.studentFeedback) + '</div>' : '') +
+            (g.feedback ? '<div class="h-sub">給教師的說明</div><div class="h-text">' + escapeHtml(g.feedback) + '</div>' : '') +
+            '</div>';
+        }).join('')}</details>`
+      : '';
+
     return `
       <div class="ai-box">
-        <h4>🤖 AI 初步批改</h4>
+        <h4>🤖 ${a.descriptive ? 'AI 草擬的回應' : 'AI 初步批改'}</h4>
 
-        <p>
+        ${a.descriptive ? '<p class="hint">描述性回饋：AI 不給分，只整理學生分享的內容。</p>' : `<p>
           <strong>建議分數：</strong>${escapeHtml(a.aiScore)} / ${escapeHtml(a.points)}
           &nbsp;&nbsp;
           <strong>AI 信心：</strong>${escapeHtml(a.aiConfidence || '未提供')}
-        </p>
+        </p>`}
 
-        <div class="sub-title">給教師的批改說明</div>
+        <div class="sub-title">${a.descriptive ? '學生分享的重點' : '給教師的批改說明'}</div>
         <div class="text-box">${escapeHtml(a.aiFeedback || '（無）')}</div>
 
-        <div class="sub-title">教師口吻評語</div>
+        <div class="sub-title">教師口吻${a.descriptive ? '回應' : '評語'}</div>
         ${voice}
 
         <button type="button" class="purple" onclick="applyAIFeedback('${a.answerId}')">
-          ⬇ 一鍵帶入分數與評語
+          ⬇ 一鍵帶入${a.descriptive ? '回應' : '分數與評語'}
         </button>
+        <p class="hint">帶入後可以自由修改。儲存時會記錄你是直接採用、修改後採用，還是自己寫的。</p>
+        ${earlierHtml}
       </div>
     `;
   }
@@ -2876,16 +3097,21 @@ function previewQuestionRAG() {
     const box = document.getElementById('aiResult_' + answerId);
 
     button.disabled = true;
-    button.textContent = 'AI 批改中……';
+    button.textContent = 'AI 處理中……';
     box.innerHTML = '<div class="ai-box">AI 正在分析回答……</div>';
 
     google.script.run
       .withSuccessHandler(function(result) {
 
-        button.disabled = false;
-        button.textContent = '🤖 重新 AI 批改';
-
         const a = answerCache[answerId] || { answerId: answerId, points: result.maxScore };
+
+        button.disabled = false;
+        button.textContent = a.descriptive ? '🤖 重新 AI 草擬回應' : '🤖 重新 AI 批改';
+
+        a.aiSuggestions = (a.aiSuggestions || []).concat([{
+          time: '剛剛', version: a.version || 1, score: result.score, feedback: result.feedback,
+          studentFeedback: result.studentFeedback, confidence: result.confidence
+        }]);
 
         a.aiScore = result.score;
         a.aiFeedback = result.feedback;
@@ -2900,7 +3126,7 @@ function previewQuestionRAG() {
         if (badge) { badge.textContent = result.status; badge.dataset.status = result.status; }
 
         const score = document.getElementById('score_' + answerId);
-        if (score && !score.value) score.value = result.score;
+        if (score && !score.value && !a.descriptive) score.value = result.score;
       })
       .withFailureHandler(function(error) {
 
@@ -2945,8 +3171,8 @@ function previewQuestionRAG() {
     }
 
     google.script.run
-      .withSuccessHandler(function() {
-        alert('教師審核已儲存');
+      .withSuccessHandler(function(result) {
+        alert('教師審核已儲存' + (result && result.adoption && result.adoption !== '未使用AI' ? '（AI 草稿：' + result.adoption + '）' : ''));
         loadAnswers();
       })
       .withFailureHandler(function(error) {
@@ -2976,6 +3202,12 @@ function previewQuestionRAG() {
         document.getElementById('feedbackStyle').value = settings.feedbackStyle || '';
         document.getElementById('feedbackExamples').value = settings.feedbackExamples || '';
 
+        if (settings.scope === 'personal' && !settings.feedbackStyle && !settings.feedbackExamples) {
+          document.getElementById('feedbackStyle').placeholder = settings.siteFeedbackStyle
+            ? '還沒設定，目前用全站預設：' + settings.siteFeedbackStyle
+            : '還沒設定。例如：語氣溫暖但直接，先肯定再建議，60 到 100 字，不用驚嘆號，結尾給一個具體的下一步。';
+        }
+
         info.textContent =
           '目前模型：' + (settings.model || '尚未設定 AI_MODEL') +
           '；API 金鑰：' + (settings.hasApiKey ? '已設定' : '尚未設定 GEMINI_API_KEY');
@@ -2996,7 +3228,9 @@ function previewQuestionRAG() {
     google.script.run
       .withSuccessHandler(function() {
         message.className = 'success-message';
-        message.textContent = '✓ 設定已儲存，之後的 AI 批改會套用';
+        message.textContent = TeacherCourse.isAdmin()
+          ? '✓ 全站預設已儲存，沒有自己設定的老師之後的 AI 批改會套用'
+          : '✓ 你的評語口吻已儲存，之後你按的 AI 批改會套用';
       })
       .withFailureHandler(function(error) {
         message.className = 'error-message';
@@ -3006,6 +3240,27 @@ function previewQuestionRAG() {
         feedbackStyle: document.getElementById('feedbackStyle').value,
         feedbackExamples: document.getElementById('feedbackExamples').value
       });
+  }
+
+
+  /*
+   * AI 學習建議存成「【已理解之處】……【待釐清之處】……【下一步提示】……」，分段顯示。
+   */
+  function feedbackHtml(text) {
+
+    const parts = String(text || '').split(/【([^】]{2,10})】/);
+
+    if (parts.length < 3) {
+      return '<div class="pre">' + escapeHtml(text) + '</div>';
+    }
+
+    let html = parts[0].trim() ? '<div class="pre">' + escapeHtml(parts[0].trim()) + '</div>' : '';
+
+    html += '<div class="fb-parts">';
+    for (let i = 1; i < parts.length; i += 2) {
+      html += '<div class="fb-part"><b>' + escapeHtml(parts[i]) + '</b><span>' + escapeHtml((parts[i + 1] || '').trim()) + '</span></div>';
+    }
+    return html + '</div>';
   }
 
 

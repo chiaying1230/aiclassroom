@@ -17,6 +17,12 @@
   <script src="shell.js" defer></script>
 
   <style>
+    .export-list { margin: 0 0 14px; padding-left: 20px; line-height: 1.75; font-size: 14px; color: var(--ink-2); }
+    .export-list b { color: var(--ink); }
+    .export-check { display: flex; gap: 8px; align-items: flex-start; font-weight: 700; }
+    .export-check input { width: auto; margin-top: 5px; }
+    .export-files { display: grid; gap: 8px; margin-top: 14px; }
+    .export-files .k-btn { justify-content: flex-start; text-align: left; white-space: normal; height: auto; min-height: 44px; }
     :root { --page-width: 1040px; }
 
     /* ---------- 課程卡 ---------- */
@@ -249,6 +255,33 @@
 </dialog>
 
 
+<!-- 匯出研究紀錄 -->
+<dialog class="k-dialog" id="exportDialog" aria-labelledby="exportTitle">
+  <form method="dialog" id="exportForm">
+    <h2 id="exportTitle">匯出研究紀錄</h2>
+    <p class="k-sub" id="exportSub"></p>
+
+    <ul class="export-list">
+      <li><b>作答與回饋</b>：每位學生每一題的每個版本、AI 學習建議、修改說明、AI 批改建議、老師的評語與採用情形</li>
+      <li><b>討論分類</b>：AI 原本的分類、最後的分類、誰確認的、學生是否同意</li>
+      <li><b>學習歷程紀錄</b>：四個模組裡 AI 提出的建議和老師、學生的每個決定</li>
+      <li><b>教學診斷</b>：AI 的診斷與證據、尚無法判斷的部分、你的判斷、教學行動與效果</li>
+    </ul>
+
+    <label class="export-check"><input type="checkbox" id="exportAnonymize" checked> 去識別化（學號換成 S001 這類代號，不含姓名與教師名稱）</label>
+    <p class="k-hint">學生回答的內文不會改。如果回答裡寫了自己或同學的名字，公開前請再檢查。</p>
+
+    <div class="export-files" id="exportFiles" hidden></div>
+
+    <div class="k-actions">
+      <button type="button" class="k-btn primary" id="exportRunButton">產生檔案</button>
+      <button type="button" class="k-btn" id="exportCloseButton">關閉</button>
+      <span class="k-message" id="exportMessage" role="status"></span>
+    </div>
+  </form>
+</dialog>
+
+
 <!-- 投影加入代碼 -->
 <div class="projector" id="projector" role="dialog" aria-modal="true" aria-labelledby="projectorCourse" hidden>
   <button type="button" class="projector-close" id="projectorClose">關閉（Esc）</button>
@@ -369,6 +402,7 @@
               : '<button type="button" class="k-btn primary" data-action="enter">進入這門課</button>') +
             '<button type="button" class="k-btn" data-action="edit">編輯</button>' +
             '<button type="button" class="k-btn" data-action="archive">' + (archived ? '重新開放' : '封存') + '</button>' +
+            '<button type="button" class="k-btn" data-action="export">匯出研究紀錄</button>' +
           '</div>' +
         '</div>' +
         '<div class="course-code">' +
@@ -577,6 +611,8 @@
 
     if (action === 'project') openProjector(c);
 
+    if (action === 'export') openExport(c);
+
     if (action === 'copy-code') {
       copyText(c.code).then(function() { toast('已複製代碼 ' + c.code); }, function() { window.prompt('請複製代碼：', c.code); });
     }
@@ -605,6 +641,88 @@
   }
 
 
+  /* ---------- 匯出研究紀錄 ---------- */
+
+  let exportCourse = null;
+
+  function openExport(c) {
+    exportCourse = c;
+    $('exportSub').textContent = '「' + c.name + '」的資料，存成 4 個 CSV 檔（Excel、Google 試算表都能打開）。';
+    $('exportFiles').hidden = true;
+    $('exportFiles').innerHTML = '';
+    setMessage('exportMessage', '');
+    $('exportRunButton').disabled = false;
+    $('exportDialog').showModal();
+  }
+
+  function toCsv(rows) {
+    return '\ufeff' + rows.map(function(row) {
+      return row.map(function(value) {
+        let text = value == null ? '' : String(value);
+        // 避免 Excel 把開頭是 = + - @ 的內容當成公式
+        if (/^[=+\-@]/.test(text)) text = "'" + text;
+        return /[",\n\r]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+      }).join(',');
+    }).join('\r\n');
+  }
+
+  function safeName(text) {
+    return String(text || '').replace(/[\\/:*?"<>|]/g, '_').slice(0, 40);
+  }
+
+  function downloadCsv(name, rows) {
+    const url = URL.createObjectURL(new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function() { URL.revokeObjectURL(url); }, 2000);
+  }
+
+  function runExport() {
+
+    if (!exportCourse) return;
+
+    const anonymize = $('exportAnonymize').checked;
+    $('exportRunButton').disabled = true;
+    setMessage('exportMessage', '整理資料中……');
+
+    api('exportResearchRecords', exportCourse.id, { anonymize: anonymize })
+      .then(function(result) {
+
+        const stamp = result.exportedAt.slice(0, 10).replace(/\//g, '');
+        const files = result.tables.map(function(t) {
+          return {
+            name: safeName(result.courseName) + '_' + t.name + (anonymize ? '_去識別化' : '') + '_' + stamp + '.csv',
+            rows: t.rows,
+            count: Math.max(0, t.rows.length - 1)
+          };
+        });
+
+        $('exportFiles').innerHTML = files.map(function(f, i) {
+          return '<button type="button" class="k-btn" data-file="' + i + '">⬇ ' + escapeHtml(f.name) + '（' + f.count + ' 筆）</button>';
+        }).join('');
+        $('exportFiles').hidden = false;
+        $('exportFiles').onclick = function(event) {
+          const b = event.target.closest('[data-file]');
+          if (b) downloadCsv(files[Number(b.dataset.file)].name, files[Number(b.dataset.file)].rows);
+        };
+
+        $('exportRunButton').disabled = false;
+        $('exportRunButton').textContent = '重新產生';
+        setMessage('exportMessage', '✓ 已產生，點上面的檔名下載', 'success');
+      })
+      .catch(function(error) {
+        $('exportRunButton').disabled = false;
+        setMessage('exportMessage', /不允許呼叫的功能/.test(error.message)
+          ? '要等 Apps Script 換上新版 Code.gs 並部署後才能匯出。'
+          : '匯出失敗：' + error.message, 'error');
+      });
+  }
+
+
   /* ---------- 開始 ---------- */
 
   document.addEventListener('DOMContentLoaded', function() {
@@ -616,6 +734,8 @@
     $('editCancelButton').addEventListener('click', function() { $('editDialog').close(); });
     $('courseList').addEventListener('click', handleAction);
     $('projectorClose').addEventListener('click', closeProjector);
+    $('exportRunButton').addEventListener('click', runExport);
+    $('exportCloseButton').addEventListener('click', function() { $('exportDialog').close(); });
 
     document.addEventListener('keydown', function(event) {
       if (event.key === 'Escape' && !$('projector').hidden) closeProjector();

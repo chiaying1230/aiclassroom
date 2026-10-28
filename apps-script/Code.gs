@@ -21,8 +21,15 @@ const QUESTION_HEADERS = [
   '題目ID', '標題', '題目內容', '配分', '標準答案',
   '評分規準', 'AI審核', '狀態', '建立時間',
   '截止時間', '截止後', '最後修改', '課程ID',
-  '即時回饋風格', '回饋補充指示', '自動分類'
+  '即時回饋風格', '回饋補充指示', '自動分類',
+  '學習目標', '評量方式'
 ];
+
+/* 學生重新送出時，自己勾選有沒有參考 AI 學習建議 */
+const AI_ADOPTED_OPTIONS = ['有參考', '部分參考', '沒有參考'];
+
+/* 評量方式：評分（預設）或描述性回饋（不給分） */
+const ASSESSMENT = { SCORE: '評分', DESCRIPTIVE: '描述性回饋' };
 
 const COURSE_HEADERS = [
   '課程ID', '課程名稱', '授課教師帳號', '教師顯示名稱', '課程說明',
@@ -31,14 +38,15 @@ const COURSE_HEADERS = [
 
 const TEACHER_HEADERS = [
   '帳號', '顯示名稱', '角色', '狀態', '密碼雜湊',
-  '密碼鹽', '建立時間', '最後登入'
+  '密碼鹽', '建立時間', '最後登入', '評語口吻', '評語範例'
 ];
 
 const ANSWER_HEADERS = [
   '回答ID', '題目ID', '學號', '姓名', '學生回答',
   '送出時間', 'AI分數', 'AI評語', 'AI信心', '教師分數',
   '教師評語', '狀態', '最後更新', 'AI教師口吻評語',
-  'AI即時回饋', '繳交次數'
+  'AI即時回饋', '繳交次數',
+  'AI草稿採用', '修改說明', 'AI建議採納'
 ];
 
 /* 學生每次重新送出前，舊的版本存到這裡 */
@@ -47,13 +55,15 @@ const HISTORY_SHEET = '作答歷程';
 const HISTORY_HEADERS = [
   '歷程ID', '回答ID', '題目ID', '學號', '姓名', '第幾次',
   '學生回答', '送出時間', 'AI即時回饋', 'AI分數', 'AI評語',
-  '教師分數', '教師評語', '狀態', '被取代時間'
+  '教師分數', '教師評語', '狀態', '被取代時間',
+  '修改說明', 'AI建議採納', 'AI草稿採用'
 ];
 
 const HCOL = {
   ID: 1, ANSWER_ID: 2, QUESTION_ID: 3, STUDENT_ID: 4, NAME: 5, VERSION: 6,
   ANSWER: 7, SUBMITTED: 8, INSTANT_FEEDBACK: 9, AI_SCORE: 10, AI_FEEDBACK: 11,
-  TEACHER_SCORE: 12, TEACHER_FEEDBACK: 13, STATUS: 14, REPLACED: 15
+  TEACHER_SCORE: 12, TEACHER_FEEDBACK: 13, STATUS: 14, REPLACED: 15,
+  REVISION_NOTE: 16, AI_ADOPTED: 17, DRAFT_ADOPTION: 18
 };
 
 const CATEGORY_HEADERS = [
@@ -63,7 +73,8 @@ const CATEGORY_HEADERS = [
 
 const CODING_HEADERS = [
   '回答ID', '題目ID', '類別ID', 'AI理由', 'AI信心',
-  '教師確認', '最後更新'
+  '教師確認', '最後更新',
+  'AI原分類', 'AI原理由', '確認來源', '學生確認', '學生說明'
 ];
 
 /* 欄位位置（從 1 開始算） */
@@ -72,7 +83,8 @@ const QCOL = {
   ID: 1, TITLE: 2, CONTENT: 3, POINTS: 4, REFERENCE: 5,
   RUBRIC: 6, AI: 7, STATUS: 8, CREATED: 9,
   DEADLINE: 10, LATE_POLICY: 11, UPDATED: 12, COURSE: 13,
-  FEEDBACK_STYLE: 14, FEEDBACK_NOTE: 15, AUTO_CLASSIFY: 16
+  FEEDBACK_STYLE: 14, FEEDBACK_NOTE: 15, AUTO_CLASSIFY: 16,
+  OBJECTIVE: 17, ASSESSMENT: 18
 };
 
 const COURSE_COL = {
@@ -82,7 +94,7 @@ const COURSE_COL = {
 
 const TCOL = {
   ACCOUNT: 1, NAME: 2, ROLE: 3, STATUS: 4, HASH: 5,
-  SALT: 6, CREATED: 7, LAST_LOGIN: 8
+  SALT: 6, CREATED: 7, LAST_LOGIN: 8, VOICE_STYLE: 9, VOICE_EXAMPLES: 10
 };
 
 const COURSE_STATUS = { OPEN: '開放', ARCHIVED: '封存' };
@@ -113,7 +125,8 @@ const ACOL = {
   SUBMITTED: 6, AI_SCORE: 7, AI_FEEDBACK: 8, AI_CONFIDENCE: 9,
   TEACHER_SCORE: 10, TEACHER_FEEDBACK: 11, STATUS: 12,
   UPDATED: 13, AI_STUDENT_FEEDBACK: 14,
-  INSTANT_FEEDBACK: 15, VERSION: 16
+  INSTANT_FEEDBACK: 15, VERSION: 16,
+  DRAFT_ADOPTION: 17, REVISION_NOTE: 18, AI_ADOPTED: 19
 };
 
 const CCOL = {
@@ -123,8 +136,12 @@ const CCOL = {
 
 const KCOL = {
   ANSWER_ID: 1, QUESTION_ID: 2, CATEGORY_ID: 3, REASON: 4,
-  CONFIDENCE: 5, CONFIRMED: 6, UPDATED: 7
+  CONFIDENCE: 5, CONFIRMED: 6, UPDATED: 7,
+  AI_CATEGORY: 8, AI_REASON: 9, CONFIRMED_BY: 10, STUDENT_AGREE: 11, STUDENT_NOTE: 12
 };
+
+/* 分類是誰確認的 */
+const CONFIRMED_BY = { AI: 'AI自動', TEACHER: '教師' };
 
 const STATUS = {
   WAIT_AI: '待AI批改',
@@ -446,7 +463,9 @@ function teacherFromRow_(row, rowNumber) {
     hash: cleanText_(row[TCOL.HASH - 1]),
     salt: cleanText_(row[TCOL.SALT - 1]),
     createdAt: row[TCOL.CREATED - 1],
-    lastLogin: row[TCOL.LAST_LOGIN - 1]
+    lastLogin: row[TCOL.LAST_LOGIN - 1],
+    voiceStyle: cleanText_(row[TCOL.VOICE_STYLE - 1]),
+    voiceExamples: cleanText_(row[TCOL.VOICE_EXAMPLES - 1])
   };
 }
 
@@ -1225,6 +1244,7 @@ function getPublicApiHandlers_() {
     submitAnswer: submitAnswer,
     getStudentResults: getStudentResults,
     requestInstantFeedback: requestInstantFeedback,
+    confirmMyClassification: confirmMyClassification,
     teacherLogin: teacherLogin,
     teacherLogout: teacherLogout
   };
@@ -1260,9 +1280,11 @@ function getTeacherApiHandlers_() {
     getQuestionInsight: getQuestionInsight,
     saveTeacherReview: saveTeacherReview,
     runAIReview: runAIReview,
-    getAISettings: getAISettings,
-    // 評語風格是全站共用的設定，只讓管理員修改
-    saveAISettings: adminOnly_(saveAISettings, 'saveAISettings'),
+    // 評語口吻：每位老師自己的；管理員改的是全站預設
+    getAISettings: getMyAISettings,
+    saveAISettings: saveMyAISettings,
+    saveInsightJudgement: saveInsightJudgement,
+    exportResearchRecords: exportResearchRecords,
 
     // 課程
     getMyCourses: getMyCourses,
@@ -1398,6 +1420,7 @@ function setupSystem() {
   ensureSheet_(ss, RAG_COURSE_SHEET, RAG_COURSE_HEADERS, '#e3f3eb', false);
   ensureSheet_(ss, HISTORY_SHEET, HISTORY_HEADERS, '#eef0f3', false);
   ensureSheet_(ss, INSIGHT_SHEET, INSIGHT_HEADERS, '#fff6d6', false);
+  ensureSheet_(ss, EVENT_SHEET, EVENT_HEADERS, '#f3ecdf', false);
 
   // 即時回饋與自動分類的背景工作
   const trigger = installAutoTrigger_();
@@ -1848,9 +1871,21 @@ function appendRows_(sheet, rows, width) {
     sheet.insertRowsAfter(maxRows, neededLastRow - maxRows + 200);
   }
 
+  // 欄位比工作表多（新增欄位後還沒執行 setupSystem）時先補欄
+  if (sheet.getMaxColumns() < width) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), width - sheet.getMaxColumns());
+  }
+
+  // 比較短的列補空白，新增欄位時舊的寫入程式不用每個都改
+  const padded = rows.map(function(row) {
+    row = row.slice(0, width);
+    while (row.length < width) row.push('');
+    return row;
+  });
+
   sheet
     .getRange(startRow, 1, rows.length, width)
-    .setValues(cells_(rows));
+    .setValues(cells_(padded));
 
   return startRow;
 }
@@ -1875,8 +1910,18 @@ function questionFromRow_(row, rowNumber) {
     feedbackStyle: cleanText_(row[QCOL.FEEDBACK_STYLE - 1]),
     feedbackNote: cleanText_(row[QCOL.FEEDBACK_NOTE - 1]),
     // 學生送出後自動分類到課堂討論並標成已確認
-    autoClassify: cleanText_(row[QCOL.AUTO_CLASSIFY - 1]) === '是'
+    autoClassify: cleanText_(row[QCOL.AUTO_CLASSIFY - 1]) === '是',
+    objective: cleanText_(row[QCOL.OBJECTIVE - 1]),
+    // 空白（舊題目）視為評分
+    assessment: cleanText_(row[QCOL.ASSESSMENT - 1]) === ASSESSMENT.DESCRIPTIVE
+      ? ASSESSMENT.DESCRIPTIVE
+      : ASSESSMENT.SCORE
   };
+}
+
+
+function isDescriptiveQuestion_(question) {
+  return !!question && question.assessment === ASSESSMENT.DESCRIPTIVE;
 }
 
 
@@ -2007,7 +2052,13 @@ function cleanQuestionInput_(data) {
     hasAutomation: data.feedbackStyle !== undefined || data.autoClassify !== undefined,
     feedbackStyle: cleanFeedbackStyle_(data.feedbackStyle),
     feedbackNote: cleanText_(data.feedbackNote).substring(0, 500),
-    autoClassify: data.autoClassify === true || data.autoClassify === 'true'
+    autoClassify: data.autoClassify === true || data.autoClassify === 'true',
+    // 舊版網頁不會送學習目標和評量方式，編輯時就保留原本的
+    hasObjective: data.objective !== undefined || data.assessment !== undefined,
+    objective: cleanText_(data.objective).substring(0, 500),
+    assessment: cleanText_(data.assessment) === ASSESSMENT.DESCRIPTIVE
+      ? ASSESSMENT.DESCRIPTIVE
+      : ASSESSMENT.SCORE
   };
 }
 
@@ -2102,7 +2153,8 @@ function getPublishedQuestions(courseCode) {
         passed: passed,
         closed: passed && !q.allowLate,
         submittedCount: submitted[q.id] || 0,
-        instantFeedback: !!q.feedbackStyle
+        instantFeedback: !!q.feedbackStyle,
+        descriptive: isDescriptiveQuestion_(q)
       };
     });
 }
@@ -2131,6 +2183,14 @@ function submitAnswer(data) {
 
   if (answer.length > MAX_ANSWER_LENGTH) {
     throw new Error('回答太長，請控制在 ' + MAX_ANSWER_LENGTH + ' 字以內');
+  }
+
+  // 重新送出時學生寫的修改說明，和有沒有參考 AI 學習建議（學生自己說的）
+  const revisionNote = cleanText_(data.revisionNote);
+  const aiAdopted = AI_ADOPTED_OPTIONS.indexOf(cleanText_(data.aiAdopted)) >= 0 ? cleanText_(data.aiAdopted) : '';
+
+  if (revisionNote.length > 300) {
+    throw new Error('修改說明請控制在 300 字以內');
   }
 
   const question = findQuestion_(questionId);
@@ -2210,13 +2270,31 @@ function submitAnswer(data) {
         .getRange(rowNumber, ACOL.AI_SCORE, 1, 5)
         .clearContent();
 
-      // L 狀態、M 最後更新、N AI教師口吻評語、O AI即時回饋、P 繳交次數
+      // L 狀態、M 最後更新、N AI教師口吻評語、O AI即時回饋、P 繳交次數、
+      // Q AI草稿採用、R 修改說明、S AI建議採納
       sheet
-        .getRange(rowNumber, ACOL.STATUS, 1, 5)
-        .setValues(cells_([[initialStatus, now, '', '', oldVersion + 1]]));
+        .getRange(rowNumber, ACOL.STATUS, 1, 8)
+        .setValues(cells_([[initialStatus, now, '', '', oldVersion + 1, '', revisionNote, aiAdopted]]));
 
       // 回答內容變了，舊的分類也要清掉
       deleteCodingForAnswers_([answerId]);
+
+      logEvent_({
+        courseId: question.courseId,
+        questionId: questionId,
+        answerId: answerId,
+        studentId: studentId,
+        module: MODULE.LEARN,
+        type: '學生修改作答',
+        source: '學生',
+        detail: {
+          fromVersion: oldVersion,
+          toVersion: oldVersion + 1,
+          revisionNote: revisionNote,
+          aiAdopted: aiAdopted,
+          previousFeedback: cleanText_(rows[i][ACOL.INSTANT_FEEDBACK - 1])
+        }
+      });
 
       return {
         success: true,
@@ -2235,7 +2313,7 @@ function submitAnswer(data) {
 
     const rowNumber = appendRows_(sheet, [[
       answerId, questionId, '', name, answer,
-      now, '', '', '', '', '', initialStatus, now, '', '', 1
+      now, '', '', '', '', '', initialStatus, now, '', '', 1, '', '', ''
     ]], ANSWER_HEADERS.length);
 
     // 學號設成純文字後再寫入，避免 0123 變成 123
@@ -2253,6 +2331,290 @@ function submitAnswer(data) {
       instantFeedback: instantFeedback
     };
   });
+}
+
+
+/* =====================================================
+   評語口吻：每位老師自己設定
+   - 管理員：改的是全站預設（ai.gs 的 saveAISettings，存在指令碼屬性）
+   - 其他老師：存在「教師帳號」表自己那一列；沒有設定就用全站預設
+   ai.gs 的 gradeAnswerWithAI_ 會讀 getAISettings()，批改時暫時換成這位老師的設定。
+===================================================== */
+
+function teacherVoice_() {
+
+  const site = getAISettings();
+  let teacher = null;
+
+  try {
+    teacher = currentTeacher_();
+  } catch (error) {
+    teacher = null;
+  }
+
+  if (teacher && !isAdmin_(teacher) && (teacher.voiceStyle || teacher.voiceExamples)) {
+    return { feedbackStyle: teacher.voiceStyle, feedbackExamples: teacher.voiceExamples, own: true };
+  }
+
+  return { feedbackStyle: site.feedbackStyle || '', feedbackExamples: site.feedbackExamples || '', own: false };
+}
+
+
+function withTeacherVoice_(voice, fn) {
+
+  if (!voice || !voice.own) {
+    return fn();
+  }
+
+  const original = getAISettings;
+
+  getAISettings = function() {
+    const settings = original();
+    settings.feedbackStyle = voice.feedbackStyle;
+    settings.feedbackExamples = voice.feedbackExamples;
+    return settings;
+  };
+
+  try {
+    return fn();
+  } finally {
+    getAISettings = original;
+  }
+}
+
+
+/*
+ * 網頁的「AI 評語風格」分頁。
+ */
+function getMyAISettings() {
+
+  const teacher = currentTeacher_();
+  const site = getAISettings();
+
+  if (isAdmin_(teacher)) {
+    return Object.assign({}, site, { scope: 'site' });
+  }
+
+  return {
+    scope: 'personal',
+    feedbackStyle: teacher.voiceStyle || '',
+    feedbackExamples: teacher.voiceExamples || '',
+    siteFeedbackStyle: site.feedbackStyle || '',
+    model: site.model,
+    hasApiKey: site.hasApiKey
+  };
+}
+
+
+function saveMyAISettings(data) {
+
+  data = data || {};
+
+  const teacher = currentTeacher_();
+
+  if (isAdmin_(teacher)) {
+    return saveAISettings(data);
+  }
+
+  const style = cleanText_(data.feedbackStyle);
+  const examples = cleanText_(data.feedbackExamples);
+
+  if (style.length > 1000) {
+    throw new Error('評語風格要求請控制在 1000 字以內');
+  }
+
+  if (examples.length > 2500) {
+    throw new Error('評語範例請控制在 2500 字以內');
+  }
+
+  return withLock_(function() {
+
+    const sheet = getTeacherSheet_();
+    ensureColumns_(sheet, TEACHER_HEADERS);
+
+    const row = findTeacherRow_(teacher.account);
+
+    if (!row) {
+      throw new Error('找不到你的帳號');
+    }
+
+    sheet
+      .getRange(row.rowNumber, TCOL.VOICE_STYLE, 1, 2)
+      .setValues(cells_([[style, examples]]));
+
+    return { success: true, scope: 'personal' };
+  });
+}
+
+
+/* =====================================================
+   學習歷程紀錄
+   四個模組裡「AI 提出了什麼、老師或學生怎麼決定」都記一列，
+   不會被之後的操作蓋掉。匯出研究紀錄時會用到。
+===================================================== */
+
+const EVENT_SHEET = '學習歷程紀錄';
+const EVENT_HEADERS = ['紀錄ID', '時間', '課程ID', '題目ID', '回答ID', '學號', '模組', '類型', '來源', '內容'];
+
+const MODULE = {
+  DISCUSS: '一 課堂討論',
+  ASSESS: '二 教師評量助手',
+  LEARN: '三 學生學習助手',
+  DIAGNOSE: '四 教師教學診斷'
+};
+
+
+function getEventSheet_() {
+
+  const ss = getSpreadsheet_();
+
+  return (
+    ss.getSheetByName(EVENT_SHEET) ||
+    ensureSheet_(ss, EVENT_SHEET, EVENT_HEADERS, '#f3ecdf', false)
+  );
+}
+
+
+/*
+ * 記一筆。紀錄失敗不影響原本的操作。
+ * e：{ courseId, questionId, answerId, studentId, module, type, source, detail }
+ */
+function logEvent_(e) {
+
+  try {
+    withLock_(function() {
+
+      const sheet = getEventSheet_();
+      const studentId = cleanText_(e.studentId);
+
+      const rowNumber = appendRows_(sheet, [[
+        generateId_('E'),
+        new Date(),
+        e.courseId || '',
+        e.questionId || '',
+        e.answerId || '',
+        '',
+        e.module,
+        e.type,
+        e.source,
+        JSON.stringify(e.detail || {})
+      ]], EVENT_HEADERS.length);
+
+      // 學號設成純文字後再寫入，避免 0123 變成 123
+      if (studentId) {
+        sheet.getRange(rowNumber, 6).setNumberFormat('@').setValue(cell_(studentId));
+      }
+    });
+  } catch (error) {
+    Logger.log('學習歷程紀錄寫入失敗：' + error.message);
+  }
+}
+
+
+/*
+ * 這次操作的人：老師、學生或背景自動處理。
+ */
+function teacherSource_() {
+
+  if (!REQUEST_) {
+    return '系統自動';
+  }
+
+  const t = currentTeacher_();
+
+  return '教師：' + (t.name || t.account) + '（' + t.account + '）';
+}
+
+
+/*
+ * 讀出紀錄。filter(row) 回傳 true 的才留下。
+ */
+function readEvents_(filter) {
+
+  const sheet = getSpreadsheet_().getSheetByName(EVENT_SHEET);
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return [];
+  }
+
+  return sheet.getDataRange().getValues().slice(1)
+    .filter(function(row) { return cleanText_(row[0]) && (!filter || filter(row)); })
+    .map(function(row) {
+      let detail = {};
+      try { detail = JSON.parse(row[9] || '{}'); } catch (error) { detail = {}; }
+      return {
+        id: cleanText_(row[0]),
+        time: row[1],
+        courseId: cleanText_(row[2]),
+        questionId: cleanText_(row[3]),
+        answerId: cleanText_(row[4]),
+        studentId: cleanText_(row[5]),
+        module: cleanText_(row[6]),
+        type: cleanText_(row[7]),
+        source: cleanText_(row[8]),
+        detail: detail
+      };
+    });
+}
+
+
+/*
+ * 老師的評語和 AI 草稿有多像：用兩個字一組的重疊比例（0～1）。
+ */
+function textSimilarity_(a, b) {
+
+  const norm = function(t) { return cleanText_(t).replace(/[\s，。、！？；：,.!?;:「」『』（）()…\-]/g, ''); };
+  const pairs = function(t) {
+    const out = {};
+    for (let i = 0; i < t.length - 1; i++) {
+      const key = t.substr(i, 2);
+      out[key] = (out[key] || 0) + 1;
+    }
+    return out;
+  };
+
+  a = norm(a);
+  b = norm(b);
+
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+
+  const pa = pairs(a);
+  const pb = pairs(b);
+  let overlap = 0;
+  let total = 0;
+
+  Object.keys(pa).forEach(function(k) { total += pa[k]; if (pb[k]) overlap += Math.min(pa[k], pb[k]); });
+  Object.keys(pb).forEach(function(k) { total += pb[k]; });
+
+  return total ? (2 * overlap) / total : 0;
+}
+
+
+/*
+ * 老師的正式評語是怎麼來的：直接採用 AI 草稿、修改後採用、自行撰寫，或沒有用 AI。
+ */
+function draftAdoption_(row, teacherScore, teacherFeedback) {
+
+  const aiScore = row[ACOL.AI_SCORE - 1];
+  const aiStudent = cleanText_(row[ACOL.AI_STUDENT_FEEDBACK - 1]);
+  const aiTeacher = cleanText_(row[ACOL.AI_FEEDBACK - 1]);
+
+  if (aiScore === '' && !aiStudent && !aiTeacher) {
+    return '未使用AI';
+  }
+
+  if (!cleanText_(teacherFeedback)) {
+    return teacherScore !== '' && Number(teacherScore) === Number(aiScore) ? '只採用AI分數' : '自行評分';
+  }
+
+  const similarity = Math.max(textSimilarity_(teacherFeedback, aiStudent), textSimilarity_(teacherFeedback, aiTeacher));
+  const sameScore = teacherScore === '' || aiScore === '' || Number(teacherScore) === Number(aiScore);
+
+  if (similarity >= 0.999 && sameScore) return '直接採用';
+  if (similarity >= 0.45) return '修改後採用';
+
+  return '自行撰寫';
 }
 
 
@@ -2293,7 +2655,10 @@ function archiveAnswerVersion_(row, version, replacedAt) {
     row[ACOL.TEACHER_SCORE - 1],
     row[ACOL.TEACHER_FEEDBACK - 1],
     row[ACOL.STATUS - 1],
-    replacedAt
+    replacedAt,
+    row[ACOL.REVISION_NOTE - 1] || '',
+    row[ACOL.AI_ADOPTED - 1] || '',
+    row[ACOL.DRAFT_ADOPTION - 1] || ''
   ]], HISTORY_HEADERS.length);
 
   // 學號存成純文字，避免 0123 變成 123
@@ -2336,7 +2701,10 @@ function getHistoryMap_(answerIds) {
       aiFeedback: cleanText_(row[HCOL.AI_FEEDBACK - 1]),
       teacherScore: row[HCOL.TEACHER_SCORE - 1],
       teacherFeedback: cleanText_(row[HCOL.TEACHER_FEEDBACK - 1]),
-      status: cleanText_(row[HCOL.STATUS - 1])
+      status: cleanText_(row[HCOL.STATUS - 1]),
+      revisionNote: cleanText_(row[HCOL.REVISION_NOTE - 1]),
+      aiAdopted: cleanText_(row[HCOL.AI_ADOPTED - 1]),
+      draftAdoption: cleanText_(row[HCOL.DRAFT_ADOPTION - 1])
     });
   });
 
@@ -2380,7 +2748,8 @@ function getStudentResults(data) {
         title: row[1],
         points: row[3],
         deadline: toTime_(row[QCOL.DEADLINE - 1]),
-        courseId: courseIdOf_(row)
+        courseId: courseIdOf_(row),
+        descriptive: cleanText_(row[QCOL.ASSESSMENT - 1]) === ASSESSMENT.DESCRIPTIVE
       };
     }
   });
@@ -2398,6 +2767,7 @@ function getStudentResults(data) {
     });
 
   const history = getHistoryMap_(mine.map(function(row) { return row[0]; }));
+  const classified = studentClassifications_(mine);
 
   return mine
     .map(function(row) {
@@ -2417,9 +2787,16 @@ function getStudentResults(data) {
             instantFeedback: h.instantFeedback,
             teacherScore: h.status === STATUS.PASSED || h.status === STATUS.RETURNED ? h.teacherScore : '',
             teacherFeedback: h.status === STATUS.PASSED || h.status === STATUS.RETURNED ? h.teacherFeedback : '',
-            status: h.status
+            status: h.status,
+            revisionNote: h.revisionNote,
+            aiAdopted: h.aiAdopted
           };
         }),
+        revisionNote: cleanText_(row[ACOL.REVISION_NOTE - 1]),
+        aiAdopted: cleanText_(row[ACOL.AI_ADOPTED - 1]),
+        descriptive: !!q.descriptive,
+        // 課堂討論的分類（已確認的才給學生看），學生可以回覆是否符合自己的想法
+        classification: classified[cleanText_(row[0])] || null,
         answerId: row[0],
         questionId: questionId,
         title: q.title || '題目',
@@ -2434,6 +2811,130 @@ function getStudentResults(data) {
       };
     })
     .reverse();
+}
+
+
+/*
+ * 學生自己的回答被分到哪一類（只給已確認的）。
+ */
+function studentClassifications_(answerRows) {
+
+  const out = {};
+
+  if (!answerRows.length) {
+    return out;
+  }
+
+  const ids = {};
+  answerRows.forEach(function(row) { ids[cleanText_(row[0])] = true; });
+
+  const sheet = getSpreadsheet_().getSheetByName(CODING_SHEET);
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return out;
+  }
+
+  const categories = {};
+
+  getCategorySheet_().getDataRange().getValues().slice(1).forEach(function(row) {
+    const id = cleanText_(row[0]);
+    if (id) categories[id] = { name: cleanText_(row[2]), description: cleanText_(row[3]) };
+  });
+
+  sheet.getDataRange().getValues().slice(1).forEach(function(row) {
+
+    const answerId = cleanText_(row[KCOL.ANSWER_ID - 1]);
+    const c = categories[cleanText_(row[KCOL.CATEGORY_ID - 1])];
+
+    if (!ids[answerId] || !c || cleanText_(row[KCOL.CONFIRMED - 1]) !== '是') {
+      return;
+    }
+
+    out[answerId] = {
+      categoryName: c.name,
+      description: c.description,
+      agree: cleanText_(row[KCOL.STUDENT_AGREE - 1]),
+      note: cleanText_(row[KCOL.STUDENT_NOTE - 1])
+    };
+  });
+
+  return out;
+}
+
+
+/*
+ * 學生回覆「這個分類符不符合我的想法」。
+ * data：{ studentId, name, answerId, agree: '符合'|'不太符合', note, courseCode }
+ */
+const STUDENT_AGREE_OPTIONS = ['符合', '不太符合'];
+
+function confirmMyClassification(data) {
+
+  data = data || {};
+
+  const studentId = cleanText_(data.studentId);
+  const name = cleanText_(data.name);
+  const answerId = cleanText_(data.answerId);
+  const agree = cleanText_(data.agree);
+  const note = cleanText_(data.note);
+
+  if (STUDENT_AGREE_OPTIONS.indexOf(agree) < 0) {
+    throw new Error('請選擇「符合」或「不太符合」');
+  }
+
+  if (note.length > 300) {
+    throw new Error('說明請控制在 300 字以內');
+  }
+
+  const answers = getAnswerSheet_().getDataRange().getValues();
+  const index = findRowIndex_(answers, answerId);
+
+  if (
+    index < 0 ||
+    cleanText_(answers[index][ACOL.STUDENT_ID - 1]) !== studentId ||
+    cleanText_(answers[index][ACOL.NAME - 1]) !== name
+  ) {
+    throw new Error('找不到你的這份回答，請重新整理頁面');
+  }
+
+  const question = findQuestion_(answers[index][ACOL.QUESTION_ID - 1]);
+
+  return withLock_(function() {
+
+    const sheet = getCodingSheet_();
+    ensureColumns_(sheet, CODING_HEADERS);
+
+    const values = sheet.getDataRange().getValues();
+    let rowIndex = -1;
+
+    for (let i = 1; i < values.length; i++) {
+      if (cleanText_(values[i][KCOL.ANSWER_ID - 1]) === answerId) {
+        rowIndex = i;
+        break;
+      }
+    }
+
+    if (rowIndex < 0 || cleanText_(values[rowIndex][KCOL.CONFIRMED - 1]) !== '是') {
+      throw new Error('這份回答的分類已經更新，請重新整理頁面');
+    }
+
+    sheet
+      .getRange(rowIndex + 1, KCOL.STUDENT_AGREE, 1, 2)
+      .setValues(cells_([[agree, note]]));
+
+    logEvent_({
+      courseId: question ? question.courseId : '',
+      questionId: question ? question.id : '',
+      answerId: answerId,
+      studentId: studentId,
+      module: MODULE.DISCUSS,
+      type: '學生回覆分類',
+      source: '學生',
+      detail: { categoryId: cleanText_(values[rowIndex][KCOL.CATEGORY_ID - 1]), agree: agree, note: note }
+    });
+
+    return { success: true, agree: agree, note: note };
+  });
 }
 
 
@@ -2478,7 +2979,9 @@ function createQuestion(data) {
       course.id,
       q.feedbackStyle,
       q.feedbackNote,
-      q.autoClassify ? '是' : '否'
+      q.autoClassify ? '是' : '否',
+      q.objective,
+      q.assessment
     ]], QUESTION_HEADERS.length);
 
     sheet.getRange(rowNumber, QCOL.DEADLINE).setNumberFormat('yyyy/mm/dd hh:mm');
@@ -2552,6 +3055,12 @@ function updateQuestion(data) {
       if (q.autoClassify) {
         markAutoWork_();
       }
+    }
+
+    if (q.hasObjective) {
+      sheet
+        .getRange(rowNumber, QCOL.OBJECTIVE, 1, 2)
+        .setValues(cells_([[q.objective, q.assessment]]));
     }
 
     // 配分改小時，找出教師分數超過新配分的回答，提醒老師
@@ -2658,7 +3167,9 @@ function copyQuestions(questionIds, targetCourseId) {
         target.id,
         q.feedbackStyle,
         q.feedbackNote,
-        q.autoClassify ? '是' : '否'
+        q.autoClassify ? '是' : '否',
+        q.objective,
+        q.assessment
       ];
     });
 
@@ -2759,7 +3270,9 @@ function getTeacherQuestions(courseId) {
         courseId: course.id,
         feedbackStyle: q.feedbackStyle,
         feedbackNote: q.feedbackNote,
-        autoClassify: q.autoClassify
+        autoClassify: q.autoClassify,
+        objective: q.objective,
+        assessment: q.assessment
       };
     })
     .reverse();
@@ -2843,6 +3356,24 @@ function getTeacherAnswers(questionId, courseId) {
     })
     .map(function(row) { return row[0]; }));
 
+  // 每一次 AI 批改建議（學習歷程紀錄）
+  const suggestions = {};
+
+  readEvents_(function(row) {
+    return cleanText_(row[2]) === course.id && cleanText_(row[7]) === 'AI批改建議' &&
+      (!cleanText_(questionId) || cleanText_(row[3]) === cleanText_(questionId));
+  }).forEach(function(e) {
+    (suggestions[e.answerId] = suggestions[e.answerId] || []).push({
+      time: formatDate_(e.time),
+      version: e.detail.version || 1,
+      score: e.detail.score === undefined ? '' : e.detail.score,
+      feedback: e.detail.feedback || '',
+      studentFeedback: e.detail.studentFeedback || '',
+      confidence: e.detail.confidence || '',
+      source: e.source
+    });
+  });
+
   return answers
     .slice(1)
     .filter(function(row) {
@@ -2889,7 +3420,14 @@ function getTeacherAnswers(questionId, courseId) {
         instantFeedback: cleanText_(row[ACOL.INSTANT_FEEDBACK - 1]),
         feedbackStyle: q.feedbackStyle || '',
         version: Number(row[ACOL.VERSION - 1]) || 1,
-        history: history[cleanText_(row[ACOL.ID - 1])] || []
+        history: history[cleanText_(row[ACOL.ID - 1])] || [],
+        objective: q.objective || '',
+        descriptive: isDescriptiveQuestion_(q),
+        draftAdoption: cleanText_(row[ACOL.DRAFT_ADOPTION - 1]),
+        revisionNote: cleanText_(row[ACOL.REVISION_NOTE - 1]),
+        aiAdopted: cleanText_(row[ACOL.AI_ADOPTED - 1]),
+        // 之前每一次按「AI 批改」的建議（最新的一次就是上面的 aiScore、aiFeedback）
+        aiSuggestions: suggestions[cleanText_(row[ACOL.ID - 1])] || []
       };
     })
     .reverse();
@@ -3005,6 +3543,11 @@ function saveTeacherReview(data) {
       throw new Error('找不到學生回答');
     }
 
+    // 描述性回饋（不給分）的題目不存分數
+    if (isDescriptiveQuestion_(findQuestion_(rows[index][ACOL.QUESTION_ID - 1]))) {
+      teacherScore = '';
+    }
+
     if (teacherScore !== '') {
 
       const question = findQuestion_(rows[index][ACOL.QUESTION_ID - 1]);
@@ -3015,12 +3558,38 @@ function saveTeacherReview(data) {
       }
     }
 
+    const adoption = draftAdoption_(rows[index], teacherScore, feedback);
+
     // J 教師分數、K 教師評語、L 狀態、M 最後更新
     sheet
       .getRange(index + 1, ACOL.TEACHER_SCORE, 1, 4)
       .setValues(cells_([[teacherScore, feedback, status, new Date()]]));
 
-    return { success: true };
+    ensureColumns_(sheet, ANSWER_HEADERS);
+    sheet.getRange(index + 1, ACOL.DRAFT_ADOPTION).setValue(adoption);
+
+    const q = findQuestion_(rows[index][ACOL.QUESTION_ID - 1]);
+
+    logEvent_({
+      courseId: q ? q.courseId : '',
+      questionId: rows[index][ACOL.QUESTION_ID - 1],
+      answerId: answerId,
+      studentId: rows[index][ACOL.STUDENT_ID - 1],
+      module: MODULE.ASSESS,
+      type: '教師審核',
+      source: teacherSource_(),
+      detail: {
+        version: Number(rows[index][ACOL.VERSION - 1]) || 1,
+        aiScore: rows[index][ACOL.AI_SCORE - 1],
+        teacherScore: teacherScore,
+        status: status,
+        feedback: feedback,
+        aiDraft: cleanText_(rows[index][ACOL.AI_STUDENT_FEEDBACK - 1]),
+        adoption: adoption
+      }
+    });
+
+    return { success: true, adoption: adoption };
   });
 }
 
@@ -3058,8 +3627,28 @@ function runAIReview(answerId) {
     throw new Error('這份回答是空白的');
   }
 
-  // 呼叫 ai.gs
-  const ai = gradeAnswerWithAI_(question, answerText);
+  const voice = teacherVoice_();
+  let ai;
+
+  if (isDescriptiveQuestion_(question)) {
+
+    // 描述性回饋（不給分）：ai_instant.gs
+    const d = describeAnswerWithAI_(question, answerText, voice);
+    ai = { score: '', feedback: d.feedback, studentFeedback: d.studentFeedback, confidence: '' };
+
+  } else {
+
+    // 呼叫 ai.gs。學習目標併進評分規準一起給 AI 參考；評語用這位老師自己的口吻
+    const forAI = Object.assign({}, question, {
+      rubric: question.objective
+        ? '學習目標：' + question.objective + '\n\n' + (question.rubric || '教師未提供')
+        : question.rubric
+    });
+
+    ai = withTeacherVoice_(voice, function() {
+      return gradeAnswerWithAI_(forAI, answerText);
+    });
+  }
 
   /*
    * 呼叫 AI 期間資料可能變動，寫入前重新找一次列。
@@ -3101,6 +3690,24 @@ function runAIReview(answerId) {
     answerSheet
       .getRange(rowNumber, ACOL.STATUS, 1, 3)
       .setValues(cells_([[newStatus, new Date(), ai.studentFeedback]]));
+
+    logEvent_({
+      courseId: question.courseId,
+      questionId: question.id,
+      answerId: answerId,
+      studentId: rows[i][ACOL.STUDENT_ID - 1],
+      module: MODULE.ASSESS,
+      type: 'AI批改建議',
+      source: 'AI（' + teacherSource_() + ' 要求）',
+      detail: {
+        version: Number(rows[i][ACOL.VERSION - 1]) || 1,
+        score: ai.score,
+        feedback: ai.feedback,
+        studentFeedback: ai.studentFeedback,
+        confidence: ai.confidence,
+        voice: voice.own ? '老師個人口吻' : '全站預設口吻'
+      }
+    });
 
     return {
       success: true,
@@ -3222,12 +3829,22 @@ function getCodingMap_(questionId) {
       continue;
     }
 
+    const confirmed = cleanText_(row[KCOL.CONFIRMED - 1]) === '是';
+    const reason = cleanText_(row[KCOL.REASON - 1]);
+
     map[answerId] = {
       rowNumber: i + 1,
       categoryId: cleanText_(row[KCOL.CATEGORY_ID - 1]),
-      reason: cleanText_(row[KCOL.REASON - 1]),
+      reason: reason,
       confidence: cleanText_(row[KCOL.CONFIDENCE - 1]),
-      confirmed: cleanText_(row[KCOL.CONFIRMED - 1]) === '是'
+      confirmed: confirmed,
+      aiCategoryId: cleanText_(row[KCOL.AI_CATEGORY - 1]),
+      aiReason: cleanText_(row[KCOL.AI_REASON - 1]),
+      // 改版前的資料沒有這一欄，從理由判斷
+      confirmedBy: cleanText_(row[KCOL.CONFIRMED_BY - 1]) ||
+        (confirmed ? (/^AI 自動分類/.test(reason) ? CONFIRMED_BY.AI : CONFIRMED_BY.TEACHER) : ''),
+      studentAgree: cleanText_(row[KCOL.STUDENT_AGREE - 1]),
+      studentNote: cleanText_(row[KCOL.STUDENT_NOTE - 1])
     };
   }
 
@@ -3284,7 +3901,12 @@ function getDiscussionBoard(questionId) {
       categoryId: k && validIds[k.categoryId] ? k.categoryId : '',
       reason: k ? k.reason : '',
       confidence: k ? k.confidence : '',
-      confirmed: k ? k.confirmed : false
+      confirmed: k ? k.confirmed : false,
+      confirmedBy: k ? k.confirmedBy : '',
+      aiCategoryId: k && validIds[k.aiCategoryId] ? k.aiCategoryId : '',
+      aiReason: k ? k.aiReason : '',
+      studentAgree: k ? k.studentAgree : '',
+      studentNote: k ? k.studentNote : ''
     };
   });
 
@@ -3593,7 +4215,13 @@ function writeClassifications_(questionId, categories, batch, results, confirmed
       confirmed ? 'AI 自動分類' + (reason ? '：' + reason : '') : reason,
       result.confidence,
       confirmed ? '是' : '否',
-      now
+      now,
+      // AI 原本的判斷另外存一份，老師之後調整也不會蓋掉
+      result.categoryId,
+      reason,
+      confirmed ? CONFIRMED_BY.AI : '',
+      '',
+      ''
     ]);
   });
 
@@ -3660,10 +4288,24 @@ function setAnswerCategory(answerId, categoryId) {
     const now = new Date();
     const codingIndex = findRowIndex_(values, answerId);
 
+    let fromCategory = '';
+    let aiCategory = '';
+
     if (codingIndex >= 0) {
 
       const row = values[codingIndex];
       const same = cleanText_(row[KCOL.CATEGORY_ID - 1]) === categoryId;
+
+      fromCategory = cleanText_(row[KCOL.CATEGORY_ID - 1]);
+      aiCategory = cleanText_(row[KCOL.AI_CATEGORY - 1]);
+
+      // 改版前的 AI 分類沒有另外存 AI 原判，第一次調整前先補上
+      if (!aiCategory && cleanText_(row[KCOL.REASON - 1]) !== '教師手動分類') {
+        aiCategory = fromCategory;
+        sheet
+          .getRange(codingIndex + 1, KCOL.AI_CATEGORY, 1, 2)
+          .setValues(cells_([[fromCategory, cleanText_(row[KCOL.REASON - 1])]]));
+      }
 
       sheet
         .getRange(codingIndex + 1, KCOL.CATEGORY_ID, 1, 5)
@@ -3675,14 +4317,29 @@ function setAnswerCategory(answerId, categoryId) {
           now
         ]]));
 
+      sheet.getRange(codingIndex + 1, KCOL.CONFIRMED_BY).setValue(CONFIRMED_BY.TEACHER);
+
     } else {
 
       appendRows_(
         sheet,
-        [[answerId, questionId, categoryId, '教師手動分類', '', '是', now]],
+        [[answerId, questionId, categoryId, '教師手動分類', '', '是', now, '', '', CONFIRMED_BY.TEACHER, '', '']],
         CODING_HEADERS.length
       );
     }
+
+    const question = findQuestion_(questionId);
+
+    logEvent_({
+      courseId: question ? question.courseId : '',
+      questionId: questionId,
+      answerId: answerId,
+      studentId: answerValues[index][ACOL.STUDENT_ID - 1],
+      module: MODULE.DISCUSS,
+      type: fromCategory === categoryId ? '教師確認分類' : '教師調整分類',
+      source: teacherSource_(),
+      detail: { from: fromCategory, to: categoryId, aiCategory: aiCategory }
+    });
 
     return { success: true };
   });
@@ -3725,8 +4382,22 @@ function confirmClassifications(questionId, categoryId) {
         .getRange(index + 2, KCOL.CONFIRMED, 1, 2)
         .setValues(cells_([['是', now]]));
 
+      sheet.getRange(index + 2, KCOL.CONFIRMED_BY).setValue(CONFIRMED_BY.TEACHER);
+
       count++;
     });
+
+    if (count) {
+      const question = findQuestion_(questionId);
+      logEvent_({
+        courseId: question ? question.courseId : '',
+        questionId: questionId,
+        module: MODULE.DISCUSS,
+        type: '教師確認分類',
+        source: teacherSource_(),
+        detail: { count: count, categoryId: categoryId || '全部' }
+      });
+    }
 
     return { count: count };
   });
@@ -3939,6 +4610,23 @@ function generateInstantFeedback_(question, row) {
     return true;
   });
 
+  if (saved) {
+    logEvent_({
+      courseId: question.courseId,
+      questionId: question.id,
+      answerId: answerId,
+      studentId: row[ACOL.STUDENT_ID - 1],
+      module: MODULE.LEARN,
+      type: 'AI學習建議',
+      source: 'AI',
+      detail: {
+        version: Number(row[ACOL.VERSION - 1]) || 1,
+        style: question.feedbackStyle,
+        feedback: feedback
+      }
+    });
+  }
+
   return saved ? { feedback: feedback } : { error: '回答已經更新' };
 }
 
@@ -3972,7 +4660,9 @@ function previewInstantFeedback(data) {
     {
       content: cleanText_(data.content),
       referenceAnswer: cleanText_(data.referenceAnswer),
-      rubric: cleanText_(data.rubric)
+      rubric: cleanText_(data.rubric),
+      objective: cleanText_(data.objective).substring(0, 500),
+      assessment: cleanText_(data.assessment)
     },
     truncate_(sample, MAX_ANSWER_LENGTH),
     style,
@@ -4273,6 +4963,7 @@ function setQuestionAutoClassify(questionId, on) {
         values.forEach(function(row) {
           if (cleanText_(row[KCOL.QUESTION_ID - 1]) === question.id && cleanText_(row[KCOL.CONFIRMED - 1]) !== '是') {
             row[KCOL.CONFIRMED - 1] = '是';
+            row[KCOL.CONFIRMED_BY - 1] = CONFIRMED_BY.AI;
             changed = true;
           }
         });
@@ -4282,6 +4973,15 @@ function setQuestionAutoClassify(questionId, on) {
         }
       }
     }
+  });
+
+  logEvent_({
+    courseId: question.courseId,
+    questionId: question.id,
+    module: MODULE.DISCUSS,
+    type: on ? '開啟自動分類' : '關閉自動分類',
+    source: teacherSource_(),
+    detail: {}
   });
 
   if (!on) {
@@ -4338,7 +5038,14 @@ function installAutoTrigger_() {
 ===================================================== */
 
 const INSIGHT_SHEET = '學習診斷';
-const INSIGHT_HEADERS = ['診斷ID', '題目ID', '課程ID', '分析回答數', '結果', '建立時間', '建立者'];
+const INSIGHT_HEADERS = [
+  '診斷ID', '題目ID', '課程ID', '分析回答數', '結果', '建立時間', '建立者',
+  '教師判斷', '教學行動', '行動效果', '最後更新'
+];
+const ICOL = {
+  ID: 1, QUESTION_ID: 2, COURSE_ID: 3, COUNT: 4, RESULT: 5, CREATED: 6, CREATED_BY: 7,
+  JUDGEMENT: 8, ACTION: 9, OUTCOME: 10, UPDATED: 11
+};
 const INSIGHT_MIN_ANSWERS = 3;
 
 
@@ -4406,15 +5113,107 @@ function analyzeQuestionLearning(questionId) {
   );
 
   const now = new Date();
+  const insightId = generateId_('D');
 
   withLock_(function() {
-    appendRows_(getInsightSheet_(), [[
-      generateId_('D'), question.id, question.courseId, result.analyzedCount,
-      JSON.stringify(result), now, teacher.name || teacher.account
+    const sheet = getInsightSheet_();
+    ensureColumns_(sheet, INSIGHT_HEADERS);
+    appendRows_(sheet, [[
+      insightId, question.id, question.courseId, result.analyzedCount,
+      JSON.stringify(result), now, teacher.name || teacher.account,
+      '', '', '', ''
     ]], INSIGHT_HEADERS.length);
   });
 
-  return publicInsight_(question, result, now, teacher.name || teacher.account, answers);
+  logEvent_({
+    courseId: question.courseId,
+    questionId: question.id,
+    module: MODULE.DIAGNOSE,
+    type: 'AI教學診斷',
+    source: 'AI（' + teacherSource_() + ' 要求）',
+    detail: { insightId: insightId, analyzedCount: result.analyzedCount }
+  });
+
+  return publicInsight_(question, result, now, teacher.name || teacher.account, answers, { id: insightId });
+}
+
+
+/*
+ * 老師對診斷的判斷，以及實際的教學行動與效果。
+ * data：{
+ *   findings: { 'm0': '同意'|'部分同意'|'不同意', 'g1': … },   m＝待釐清的概念、g＝普遍缺少的部分
+ *   adoptedSteps: [0, 2],     採用了哪幾個教學建議
+ *   note: '老師自己的看法',
+ *   action: '實際做了什麼',
+ *   outcome: '做了之後的效果'
+ * }
+ */
+const JUDGEMENT_OPTIONS = ['同意', '部分同意', '不同意'];
+
+function saveInsightJudgement(insightId, data) {
+
+  insightId = cleanText_(insightId);
+  data = data || {};
+
+  const sheet = getSpreadsheet_().getSheetByName(INSIGHT_SHEET);
+
+  if (!sheet) {
+    throw new Error('找不到這次的診斷');
+  }
+
+  const values = sheet.getDataRange().getValues();
+  const index = findRowIndex_(values, insightId);
+
+  if (index < 0) {
+    throw new Error('找不到這次的診斷，請重新整理');
+  }
+
+  const question = requireQuestion_(values[index][ICOL.QUESTION_ID - 1]);
+
+  const findings = {};
+
+  Object.keys(data.findings || {}).slice(0, 20).forEach(function(key) {
+    const v = cleanText_(data.findings[key]);
+    if (/^[mg]\d{1,2}$/.test(key) && JUDGEMENT_OPTIONS.indexOf(v) >= 0) {
+      findings[key] = v;
+    }
+  });
+
+  const adoptedSteps = (Array.isArray(data.adoptedSteps) ? data.adoptedSteps : [])
+    .map(Number)
+    .filter(function(n, i, all) { return n >= 0 && n < 10 && Math.floor(n) === n && all.indexOf(n) === i; });
+
+  const note = cleanText_(data.note);
+  const action = cleanText_(data.action);
+  const outcome = cleanText_(data.outcome);
+
+  if (note.length > 1000 || action.length > 2000 || outcome.length > 2000) {
+    throw new Error('文字太長了，請精簡一點（看法 1000 字、教學行動與效果各 2000 字以內）');
+  }
+
+  const judgement = { findings: findings, adoptedSteps: adoptedSteps, note: note };
+  const now = new Date();
+
+  withLock_(function() {
+    ensureColumns_(sheet, INSIGHT_HEADERS);
+    const rows = sheet.getDataRange().getValues();
+    const i = findRowIndex_(rows, insightId);
+    if (i < 0) throw new Error('找不到這次的診斷，請重新整理');
+    sheet
+      .getRange(i + 1, ICOL.JUDGEMENT, 1, 4)
+      .setValues(cells_([[JSON.stringify(judgement), action, outcome, now]]));
+  });
+
+  logEvent_({
+    courseId: question.courseId,
+    questionId: question.id,
+    module: MODULE.DIAGNOSE,
+    type: '教師判斷與教學行動',
+    source: teacherSource_(),
+    detail: { insightId: insightId, judgement: judgement, action: action, outcome: outcome }
+  });
+
+  return { success: true, updatedAt: formatDate_(now) };
 }
 
 
@@ -4449,14 +5248,30 @@ function getQuestionInsight(questionId) {
     return { insight: null, answerCount: answers.length, minAnswers: INSIGHT_MIN_ANSWERS };
   }
 
-  return publicInsight_(question, result, latest[5], cleanText_(latest[6]), answers);
+  let judgement = {};
+
+  try {
+    judgement = JSON.parse(latest[ICOL.JUDGEMENT - 1] || '{}') || {};
+  } catch (error) {
+    judgement = {};
+  }
+
+  return publicInsight_(question, result, latest[5], cleanText_(latest[6]), answers, {
+    id: cleanText_(latest[ICOL.ID - 1]),
+    judgement: judgement,
+    action: cleanText_(latest[ICOL.ACTION - 1]),
+    outcome: cleanText_(latest[ICOL.OUTCOME - 1]),
+    updatedAt: latest[ICOL.UPDATED - 1] ? formatDate_(latest[ICOL.UPDATED - 1]) : ''
+  });
 }
 
 
 /*
  * 加上學生姓名，讓老師知道是哪些學生需要協助。
  */
-function publicInsight_(question, result, analyzedAt, analyzedBy, answers) {
+function publicInsight_(question, result, analyzedAt, analyzedBy, answers, record) {
+
+  record = record || {};
 
   const students = {};
 
@@ -4484,7 +5299,20 @@ function publicInsight_(question, result, analyzedAt, analyzedBy, answers) {
       checkQuestion: result.checkQuestion || '',
       analyzedCount: result.analyzedCount || 0,
       analyzedAt: formatDate_(analyzedAt),
-      analyzedBy: analyzedBy
+      analyzedBy: analyzedBy,
+      objective: question.objective || '',
+      objectiveProgress: result.objectiveProgress || '',
+      cannotJudge: result.cannotJudge || [],
+      descriptive: isDescriptiveQuestion_(question),
+      id: record.id || '',
+      judgement: {
+        findings: (record.judgement && record.judgement.findings) || {},
+        adoptedSteps: (record.judgement && record.judgement.adoptedSteps) || [],
+        note: (record.judgement && record.judgement.note) || ''
+      },
+      action: record.action || '',
+      outcome: record.outcome || '',
+      judgedAt: record.updatedAt || ''
     },
     answerCount: answers.length,
     minAnswers: INSIGHT_MIN_ANSWERS,
@@ -4794,6 +5622,7 @@ function checkTeacherApiHandlers() {
     'ai.gs：classifyAnswersWithAI_': typeof classifyAnswersWithAI_,
     'ai_instant.gs：instantFeedbackWithAI_': typeof instantFeedbackWithAI_,
     'ai_instant.gs：analyzeLearningWithAI_': typeof analyzeLearningWithAI_,
+    'ai_instant.gs：describeAnswerWithAI_': typeof describeAnswerWithAI_,
     'ai_instant.gs：INSTANT_FEEDBACK_STYLES': typeof INSTANT_FEEDBACK_STYLES === 'object' ? 'function' : 'undefined',
     'ai.gs：saveAISettings': typeof saveAISettings,
     'RAG_Admin.gs：ragListDocuments': typeof ragListDocuments,
@@ -4817,4 +5646,210 @@ function checkTeacherApiHandlers() {
     '教師 API 共 ' + Object.keys(handlers).length + ' 個，' +
     '其他檔案的 ' + Object.keys(external).length + ' 個函式也都存在'
   );
+}
+
+/* =====================================================
+   匯出研究紀錄（一門課）
+   回傳四張表的資料，網頁再存成 CSV：
+   1. 作答與回饋：每位學生每一題的每一個版本
+   2. 討論分類：AI 原判、最後分類、誰確認的、學生是否同意
+   3. 學習歷程紀錄：四個模組的每一筆紀錄
+   4. 教學診斷：AI 的診斷、老師的判斷、教學行動與效果
+   options.anonymize 為 true 時：學號換成 S001 這類代號、不輸出姓名、老師名稱換成「教師」。
+   學生回答的內文不會改，如果回答裡寫了自己或同學的名字，請自行檢查。
+===================================================== */
+
+function exportResearchRecords(courseId, options) {
+
+  const course = requireCourse_(courseId);
+  const anonymize = !!(options && options.anonymize);
+
+  const questions = {};
+
+  getQuestionSheet_().getDataRange().getValues().slice(1).forEach(function(row, i) {
+    const q = questionFromRow_(row, i + 2);
+    if (q.id && q.courseId === course.id) questions[q.id] = q;
+  });
+
+  const answerRows = getAnswerSheet_().getDataRange().getValues().slice(1).filter(function(row) {
+    return cleanText_(row[0]) && questions[cleanText_(row[ACOL.QUESTION_ID - 1])];
+  });
+
+  // 學號 → 代號，依學號排序後編號，同一次匯出裡同一位學生代號一樣
+  const studentIds = {};
+  answerRows.forEach(function(row) { studentIds[cleanText_(row[ACOL.STUDENT_ID - 1])] = true; });
+
+  const codes = {};
+  Object.keys(studentIds).sort().forEach(function(id, i) {
+    codes[id] = 'S' + ('00' + (i + 1)).slice(-3);
+  });
+
+  const who = function(studentId) {
+    studentId = cleanText_(studentId);
+    return anonymize ? (codes[studentId] || (studentId ? '其他' : '')) : studentId;
+  };
+
+  const teacherName = function(source) {
+    return anonymize ? cleanText_(source).replace(/教師：.*?（.*?）/g, '教師') : cleanText_(source);
+  };
+
+  const date = function(value) { return value ? formatDate_(value) : ''; };
+  const qTitle = function(id) { return questions[id] ? questions[id].title : '（已刪除的題目）'; };
+
+  /* 1. 作答與回饋 */
+  const answerHeader = anonymize
+    ? ['學生代號']
+    : ['學號', '姓名'];
+
+  const answers = [answerHeader.concat([
+    '題目ID', '題目', '評量方式', '回答ID', '版本', '回答', '送出時間',
+    'AI學習建議', '修改說明', 'AI建議採納（學生自評）',
+    'AI分數', 'AI批改說明', 'AI教師口吻評語', '教師分數', '教師評語', 'AI草稿採用', '狀態', '是否為最新版本'
+  ])];
+
+  const history = getHistoryMap_(answerRows.map(function(row) { return row[0]; }));
+
+  answerRows.forEach(function(row) {
+
+    const answerId = cleanText_(row[ACOL.ID - 1]);
+    const questionId = cleanText_(row[ACOL.QUESTION_ID - 1]);
+    const q = questions[questionId];
+    const person = anonymize
+      ? [who(row[ACOL.STUDENT_ID - 1])]
+      : [cleanText_(row[ACOL.STUDENT_ID - 1]), cleanText_(row[ACOL.NAME - 1])];
+
+    (history[answerId] || []).forEach(function(h) {
+      answers.push(person.concat([
+        questionId, q.title, q.assessment, answerId, h.version, h.answer, h.submittedAt,
+        h.instantFeedback, h.revisionNote, h.aiAdopted,
+        h.aiScore, h.aiFeedback, '', h.teacherScore, h.teacherFeedback, h.draftAdoption, h.status, '否'
+      ]));
+    });
+
+    answers.push(person.concat([
+      questionId, q.title, q.assessment, answerId, Number(row[ACOL.VERSION - 1]) || 1,
+      cleanText_(row[ACOL.ANSWER - 1]), date(row[ACOL.SUBMITTED - 1]),
+      cleanText_(row[ACOL.INSTANT_FEEDBACK - 1]), cleanText_(row[ACOL.REVISION_NOTE - 1]), cleanText_(row[ACOL.AI_ADOPTED - 1]),
+      row[ACOL.AI_SCORE - 1], cleanText_(row[ACOL.AI_FEEDBACK - 1]), cleanText_(row[ACOL.AI_STUDENT_FEEDBACK - 1]),
+      row[ACOL.TEACHER_SCORE - 1], cleanText_(row[ACOL.TEACHER_FEEDBACK - 1]),
+      cleanText_(row[ACOL.DRAFT_ADOPTION - 1]), cleanText_(row[ACOL.STATUS - 1]), '是'
+    ]));
+  });
+
+  /* 2. 討論分類 */
+  const categoryNames = {};
+
+  getCategorySheet_().getDataRange().getValues().slice(1).forEach(function(row) {
+    if (questions[cleanText_(row[1])]) categoryNames[cleanText_(row[0])] = cleanText_(row[2]);
+  });
+
+  const studentOf = {};
+  answerRows.forEach(function(row) { studentOf[cleanText_(row[0])] = row[ACOL.STUDENT_ID - 1]; });
+
+  const coding = [[anonymize ? '學生代號' : '學號', '題目ID', '題目', '回答ID',
+    'AI原分類', 'AI原理由', 'AI信心', '最後分類', '分類理由', '已確認', '確認來源', '學生回覆', '學生說明', '最後更新']];
+
+  const codingSheet = getSpreadsheet_().getSheetByName(CODING_SHEET);
+
+  if (codingSheet && codingSheet.getLastRow() >= 2) {
+    codingSheet.getDataRange().getValues().slice(1).forEach(function(row) {
+      const questionId = cleanText_(row[KCOL.QUESTION_ID - 1]);
+      if (!questions[questionId]) return;
+      const answerId = cleanText_(row[KCOL.ANSWER_ID - 1]);
+      const confirmed = cleanText_(row[KCOL.CONFIRMED - 1]) === '是';
+      const reason = cleanText_(row[KCOL.REASON - 1]);
+      coding.push([
+        who(studentOf[answerId]), questionId, qTitle(questionId), answerId,
+        categoryNames[cleanText_(row[KCOL.AI_CATEGORY - 1])] || cleanText_(row[KCOL.AI_CATEGORY - 1]),
+        cleanText_(row[KCOL.AI_REASON - 1]),
+        cleanText_(row[KCOL.CONFIDENCE - 1]),
+        categoryNames[cleanText_(row[KCOL.CATEGORY_ID - 1])] || cleanText_(row[KCOL.CATEGORY_ID - 1]),
+        reason,
+        confirmed ? '是' : '否',
+        cleanText_(row[KCOL.CONFIRMED_BY - 1]) ||
+          (confirmed ? (/^AI 自動分類/.test(reason) ? CONFIRMED_BY.AI : CONFIRMED_BY.TEACHER) : ''),
+        cleanText_(row[KCOL.STUDENT_AGREE - 1]),
+        cleanText_(row[KCOL.STUDENT_NOTE - 1]),
+        date(row[KCOL.UPDATED - 1])
+      ]);
+    });
+  }
+
+  /* 3. 學習歷程紀錄 */
+  const events = [['紀錄ID', '時間', '模組', '類型', '來源', '題目ID', '題目', '回答ID', anonymize ? '學生代號' : '學號', '內容']];
+
+  readEvents_(function(row) { return cleanText_(row[2]) === course.id; }).forEach(function(e) {
+    events.push([
+      e.id, date(e.time), e.module, e.type, teacherName(e.source),
+      e.questionId, e.questionId ? qTitle(e.questionId) : '', e.answerId,
+      who(e.studentId), JSON.stringify(e.detail)
+    ]);
+  });
+
+  /* 4. 教學診斷 */
+  const insights = [['診斷ID', '題目ID', '題目', '分析回答數', '建立時間', '建立者',
+    '整體狀況', '學習目標達成', '待釐清的概念', '普遍缺少的部分', '尚無法判斷', '教學建議',
+    '教師判斷', '採用的建議', '教師看法', '教學行動', '行動效果', '最後更新']];
+
+  const insightSheet = getSpreadsheet_().getSheetByName(INSIGHT_SHEET);
+
+  if (insightSheet && insightSheet.getLastRow() >= 2) {
+    insightSheet.getDataRange().getValues().slice(1).forEach(function(row) {
+
+      if (cleanText_(row[ICOL.COURSE_ID - 1]) !== course.id) return;
+
+      let r = {};
+      let j = {};
+      try { r = JSON.parse(row[ICOL.RESULT - 1] || '{}') || {}; } catch (error) { r = {}; }
+      try { j = JSON.parse(row[ICOL.JUDGEMENT - 1] || '{}') || {}; } catch (error) { j = {}; }
+
+      const findings = j.findings || {};
+      const describe = function(items, prefix, key) {
+        return (items || []).map(function(x, i) {
+          const quotes = (x.evidence || []).map(function(ev) { return '「' + ev.quote + '」'; }).join('');
+          return (i + 1) + '. ' + x[key] + '：' + (x.description || '') +
+            (quotes ? ' 證據' + quotes : '') +
+            (findings[prefix + i] ? '［教師：' + findings[prefix + i] + '］' : '');
+        }).join('\n');
+      };
+      const steps = r.nextSteps || [];
+      const questionId = cleanText_(row[ICOL.QUESTION_ID - 1]);
+
+      insights.push([
+        cleanText_(row[ICOL.ID - 1]), questionId, qTitle(questionId), row[ICOL.COUNT - 1],
+        date(row[ICOL.CREATED - 1]), anonymize ? '教師' : cleanText_(row[ICOL.CREATED_BY - 1]),
+        r.overview || '', r.objectiveProgress || '',
+        describe(r.misconceptions, 'm', 'concept'),
+        describe(r.gaps, 'g', 'item'),
+        (r.cannotJudge || []).map(function(x) { return x.item + '：' + x.reason; }).join('\n'),
+        steps.map(function(x, i) { return (i + 1) + '. ' + x.title + '（' + x.target + '）'; }).join('\n'),
+        Object.keys(findings).length ? JSON.stringify(findings) : '',
+        (j.adoptedSteps || []).map(function(i) { return steps[i] ? (i + 1) + '. ' + steps[i].title : ''; }).filter(Boolean).join('\n'),
+        j.note || '',
+        cleanText_(row[ICOL.ACTION - 1]),
+        cleanText_(row[ICOL.OUTCOME - 1]),
+        date(row[ICOL.UPDATED - 1])
+      ]);
+    });
+  }
+
+  logEvent_({
+    courseId: course.id,
+    module: '研究紀錄',
+    type: '匯出研究紀錄',
+    source: teacherSource_(),
+    detail: { anonymize: anonymize }
+  });
+
+  return {
+    courseName: course.name,
+    anonymize: anonymize,
+    exportedAt: formatDate_(new Date()),
+    tables: [
+      { name: '作答與回饋', rows: answers },
+      { name: '討論分類', rows: coding },
+      { name: '學習歷程紀錄', rows: events },
+      { name: '教學診斷', rows: insights }
+    ]
+  };
 }
