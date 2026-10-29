@@ -1369,10 +1369,13 @@
       button.classList.toggle('active', button.dataset.section === id);
     });
 
-    if (id === 'questions') loadQuestions();
-    if (id === 'answers') loadTeacherArea();
-    if (id === 'insights') loadInsightArea('');
-    if (id === 'roster') loadRosterStatus();
+    // 課程還在讀取時先等，不然會用空白的課程去查資料
+    TeacherCourse.ready(function() {
+      if (id === 'questions') loadQuestions();
+      if (id === 'answers') loadTeacherArea();
+      if (id === 'insights') loadInsightArea('');
+      if (id === 'roster') loadRosterStatus();
+    });
     if (id === 'settings') loadSettings();
   }
 

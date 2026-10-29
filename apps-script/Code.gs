@@ -5886,6 +5886,21 @@ const NAME_VARIANTS = {
 };
 
 
+/*
+ * 名單用的課程：有帶課程ID就檢查權限，沒帶（網頁還在讀取課程時）就用預設課程。
+ */
+function rosterCourse_(courseId) {
+
+  const course = resolveTeacherCourse_(courseId);
+
+  if (!course) {
+    throw new Error('請先在「課程管理」建立課程');
+  }
+
+  return course;
+}
+
+
 function getRosterSheet_() {
 
   const ss = getSpreadsheet_();
@@ -5995,7 +6010,7 @@ function parseRosterText_(text) {
 
 function getCourseRoster(courseId) {
 
-  const course = requireCourse_(courseId);
+  const course = rosterCourse_(courseId);
   const roster = readRoster_(course.id);
 
   return {
@@ -6014,7 +6029,7 @@ function getCourseRoster(courseId) {
  */
 function saveCourseRoster(courseId, text) {
 
-  const course = requireCourse_(courseId);
+  const course = rosterCourse_(courseId);
   const parsed = parseRosterText_(text);
 
   if (parsed.students.length > ROSTER_MAX) {
@@ -6143,7 +6158,7 @@ function matchSubmitter_(roster, submitter, learnedIds) {
  */
 function getSubmissionStatus(courseId) {
 
-  const course = requireCourse_(courseId);
+  const course = rosterCourse_(courseId);
   const roster = readRoster_(course.id);
   const students = roster.students;
 
@@ -6309,7 +6324,7 @@ function getSubmissionStatus(courseId) {
  */
 function linkRosterSubmitter(courseId, submitter, target) {
 
-  const course = requireCourse_(courseId);
+  const course = rosterCourse_(courseId);
   submitter = submitter || {};
 
   const sid = normalizeStudentId_(submitter.studentId);
@@ -6364,7 +6379,7 @@ function linkRosterSubmitter(courseId, submitter, target) {
  */
 function unignoreRosterSubmitters(courseId) {
 
-  const course = requireCourse_(courseId);
+  const course = rosterCourse_(courseId);
 
   return withLock_(function() {
     const roster = readRoster_(course.id);
