@@ -266,6 +266,36 @@
 
     .q-card.highlight { box-shadow: 0 0 0 3px var(--yellow); transition: box-shadow .3s; }
 
+    /* ---------- 展開／收合 ---------- */
+    details.q-card > summary, details.result-item > summary { list-style: none; cursor: pointer; }
+    details.q-card > summary::-webkit-details-marker, details.result-item > summary::-webkit-details-marker { display: none; }
+    details.q-card > summary { padding-bottom: 20px; }
+    details.q-card[open] > summary { padding-bottom: 0; }
+    .chev { flex: none; align-self: center; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%;
+      color: var(--ink-2); transition: transform .2s; }
+    .chev::before { content: '▾'; font-size: 16px; }
+    details[open] > summary .chev { transform: rotate(180deg); }
+    summary:focus-visible { outline: 3px solid var(--blue); outline-offset: -3px; }
+    .q-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+
+    /* 每一題的狀態 */
+    .q-state { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap;
+      background: var(--blue-soft); color: var(--blue-dark); }
+    .q-state[data-state="todo"] { background: var(--blue-soft); color: var(--blue-dark); }
+    .q-state[data-state="urgent"], .q-state[data-state="returned"] { background: var(--orange-soft); color: var(--orange); }
+    .q-state[data-state="done"] { background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line); }
+    .q-state[data-state="passed"] { background: var(--green-soft); color: var(--green); }
+    .q-state[data-state="missed"] { background: var(--red-soft); color: var(--red); }
+
+    /* 我的繳交情況：每一題一顆，點了跳過去 */
+    .my-status { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+    .my-status button { display: inline-flex; align-items: center; gap: 6px; height: auto; min-height: 36px; padding: 4px 12px 4px 6px;
+      background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong); border-radius: 999px; font-size: 14px; font-weight: 400; max-width: 100%; }
+    .my-status button:hover { background: var(--surface-2); }
+    .my-status .n { flex: none; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: var(--blue-soft); color: var(--blue-dark); font-weight: 700; font-size: 13px; }
+    .my-status .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 12em; }
+    .my-status .q-state { padding: 0 8px; font-size: 12px; }
+
     .q-due {
       display: inline-flex;
       align-items: center;
@@ -331,6 +361,9 @@
     }
 
     .r-head h3 { margin: 0; font-size: 18px; }
+    details.result-item:not([open]) > .r-head { border-bottom: 0; }
+    .r-head .r-tags { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+    .r-score { font-size: 14px; font-weight: 700; white-space: nowrap; }
 
     .status {
       display: inline-block;
@@ -1197,8 +1230,10 @@
 
     questions.forEach(function(q, index) {
 
-      const card = document.createElement('div');
+      const card = document.createElement('details');
       card.className = 'card q-card';
+      // 只有一題時直接展開；其他時候收起來，點標題再展開
+      card.open = questions.length === 1;
       card.dataset.id = q.id;
       card.dataset.deadline = q.deadline || '';
       card.dataset.allowLate = q.allowLate ? 'true' : 'false';
@@ -1207,7 +1242,7 @@
       card.dataset.instant = q.instantFeedback ? 'true' : 'false';
 
       card.innerHTML = `
-        <div class="q-head">
+        <summary class="q-head">
           <span class="q-num">${index + 1}</span>
           <div class="q-titles">
             <div class="question-title">${escapeHtml(q.title)}</div>
@@ -1216,10 +1251,14 @@
               ${q.submittedCount == null ? '' : '<span class="q-count"></span>'}
             </div>
           </div>
-          ${q.descriptive
-            ? '<span class="points share-tag" title="這一題是分享，沒有對錯，老師不打分數">分享・不評分</span>'
-            : `<span class="points">${escapeHtml(q.points)} 分</span>`}
-        </div>
+          <span class="q-side">
+            ${q.descriptive
+              ? '<span class="points share-tag" title="這一題是分享，沒有對錯，老師不打分數">分享・不評分</span>'
+              : `<span class="points">${escapeHtml(q.points)} 分</span>`}
+            <span class="q-state" id="state_${q.id}" hidden></span>
+          </span>
+          <span class="chev" aria-hidden="true"></span>
+        </summary>
         <div class="question-content">${escapeHtml(q.content)}</div>
 
         <div class="q-answer">
@@ -1374,6 +1413,14 @@
           : '👥 還沒有人繳交';
       }
 
+      // 標題右邊的狀態
+      const stateBox = document.getElementById('state_' + id);
+      const st = questionState(card, signed);
+      if (stateBox) {
+        stateBox.hidden = !st;
+        if (st) { stateBox.textContent = st.label; stateBox.dataset.state = st.key; }
+      }
+
       // 作答區上方的提醒：只給已確認身分、還沒交、還能交的題目
       const nudge = document.getElementById('nudge_' + id);
 
@@ -1407,6 +1454,50 @@
   }
 
 
+  /*
+   * 這一題對這位學生來說是什麼狀態。
+   */
+  function questionState(card, signed) {
+
+    if (!signed || !myAnswersReady) return null;
+
+    const mine = myAnswers[card.dataset.id];
+    const deadline = Number(card.dataset.deadline) || 0;
+    const passed = !!deadline && Date.now() > deadline;
+
+    if (!mine) {
+      if (card.classList.contains('is-closed') || passed && card.dataset.allowLate !== 'true') return { key: 'missed', label: '未交・已截止' };
+      if (passed) return { key: 'urgent', label: '未交・可遲交' };
+      if (deadline && deadline - Date.now() < 24 * 3600 * 1000) return { key: 'urgent', label: '未交・快截止' };
+      return { key: 'todo', label: '未交' };
+    }
+
+    if (mine.status === '已通過') return { key: 'passed', label: '已通過' };
+    if (mine.status === '退回修改') return { key: 'returned', label: '請修改' };
+
+    return { key: 'done', label: '已交' + (mine.version > 1 ? '・第 ' + mine.version + ' 次' : '') };
+  }
+
+
+  /*
+   * 「我的繳交情況」：每一題一顆，點了跳到那一題並展開。
+   */
+  function myStatusHtml(signed) {
+
+    const cards = Array.prototype.slice.call(document.querySelectorAll('.q-card'));
+
+    if (!signed || !myAnswersReady || !cards.length) return '';
+
+    return '<div class="my-status" aria-label="我的繳交情況">' + cards.map(function(card, i) {
+      const st = questionState(card, signed);
+      return '<button type="button" onclick="goToQuestion(\'' + card.dataset.id + '\')" title="跳到這一題">' +
+        '<span class="n">' + (i + 1) + '</span><span class="t">' + escapeHtml(card.dataset.title) + '</span>' +
+        (st ? '<span class="q-state" data-state="' + st.key + '">' + escapeHtml(st.label) + '</span>' : '') +
+        '</button>';
+    }).join('') + '</div>';
+  }
+
+
   function updateTodoBanner(signed, pending) {
 
     const banner = document.getElementById('todoBanner');
@@ -1420,7 +1511,8 @@
     if (!pending.length) {
       banner.className = 'todo-banner done';
       banner.innerHTML = '<div class="todo-text"><strong>🎉 目前開放的題目你都交了</strong>' +
-        '<span>老師批改後，可以到「我的作答紀錄」看分數和評語。</span></div>';
+        '<span>老師批改後，可以到「我的作答紀錄」看分數和評語。點下面的題目可以跳過去看。</span></div>' +
+        myStatusHtml(signed);
       banner.hidden = false;
       return;
     }
@@ -1442,7 +1534,8 @@
     banner.innerHTML =
       '<div class="todo-text"><strong>⏰ 你還有 ' + pending.length + ' 題沒交</strong>' +
       '<span>' + escapeHtml(detail) + '</span></div>' +
-      '<button type="button" onclick="goToQuestion(\'' + first.card.dataset.id + '\')">去寫這一題</button>';
+      '<button type="button" onclick="goToQuestion(\'' + first.card.dataset.id + '\')">去寫這一題</button>' +
+      myStatusHtml(signed);
     banner.hidden = false;
   }
 
@@ -1453,6 +1546,12 @@
 
     if (!card) return;
 
+    // 從作答紀錄點過來時，先切回「老師的問題」
+    if (document.getElementById('panelQuestions').hidden) {
+      document.getElementById('tabQuestions').click();
+    }
+
+    card.open = true;
     card.scrollIntoView({ behavior: 'smooth', block: 'start' });
     card.classList.add('highlight');
     setTimeout(function() { card.classList.remove('highlight'); }, 1600);
@@ -1665,8 +1764,10 @@
 
     results.forEach(function(item) {
 
-      const div = document.createElement('div');
+      const div = document.createElement('details');
       div.className = 'result-item';
+      // 被退回的要馬上看到老師的評語
+      div.open = item.status === '退回修改';
 
       let reviewHtml = '';
 
@@ -1696,14 +1797,20 @@
         reviewHtml = '<div class="r-label">教師回饋</div><p class="waiting">老師目前正在審核這份回答。</p>';
       }
 
+      const scoreShort = !item.descriptive && (item.status === '已通過' || item.status === '退回修改') &&
+        item.teacherScore !== '' && item.teacherScore != null
+          ? `<span class="r-score">${escapeHtml(item.teacherScore)} / ${escapeHtml(item.points)}</span>` : '';
+
       div.innerHTML = `
-        <div class="r-head">
+        <summary class="r-head">
           <h3>${escapeHtml(item.title)}</h3>
           <div class="r-tags">
+            ${scoreShort}
             ${item.late ? `<span class="late-tag" title="截止時間 ${escapeHtml(item.deadlineText)}">遲交</span>` : ''}
             <span class="status" data-status="${escapeHtml(item.status)}">${escapeHtml(item.status)}</span>
+            <span class="chev" aria-hidden="true"></span>
           </div>
-        </div>
+        </summary>
 
         <div class="r-body">
           <div>
@@ -1717,6 +1824,9 @@
               ? `<div class="r-instant instant"><p class="instant-title">🤖 AI 學習建議</p>${feedbackHtml(item.instantFeedback)}</div>`
               : ''}
             ${classificationHtml(item)}
+            ${document.querySelector('.q-card[data-id="' + item.questionId + '"]') && item.status !== '已通過'
+              ? `<p class="meta"><button type="button" class="link-button" onclick="goToQuestion('${escapeHtml(item.questionId)}')">→ 回到這一題${item.status === '退回修改' ? '修改' : ''}</button></p>`
+              : ''}
           </div>
           <div>${reviewHtml}</div>
         </div>

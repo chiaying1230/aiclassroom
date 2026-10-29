@@ -179,6 +179,9 @@
     .fb-part span { white-space: pre-wrap; line-height: 1.7; }
     .pre { white-space: pre-wrap; }
     .q-objective { margin: 8px 0 0; font-size: 14px; color: var(--ink-2); }
+    .q-more { margin-top: 12px; }
+    .q-more > summary { cursor: pointer; color: var(--blue-dark); font-weight: 700; font-size: 14px; }
+    .q-more[open] > summary { margin-bottom: 8px; }
     .adopt-tag { background: var(--purple-soft); color: var(--purple); border-radius: 999px; padding: 0 8px; }
     .q-objective b { margin-right: 8px; color: var(--ink); }
 
@@ -504,7 +507,30 @@
       border-bottom: 1px solid var(--line);
     }
 
-    .a-head h3 { margin: 0; font-family: var(--serif); font-size: 20px; }
+    .a-head h3 { margin: 0; font-family: var(--serif); font-size: 18px; }
+    .a-head h3 small { font-family: var(--sans); font-size: 13px; font-weight: 400; color: var(--ink-2); margin-left: 6px; }
+    details.answer { margin-top: 10px; }
+    details.answer > summary { list-style: none; cursor: pointer; }
+    details.answer > summary::-webkit-details-marker { display: none; }
+    details.answer:not([open]) > .a-head { border-bottom: 0; }
+    details.answer > summary:hover { background: var(--surface-2); }
+    details.answer > summary:focus-visible { outline: 3px solid var(--blue); outline-offset: -3px; }
+    .a-who { min-width: 0; }
+    .a-side { flex: none; display: flex; align-items: center; gap: 10px; }
+    .a-score { font-size: 14px; font-weight: 700; color: var(--ink-2); white-space: nowrap; }
+    .chev { flex: none; width: 24px; height: 24px; display: grid; place-items: center; color: var(--ink-2); transition: transform .2s; }
+    .chev::before { content: '▾'; font-size: 16px; }
+    details[open] > summary .chev { transform: rotate(180deg); }
+    .answer-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 4px 0 4px; }
+    .filter-chips, .fold-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+    .filter-chip { margin: 0; padding: 6px 14px; border-radius: 999px; background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong); font-weight: 400; }
+    .filter-chip b { margin-left: 4px; }
+    .filter-chip.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .fold-buttons button { margin: 0; padding: 6px 12px; font-size: 14px; }
+    @media (max-width: 640px) {
+      .a-head { flex-wrap: wrap; }
+      .a-side { width: 100%; justify-content: flex-end; }
+    }
     .a-meta { font-size: 14px; color: var(--ink-2); margin-top: 2px; }
     .a-meta span + span { margin-left: 14px; }
 
@@ -2361,9 +2387,12 @@ function previewQuestionRAG() {
 
           ${deadlineBoxHtml(q)}
 
-          <div class="text-box clamp">${escapeHtml(q.content)}</div>
-          ${q.objective ? `<p class="q-objective"><b>學習目標</b>${escapeHtml(q.objective)}</p>` : ''}
-          ${q.updatedAt ? `<p class="q-updated">最後修改 ${escapeHtml(q.updatedAt)}</p>` : ''}
+          <details class="q-more">
+            <summary>題目內容${q.objective ? '與學習目標' : ''}</summary>
+            <div class="text-box">${escapeHtml(q.content)}</div>
+            ${q.objective ? `<p class="q-objective"><b>學習目標</b>${escapeHtml(q.objective)}</p>` : ''}
+            ${q.updatedAt ? `<p class="q-updated">最後修改 ${escapeHtml(q.updatedAt)}</p>` : ''}
+          </details>
         </div>
 
         <div class="q-actions">
@@ -2959,44 +2988,95 @@ function previewQuestionRAG() {
   }
 
 
+  // 批改清單：每份回答收成一列，點了才展開
+  let answerData = [];
+  let answerFilter = 'pending';
+
+  const PENDING = ['待AI批改', '待教師審核'];
+
+  function answerGroup(a) {
+    return PENDING.indexOf(a.status) >= 0 ? 'pending' : a.status === '已通過' ? 'passed' : a.status === '退回修改' ? 'returned' : 'pending';
+  }
+
+  function setAnswerFilter(key) {
+    answerFilter = key;
+    renderAnswers(answerData);
+  }
+
+  function toggleAllAnswers(open) {
+    document.querySelectorAll('#answerList details.answer').forEach(function(d) { d.open = open; });
+  }
+
   function renderAnswers(data) {
 
     const box = document.getElementById('answerList');
+
+    // 重新整理後，原本展開的維持展開
+    const opened = {};
+    box.querySelectorAll('details.answer[open]').forEach(function(d) { opened[d.dataset.id] = true; });
+
+    answerData = data || [];
 
     if (!data || data.length === 0) {
       box.innerHTML = '<div class="card empty">目前沒有學生回答</div>';
       return;
     }
 
-    box.innerHTML = '';
+    const counts = { all: data.length, pending: 0, passed: 0, returned: 0 };
+    data.forEach(function(a) { counts[answerGroup(a)]++; });
 
-    data.forEach(function(a) {
+    if (answerFilter !== 'all' && !counts[answerFilter]) answerFilter = 'all';
+
+    const chip = function(key, label) {
+      return '<button type="button" class="filter-chip' + (answerFilter === key ? ' active' : '') + '" aria-pressed="' + (answerFilter === key) + '" ' +
+        'onclick="setAnswerFilter(\'' + key + '\')">' + label + ' <b>' + counts[key] + '</b></button>';
+    };
+
+    box.innerHTML =
+      '<div class="answer-tools">' +
+        '<div class="filter-chips">' + chip('pending', '待批改') + chip('returned', '退回修改') + chip('passed', '已通過') + chip('all', '全部') + '</div>' +
+        '<div class="fold-buttons"><button type="button" class="ghost" onclick="toggleAllAnswers(true)">全部展開</button>' +
+        '<button type="button" class="ghost" onclick="toggleAllAnswers(false)">全部收合</button></div>' +
+      '</div>';
+
+    const shown = data.filter(function(a) { return answerFilter === 'all' || answerGroup(a) === answerFilter; });
+
+    shown.forEach(function(a) {
 
       answerCache[a.answerId] = a;
 
-      const div = document.createElement('div');
+      const div = document.createElement('details');
       div.className = 'answer';
+      div.dataset.id = a.answerId;
+      div.open = !!opened[a.answerId];
+
+      const scoreText = a.descriptive ? '' :
+        a.teacherScore !== '' ? '教師 ' + a.teacherScore + ' / ' + a.points :
+        a.aiScore !== '' ? 'AI 建議 ' + a.aiScore + ' / ' + a.points : '';
 
       const defaultScore =
         a.teacherScore !== '' ? a.teacherScore :
         a.aiScore !== '' ? a.aiScore : '';
 
       div.innerHTML = `
-        <div class="a-head">
-          <div>
-            <h3>${escapeHtml(a.questionTitle || '題目')}</h3>
+        <summary class="a-head">
+          <div class="a-who">
+            <h3>${escapeHtml(a.name)} <small>${escapeHtml(a.studentId)}</small></h3>
             <div class="a-meta">
-              <span>學號 ${escapeHtml(a.studentId)}</span>
-              <span>${escapeHtml(a.name)}</span>
-              <span>送出時間 ${escapeHtml(a.submittedAt)}</span>
+              <span>${escapeHtml(a.questionTitle || '題目')}</span>
+              <span>${escapeHtml(String(a.submittedAt || '').replace(/:\d\d$/, ''))}</span>
               ${a.version > 1 ? `<span>第 ${escapeHtml(a.version)} 次繳交</span>` : ''}
               ${a.descriptive ? '<span>描述性回饋・不給分</span>' : ''}
               ${a.draftAdoption ? `<span class="adopt-tag" title="上次審核時，你的評語和 AI 草稿的關係">AI 草稿：${escapeHtml(a.draftAdoption)}</span>` : ''}
               ${a.late ? `<span class="late-tag" title="截止時間 ${escapeHtml(a.deadlineText)}">遲交</span>` : ''}
             </div>
           </div>
-          <span class="badge" id="badge_${a.answerId}" data-status="${escapeHtml(a.status)}">${escapeHtml(a.status)}</span>
-        </div>
+          <div class="a-side">
+            ${scoreText ? `<span class="a-score">${escapeHtml(scoreText)}</span>` : ''}
+            <span class="badge" id="badge_${a.answerId}" data-status="${escapeHtml(a.status)}">${escapeHtml(a.status)}</span>
+            <span class="chev" aria-hidden="true"></span>
+          </div>
+        </summary>
 
         <div class="a-grid">
 
