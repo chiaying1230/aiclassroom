@@ -130,6 +130,7 @@
     .roster-editor-head h3 { margin: 0; font-size: 17px; }
     .roster-editor-head button { margin: 0; }
     #rosterForm label { margin-top: 12px; font-weight: 400; color: var(--ink-2); }
+    .roster-alert { margin: 12px 0 0; padding: 10px 14px; border-radius: var(--radius-s); background: #fff4f2; color: #b42318; font-weight: 700; line-height: 1.6; }
     .roster-stats { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
     .roster-stats div { flex: 1 1 140px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-s); }
     .roster-stats b { display: block; font-size: 26px; font-family: var(--serif); }
@@ -1040,7 +1041,8 @@
       </div>
       <div id="rosterForm">
         <label for="rosterText">一行一位學生。只寫姓名就可以；有學號的話寫成「學號 姓名」比對會更準。也可以從 Excel 直接複製兩欄貼上。</label>
-        <textarea id="rosterText" class="tall" placeholder="王小明
+        <p class="roster-alert" id="rosterAlert" role="alert" hidden></p>
+        <textarea id="rosterText" class="tall" oninput="saveRosterDraft()" placeholder="王小明
 41300112E 陳小華
 林大同, 41271106H"></textarea>
         <div class="form-actions">
@@ -3354,6 +3356,35 @@ function previewQuestionRAG() {
 
   let rosterData = null;
 
+  // 還沒存到伺服器的名單先留在這台電腦，重新整理也不會不見
+  function rosterDraftKey() {
+    return 'aiclassroom_roster_draft_' + TeacherCourse.id();
+  }
+
+  function saveRosterDraft() {
+    try { localStorage.setItem(rosterDraftKey(), document.getElementById('rosterText').value); } catch (error) { /* 忽略 */ }
+  }
+
+  function readRosterDraft() {
+    try { return localStorage.getItem(rosterDraftKey()) || ''; } catch (error) { return ''; }
+  }
+
+  function clearRosterDraft() {
+    try { localStorage.removeItem(rosterDraftKey()); } catch (error) { /* 忽略 */ }
+  }
+
+  function showRosterAlert(text) {
+    const box = document.getElementById('rosterAlert');
+    box.textContent = text || '';
+    box.hidden = !text;
+  }
+
+  function backendMessage(error) {
+    return /不允許呼叫的功能/.test(error.message)
+      ? '網站用的還是舊版後端，名單存不進去。請在 Apps Script 換上新版 Code.gs 後，到「部署 → 管理部署作業 → 鉛筆 → 版本選『新版本』→ 部署」。'
+      : error.message;
+  }
+
   function loadRosterStatus() {
 
     const result = document.getElementById('rosterResult');
@@ -3362,14 +3393,18 @@ function previewQuestionRAG() {
     google.script.run
       .withSuccessHandler(function(data) {
         rosterData = data;
+        showRosterAlert('');
         renderRosterStatus();
       })
       .withFailureHandler(function(error) {
-        result.innerHTML = '<div class="card error-message">' + escapeHtml(
-          /不允許呼叫的功能/.test(error.message)
-            ? '繳交狀況要等 Apps Script 換上新版 Code.gs 並部署後才能使用。'
-            : error.message
-        ) + '</div>';
+        // 讀不到名單時，不要讓人以為名單是空的
+        document.getElementById('rosterTitle').textContent = '學生名單（讀取失敗）';
+        document.getElementById('rosterForm').hidden = false;
+        if (!document.getElementById('rosterText').value) {
+          document.getElementById('rosterText').value = readRosterDraft();
+        }
+        showRosterAlert('讀不到這門課的名單：' + backendMessage(error));
+        result.innerHTML = '';
       })
       .getSubmissionStatus(TeacherCourse.id());
   }
@@ -3386,9 +3421,14 @@ function previewQuestionRAG() {
     if (show) {
       google.script.run
         .withSuccessHandler(function(r) {
-          document.getElementById('rosterText').value = r.students.map(function(st) {
+          const saved = r.students.map(function(st) {
             return (st.studentId ? st.studentId + ' ' : '') + st.name;
           }).join('\n');
+          // 有還沒儲存的草稿就用草稿
+          document.getElementById('rosterText').value = readRosterDraft() || saved;
+        })
+        .withFailureHandler(function() {
+          document.getElementById('rosterText').value = readRosterDraft();
         })
         .getCourseRoster(TeacherCourse.id());
     }
@@ -3413,13 +3453,14 @@ function previewQuestionRAG() {
         message.className = 'success-message';
         message.textContent = '✓ 已存 ' + result.count + ' 位學生' +
           (result.duplicates.length ? '（重複的名字只留一個：' + result.duplicates.join('、') + '）' : '');
+        clearRosterDraft();
         if (result.count) toggleRosterEditor(false);
         loadRosterStatus();
       })
       .withFailureHandler(function(error) {
         button.disabled = false;
         message.className = 'error-message';
-        message.textContent = '儲存失敗：' + error.message;
+        message.textContent = '沒有存到（你輸入的名單還留在這台電腦）：' + backendMessage(error);
       })
       .saveCourseRoster(TeacherCourse.id(), text);
   }
@@ -3453,6 +3494,9 @@ function previewQuestionRAG() {
 
     if (!hasRoster) {
       toggleRosterEditor(true);
+      if (readRosterDraft()) {
+        showRosterAlert('上次輸入的名單還沒有存到伺服器，已經幫你填回來了，請按「儲存名單並比對」。');
+      }
       document.getElementById('rosterToggle').hidden = true;
       result.innerHTML = '<div class="card empty">先貼上「' + escapeHtml(data.courseName) + '」的學生名單，按「儲存名單並比對」。</div>';
       return;
