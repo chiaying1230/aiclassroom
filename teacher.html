@@ -125,6 +125,54 @@
     .form-block-title { margin: 0; font-size: 16px; }
     .form-block-title + label { margin-top: 12px; }
 
+    /* ---------- 繳交狀況 ---------- */
+    .roster-editor-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .roster-editor-head h3 { margin: 0; font-size: 17px; }
+    .roster-editor-head button { margin: 0; }
+    #rosterForm label { margin-top: 12px; font-weight: 400; color: var(--ink-2); }
+    .roster-stats { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+    .roster-stats div { flex: 1 1 140px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-s); }
+    .roster-stats b { display: block; font-size: 26px; font-family: var(--serif); }
+    .roster-stats span { font-size: 13px; color: var(--ink-2); }
+    .roster-stats .warn b { color: var(--orange); }
+    .roster-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .roster-tools label { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-weight: 400; }
+    .roster-tools input { width: auto; margin: 0; }
+    .matrix-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--surface); }
+    table.matrix { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 14px; }
+    .matrix th, .matrix td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: center; white-space: nowrap; }
+    .matrix thead th { position: sticky; top: 0; background: var(--surface-2, #f6f4ef); font-weight: 700; vertical-align: bottom; }
+    .matrix thead th .q-name { display: block; max-width: 9em; overflow: hidden; text-overflow: ellipsis; margin: 0 auto; }
+    .matrix thead th small { display: block; font-weight: 400; color: var(--ink-2); }
+    .matrix th.name, .matrix td.name { position: sticky; left: 0; z-index: 1; text-align: left; background: var(--surface); border-right: 1px solid var(--line); }
+    .matrix thead th.name { z-index: 2; background: var(--surface-2, #f6f4ef); }
+    .matrix td.name small { display: block; color: var(--ink-2); font-size: 12px; }
+    .matrix .ok { color: var(--green-dark, #1f6b45); font-weight: 700; }
+    .matrix .late { color: var(--orange); font-weight: 700; }
+    .matrix .no { color: #b42318; background: #fff4f2; font-weight: 700; }
+    .matrix .sub { display: block; font-size: 11px; font-weight: 400; color: var(--ink-2); }
+    .matrix td.count { font-weight: 700; }
+    .matrix tr.all-done td.count { color: var(--green-dark, #1f6b45); }
+    .missing-list { margin-top: 18px; }
+    .missing-item { padding: 12px 16px; border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--surface); }
+    .missing-item + .missing-item { margin-top: 8px; }
+    .missing-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+    .missing-head button { margin: 0; padding: 4px 12px; font-size: 14px; }
+    .missing-names { margin-top: 6px; line-height: 1.8; }
+    .ok-text { color: var(--green-dark, #1f6b45); font-weight: 700; }
+    .unmatched { margin-top: 22px; }
+    .unmatched-item { display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; align-items: center; padding: 12px 16px; border: 1px dashed var(--orange); border-radius: var(--radius-s); background: #fffaf3; }
+    .unmatched-item + .unmatched-item { margin-top: 8px; }
+    .unmatched-item .who b { font-size: 15px; }
+    .unmatched-item .who small { display: block; color: var(--ink-2); }
+    .unmatched-item .act { display: flex; flex-wrap: wrap; gap: 8px; }
+    .unmatched-item select { margin: 0; width: auto; min-width: 12em; }
+    .unmatched-item button { margin: 0; }
+    @media (max-width: 640px) {
+      .unmatched-item { grid-template-columns: 1fr; }
+      .unmatched-item select { flex: 1; min-width: 0; }
+    }
+
     /* ---------- AI 學習建議分三段 ---------- */
     .fb-parts { display: grid; gap: 6px; }
     .fb-part b { display: block; font-size: 13px; color: var(--purple); }
@@ -740,6 +788,7 @@
   <button type="button" data-section="create" class="active" onclick="showSection('create')">＋ 新增題目</button>
   <button type="button" data-section="questions" onclick="showSection('questions')">題目管理</button>
   <button type="button" data-section="answers" onclick="showSection('answers')">AI 批改／教師審核</button>
+  <button type="button" data-section="roster" onclick="showSection('roster')">繳交狀況</button>
   <button type="button" data-section="insights" onclick="showSection('insights')">學習診斷</button>
   <button type="button" data-section="settings" onclick="showSection('settings')">AI 評語風格</button>
 </nav>
@@ -946,6 +995,36 @@
     </div>
 
     <div id="answerList"><div class="card empty">目前尚未載入學生作答</div></div>
+  </section>
+
+  <!-- 繳交狀況 -->
+  <section id="roster" class="section">
+    <div class="section-top">
+      <div>
+        <h2>繳交狀況</h2>
+        <p>貼上這門課的學生名單，系統會自動比對每一題誰交了、誰還沒交。學生打錯名字或學號也能對上。</p>
+      </div>
+      <button type="button" class="ghost" onclick="loadRosterStatus()">🔄 重新整理</button>
+    </div>
+
+    <div class="card roster-editor" id="rosterEditor">
+      <div class="roster-editor-head">
+        <h3 id="rosterTitle">學生名單</h3>
+        <button type="button" class="ghost" id="rosterToggle" onclick="toggleRosterEditor()" hidden>編輯名單</button>
+      </div>
+      <div id="rosterForm">
+        <label for="rosterText">一行一位學生。只寫姓名就可以；有學號的話寫成「學號 姓名」比對會更準。也可以從 Excel 直接複製兩欄貼上。</label>
+        <textarea id="rosterText" class="tall" placeholder="王小明
+41300112E 陳小華
+林大同, 41271106H"></textarea>
+        <div class="form-actions">
+          <button type="button" class="green" id="rosterSave" onclick="saveRoster()">儲存名單並比對</button>
+          <span id="rosterMessage" role="status"></span>
+        </div>
+      </div>
+    </div>
+
+    <div id="rosterResult"></div>
   </section>
 
   <!-- 學習診斷 -->
@@ -1265,6 +1344,7 @@
     if (id === 'questions') loadQuestions();
     if (id === 'answers') loadTeacherArea();
     if (id === 'insights') loadInsightArea('');
+    if (id === 'roster') loadRosterStatus();
     if (id === 'settings') loadSettings();
   }
 
@@ -3184,6 +3264,242 @@ function previewQuestionRAG() {
         teacherFeedback: feedback,
         status: status
       });
+  }
+
+
+
+  /* ==================================================
+     繳交狀況：學生名單 × 題目
+  ================================================== */
+
+  let rosterData = null;
+
+  function loadRosterStatus() {
+
+    const result = document.getElementById('rosterResult');
+    result.innerHTML = '<div class="card empty">比對中……</div>';
+
+    google.script.run
+      .withSuccessHandler(function(data) {
+        rosterData = data;
+        renderRosterStatus();
+      })
+      .withFailureHandler(function(error) {
+        result.innerHTML = '<div class="card error-message">' + escapeHtml(
+          /不允許呼叫的功能/.test(error.message)
+            ? '繳交狀況要等 Apps Script 換上新版 Code.gs 並部署後才能使用。'
+            : error.message
+        ) + '</div>';
+      })
+      .getSubmissionStatus(TeacherCourse.id());
+  }
+
+
+  function toggleRosterEditor(open) {
+
+    const form = document.getElementById('rosterForm');
+    const show = open === undefined ? form.hidden : open;
+
+    form.hidden = !show;
+    document.getElementById('rosterToggle').textContent = show ? '收起' : '編輯名單';
+
+    if (show) {
+      google.script.run
+        .withSuccessHandler(function(r) {
+          document.getElementById('rosterText').value = r.students.map(function(st) {
+            return (st.studentId ? st.studentId + ' ' : '') + st.name;
+          }).join('\n');
+        })
+        .getCourseRoster(TeacherCourse.id());
+    }
+  }
+
+
+  function saveRoster() {
+
+    const text = document.getElementById('rosterText').value;
+    const message = document.getElementById('rosterMessage');
+    const button = document.getElementById('rosterSave');
+
+    if (!text.trim() && !confirm('名單是空的，要清除這門課的學生名單嗎？')) return;
+
+    button.disabled = true;
+    message.className = '';
+    message.textContent = '儲存中……';
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        button.disabled = false;
+        message.className = 'success-message';
+        message.textContent = '✓ 已存 ' + result.count + ' 位學生' +
+          (result.duplicates.length ? '（重複的名字只留一個：' + result.duplicates.join('、') + '）' : '');
+        if (result.count) toggleRosterEditor(false);
+        loadRosterStatus();
+      })
+      .withFailureHandler(function(error) {
+        button.disabled = false;
+        message.className = 'error-message';
+        message.textContent = '儲存失敗：' + error.message;
+      })
+      .saveCourseRoster(TeacherCourse.id(), text);
+  }
+
+
+  function rosterCell(c, q) {
+
+    if (!c) {
+      return '<td class="no" title="還沒交">未交</td>';
+    }
+
+    const tip = c.submittedAt + '・' + c.status + (c.version > 1 ? '・第 ' + c.version + ' 次' : '') +
+      '\n作答者：' + c.from + '（依' + c.by + '比對）' + (c.copies > 1 ? '\n這一題有 ' + c.copies + ' 份，顯示最新的' : '');
+
+    return '<td class="' + (c.late ? 'late' : 'ok') + '" title="' + escapeHtml(tip) + '">' +
+      (c.late ? '遲交' : '✓') +
+      '<span class="sub">' + escapeHtml(String(c.submittedAt || '').slice(5, 10)) + '</span></td>';
+  }
+
+
+  function renderRosterStatus() {
+
+    const data = rosterData;
+    const result = document.getElementById('rosterResult');
+    const hasRoster = data.rosterCount > 0;
+
+    document.getElementById('rosterTitle').textContent = hasRoster
+      ? '學生名單：' + data.rosterCount + ' 位'
+      : '學生名單';
+    document.getElementById('rosterToggle').hidden = !hasRoster;
+
+    if (!hasRoster) {
+      toggleRosterEditor(true);
+      document.getElementById('rosterToggle').hidden = true;
+      result.innerHTML = '<div class="card empty">先貼上「' + escapeHtml(data.courseName) + '」的學生名單，按「儲存名單並比對」。</div>';
+      return;
+    }
+
+    if (document.getElementById('rosterToggle').textContent !== '收起') {
+      document.getElementById('rosterForm').hidden = true;
+    }
+
+    if (!data.questions.length) {
+      result.innerHTML = '<div class="card empty">這門課還沒有發布的題目。</div>';
+      return;
+    }
+
+    const allDone = data.students.filter(function(st) { return st.missing === 0; }).length;
+    const lacking = data.students.length - allDone;
+    const onlyMissing = !!window.rosterOnlyMissing;
+
+    const head =
+      '<tr><th class="name">學生</th>' +
+      data.questions.map(function(q) {
+        return '<th title="' + escapeHtml(q.title + (q.deadlineText ? '\n截止：' + q.deadlineText : '')) + '">' +
+          '<span class="q-name">' + escapeHtml(q.title) + '</span>' +
+          '<small>' + q.submitted + '／' + data.rosterCount + (q.status === '關閉' ? '・已關閉' : q.passed ? '・已截止' : '') + '</small></th>';
+      }).join('') +
+      '<th>缺交</th></tr>';
+
+    const body = data.students
+      .filter(function(st) { return !onlyMissing || st.missing > 0; })
+      .map(function(st) {
+        return '<tr class="' + (st.missing === 0 ? 'all-done' : '') + '">' +
+          '<td class="name">' + escapeHtml(st.name) + (st.studentId ? '<small>' + escapeHtml(st.studentId) + '</small>' : '') + '</td>' +
+          data.questions.map(function(q) { return rosterCell(st.cells[q.id], q); }).join('') +
+          '<td class="count">' + (st.missing === 0 ? '交齊' : st.missing + ' 題') + '</td></tr>';
+      }).join('');
+
+    const missingList = data.questions.map(function(q, i) {
+      const names = data.students.filter(function(st) { return !st.cells[q.id]; }).map(function(st) { return st.name; });
+      return '<div class="missing-item"><div class="missing-head"><b>' + escapeHtml(q.title) + '</b>' +
+        (names.length
+          ? '<span>未交 ' + names.length + ' 位 <button type="button" class="ghost" onclick="copyMissing(' + i + ')">複製名單</button></span>'
+          : '<span class="ok-text">全部交齊</span>') +
+        '</div>' + (names.length ? '<div class="missing-names">' + escapeHtml(names.join('、')) + '</div>' : '') + '</div>';
+    }).join('');
+
+    const options = function(u) {
+      const suggested = {};
+      u.suggestions.forEach(function(sg) { suggested[sg.id] = sg.reason; });
+      const first = u.suggestions.map(function(sg) {
+        return '<option value="' + escapeHtml(sg.id) + '">可能是 ' + escapeHtml(sg.name) + '（' + escapeHtml(sg.reason) + '）</option>';
+      }).join('');
+      const rest = data.students.filter(function(st) { return !suggested[st.id]; }).map(function(st) {
+        return '<option value="' + escapeHtml(st.id) + '">' + escapeHtml(st.name) + '</option>';
+      }).join('');
+      return '<option value="">選擇這是誰……</option>' + first + (rest ? '<optgroup label="名單上的其他學生">' + rest + '</optgroup>' : '') +
+        '<option value="__ignore">不在名單（例如測試用）</option>';
+    };
+
+    const unmatched = data.unmatched.length
+      ? '<div class="unmatched"><h3>名單外的作答（' + data.unmatched.length + '）</h3>' +
+        '<p class="hint">這些作答對不上名單上的任何人。選一次是誰，之後同一個學號交的作答都會自動算他的。</p>' +
+        data.unmatched.map(function(u, i) {
+          return '<div class="unmatched-item"><div class="who"><b>' + escapeHtml(u.name || '（沒有姓名）') + '</b>' +
+            '<small>學號 ' + escapeHtml(u.studentId || '—') + '・交了 ' + u.questions.length + ' 題：' + escapeHtml(u.questions.join('、')) + '</small></div>' +
+            '<div class="act"><select id="link_' + i + '" aria-label="這是誰">' + options(u) + '</select>' +
+            '<button type="button" onclick="linkSubmitter(' + i + ')">確認</button></div></div>';
+        }).join('') + '</div>'
+      : '';
+
+    result.innerHTML =
+      '<div class="roster-stats">' +
+        '<div><b>' + data.rosterCount + '</b><span>名單人數</span></div>' +
+        '<div><b>' + data.questions.length + '</b><span>題目（不含草稿）</span></div>' +
+        '<div><b>' + allDone + '</b><span>全部交齊</span></div>' +
+        '<div class="' + (lacking ? 'warn' : '') + '"><b>' + lacking + '</b><span>還有缺交</span></div>' +
+        (data.unmatched.length ? '<div class="warn"><b>' + data.unmatched.length + '</b><span>名單外的作答</span></div>' : '') +
+      '</div>' +
+      '<div class="roster-tools">' +
+        '<label><input type="checkbox" id="rosterOnlyMissing"' + (onlyMissing ? ' checked' : '') + ' onchange="window.rosterOnlyMissing = this.checked; renderRosterStatus()"> 只看有缺交的學生</label>' +
+        '<span class="hint">游標停在格子上可以看送出時間與比對方式。</span>' +
+      '</div>' +
+      '<div class="matrix-wrap"><table class="matrix"><thead>' + head + '</thead><tbody>' +
+        (body || '<tr><td class="name" colspan="' + (data.questions.length + 2) + '">每位學生都交齊了 🎉</td></tr>') +
+      '</tbody></table></div>' +
+      unmatched +
+      '<div class="missing-list"><h3>各題未交名單</h3>' + missingList + '</div>' +
+      (data.ignoredCount ? '<p class="hint">有 ' + data.ignoredCount + ' 位作答者被標成不在名單。<button type="button" class="ghost" onclick="unignoreRoster()">重新列出</button></p>' : '');
+  }
+
+
+  function copyMissing(index) {
+
+    const q = rosterData.questions[index];
+    const names = rosterData.students.filter(function(st) { return !st.cells[q.id]; }).map(function(st) { return st.name; });
+
+    copyText('「' + q.title + '」還沒交的同學：' + names.join('、')).then(
+      function() { showToast('已複製 ' + names.length + ' 位未交名單'); },
+      function() { window.prompt('請複製：', names.join('、')); }
+    );
+  }
+
+
+  function linkSubmitter(index) {
+
+    const u = rosterData.unmatched[index];
+    const value = document.getElementById('link_' + index).value;
+
+    if (!value) {
+      alert('請先選擇這是誰');
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        showToast(result.ignored ? '已標成不在名單' : '已對應到 ' + result.name);
+        loadRosterStatus();
+      })
+      .withFailureHandler(function(error) { alert(error.message); })
+      .linkRosterSubmitter(TeacherCourse.id(), { studentId: u.studentId, name: u.name }, value === '__ignore' ? '' : value);
+  }
+
+
+  function unignoreRoster() {
+    google.script.run
+      .withSuccessHandler(loadRosterStatus)
+      .withFailureHandler(function(error) { alert(error.message); })
+      .unignoreRosterSubmitters(TeacherCourse.id());
   }
 
 

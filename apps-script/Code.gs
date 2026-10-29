@@ -1284,6 +1284,11 @@ function getTeacherApiHandlers_() {
     getAISettings: getMyAISettings,
     saveAISettings: saveMyAISettings,
     saveInsightJudgement: saveInsightJudgement,
+    getCourseRoster: getCourseRoster,
+    saveCourseRoster: saveCourseRoster,
+    getSubmissionStatus: getSubmissionStatus,
+    linkRosterSubmitter: linkRosterSubmitter,
+    unignoreRosterSubmitters: unignoreRosterSubmitters,
     exportResearchRecords: exportResearchRecords,
 
     // 課程
@@ -1421,6 +1426,7 @@ function setupSystem() {
   ensureSheet_(ss, HISTORY_SHEET, HISTORY_HEADERS, '#eef0f3', false);
   ensureSheet_(ss, INSIGHT_SHEET, INSIGHT_HEADERS, '#fff6d6', false);
   ensureSheet_(ss, EVENT_SHEET, EVENT_HEADERS, '#f3ecdf', false);
+  ensureSheet_(ss, ROSTER_SHEET, ROSTER_HEADERS, '#e6f0e1', false);
 
   // 即時回饋與自動分類的背景工作
   const trigger = installAutoTrigger_();
@@ -5852,4 +5858,519 @@ function exportResearchRecords(courseId, options) {
       { name: '教學診斷', rows: insights }
     ]
   };
+}
+
+
+/* =====================================================
+   學生名單與繳交狀況
+   老師貼上這門課的學生名單，系統自動比對誰交了哪幾題、誰還沒交。
+   比對順序：老師確認過的對應 → 名單上的學號 → 姓名（容許空白、全形、異體字、多打的字）。
+   同一個學號只要有一份作答比對到某位學生，這個學號的其他作答也算他的
+   （學生有時名字打錯、有時學號打錯）。
+   對不上的作答列在「名單外的作答」，附上可能是誰，老師確認一次之後就會記住。
+===================================================== */
+
+const ROSTER_SHEET = '學生名單';
+const ROSTER_HEADERS = ['名單ID', '課程ID', '姓名', '學號', '別名', '排序', '建立時間', '最後更新'];
+const RCOL = { ID: 1, COURSE_ID: 2, NAME: 3, STUDENT_ID: 4, ALIASES: 5, ORDER: 6, CREATED: 7, UPDATED: 8 };
+const ROSTER_MAX = 300;
+// 老師標成「不在名單」的作答者，存在這個名稱的列
+const ROSTER_IGNORE = '#不在名單';
+
+// 常見的異體字，比對前換成同一個字
+const NAME_VARIANTS = {
+  '温': '溫', '黄': '黃', '呉': '吳', '郞': '郎', '峯': '峰', '羣': '群', '眞': '真',
+  '彦': '彥', '啓': '啟', '栢': '柏', '姸': '妍', '裏': '裡', '爲': '為', '衞': '衛',
+  '綉': '繡', '恵': '惠', '徳': '德', '浄': '淨', '涼': '凉', '台': '臺', '鉄': '鐵',
+  '庄': '莊', '内': '內', '戸': '戶', '絵': '繪', '駅': '驛', '沢': '澤', '斉': '齊'
+};
+
+
+function getRosterSheet_() {
+
+  const ss = getSpreadsheet_();
+
+  return (
+    ss.getSheetByName(ROSTER_SHEET) ||
+    ensureSheet_(ss, ROSTER_SHEET, ROSTER_HEADERS, '#e6f0e1', false)
+  );
+}
+
+
+function normalizeName_(value) {
+
+  let text = cleanText_(value)
+    // 全形英數字轉半形
+    .replace(/[！-～]/g, function(c) { return String.fromCharCode(c.charCodeAt(0) - 0xfee0); })
+    .replace(/[\s　·・.,，、()（）\[\]【】\-_]/g, '')
+    .toLowerCase();
+
+  return text.split('').map(function(c) { return NAME_VARIANTS[c] || c; }).join('');
+}
+
+
+function normalizeStudentId_(value) {
+  // 有些學生把學校信箱當學號，只取 @ 前面
+  return cleanText_(value).split('@')[0].replace(/[\s　]/g, '').toUpperCase();
+}
+
+
+function readRoster_(courseId) {
+
+  const sheet = getSpreadsheet_().getSheetByName(ROSTER_SHEET);
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return { students: [], ignored: [], ignoreRow: 0 };
+  }
+
+  const students = [];
+  let ignored = [];
+  let ignoreRow = 0;
+
+  sheet.getDataRange().getValues().forEach(function(row, i) {
+
+    if (i === 0 || cleanText_(row[RCOL.COURSE_ID - 1]) !== courseId) return;
+
+    let aliases = [];
+    try { aliases = JSON.parse(row[RCOL.ALIASES - 1] || '[]') || []; } catch (error) { aliases = []; }
+
+    if (cleanText_(row[RCOL.NAME - 1]) === ROSTER_IGNORE) {
+      ignored = aliases;
+      ignoreRow = i + 1;
+      return;
+    }
+
+    students.push({
+      rowNumber: i + 1,
+      id: cleanText_(row[RCOL.ID - 1]),
+      name: cleanText_(row[RCOL.NAME - 1]),
+      studentId: cleanText_(row[RCOL.STUDENT_ID - 1]),
+      aliases: aliases,
+      order: Number(row[RCOL.ORDER - 1]) || 0
+    });
+  });
+
+  students.sort(function(a, b) { return a.order - b.order; });
+
+  return { students: students, ignored: ignored, ignoreRow: ignoreRow };
+}
+
+
+/*
+ * 解析老師貼上的名單：一行一位，可以只有姓名，也可以「學號 姓名」或「姓名 學號」，
+ * 用空白、逗號或 Tab 隔開都可以（從 Excel 複製兩欄也行）。
+ */
+function parseRosterText_(text) {
+
+  const out = [];
+  const seen = {};
+  const duplicates = [];
+
+  String(text || '').split(/\r?\n/).forEach(function(line) {
+
+    const parts = line.split(/[\t,，、;；]+|\s{1,}/).map(cleanText_).filter(Boolean);
+
+    if (!parts.length) return;
+
+    // 有數字的當學號，其餘當姓名
+    const idPart = parts.filter(function(p) { return /\d{4,}/.test(p); })[0] || '';
+    const name = parts.filter(function(p) { return p !== idPart && !/^\d+\.?$/.test(p); }).join('');
+
+    if (!name) return;
+
+    const key = normalizeName_(name);
+
+    if (seen[key]) {
+      duplicates.push(name);
+      if (!idPart) return;
+    }
+
+    seen[key] = true;
+    out.push({ name: name.substring(0, 40), studentId: normalizeStudentId_(idPart).substring(0, 30) });
+  });
+
+  return { students: out, duplicates: duplicates };
+}
+
+
+function getCourseRoster(courseId) {
+
+  const course = requireCourse_(courseId);
+  const roster = readRoster_(course.id);
+
+  return {
+    courseId: course.id,
+    courseName: course.name,
+    students: roster.students.map(function(s) {
+      return { id: s.id, name: s.name, studentId: s.studentId, aliases: s.aliases };
+    }),
+    ignored: roster.ignored
+  };
+}
+
+
+/*
+ * 存名單。名單上原本就有的學生（同名）會保留老師確認過的對應。
+ */
+function saveCourseRoster(courseId, text) {
+
+  const course = requireCourse_(courseId);
+  const parsed = parseRosterText_(text);
+
+  if (parsed.students.length > ROSTER_MAX) {
+    throw new Error('一門課最多 ' + ROSTER_MAX + ' 位學生');
+  }
+
+  return withLock_(function() {
+
+    const sheet = getRosterSheet_();
+    const old = readRoster_(course.id);
+    const byName = {};
+
+    old.students.forEach(function(s) { byName[normalizeName_(s.name)] = s; });
+
+    const now = new Date();
+    const rows = parsed.students.map(function(s, i) {
+      const prev = byName[normalizeName_(s.name)];
+      return [
+        prev ? prev.id : generateId_('R'),
+        course.id,
+        s.name,
+        s.studentId || (prev ? prev.studentId : ''),
+        JSON.stringify(prev ? prev.aliases : []),
+        i + 1,
+        now,
+        now
+      ];
+    });
+
+    if (old.ignoreRow) {
+      rows.push([generateId_('R'), course.id, ROSTER_IGNORE, '', JSON.stringify(old.ignored), 0, now, now]);
+    }
+
+    deleteRowsWhere_(sheet, function(row) {
+      return cleanText_(row[RCOL.COURSE_ID - 1]) === course.id;
+    });
+
+    if (rows.length) {
+      const start = appendRows_(sheet, rows, ROSTER_HEADERS.length);
+      // 學號存成文字
+      sheet.getRange(start, RCOL.STUDENT_ID, rows.length, 1).setNumberFormat('@')
+        .setValues(cells_(rows.map(function(r) { return [r[RCOL.STUDENT_ID - 1]]; })));
+    }
+
+    return { success: true, count: parsed.students.length, duplicates: parsed.duplicates };
+  });
+}
+
+
+function editDistance_(a, b) {
+
+  if (Math.abs(a.length - b.length) > 1) return 9;
+
+  const prev = [];
+  for (let j = 0; j <= b.length; j++) prev[j] = j;
+
+  for (let i = 1; i <= a.length; i++) {
+    let diag = prev[0];
+    prev[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = prev[j];
+      prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, diag + (a[i - 1] === b[j - 1] ? 0 : 1));
+      diag = tmp;
+    }
+  }
+
+  return prev[b.length];
+}
+
+
+/*
+ * 把一位作答者（學號＋姓名）對到名單上的學生。
+ * 回傳 { student, by } 或 { suggestions: [{ student, reason }] }。
+ */
+function matchSubmitter_(roster, submitter, learnedIds) {
+
+  const sid = normalizeStudentId_(submitter.studentId);
+  const nm = normalizeName_(submitter.name);
+  const aliasKey = function(s) { return s.aliases.map(function(a) { return cleanText_(a).toUpperCase(); }); };
+
+  let hits = roster.filter(function(s) {
+    const keys = aliasKey(s);
+    return (sid && keys.indexOf('ID:' + sid) >= 0) || (nm && keys.indexOf('NAME:' + nm.toUpperCase()) >= 0);
+  });
+  if (hits.length === 1) return { student: hits[0], by: '老師確認' };
+
+  hits = sid ? roster.filter(function(s) { return s.studentId && normalizeStudentId_(s.studentId) === sid; }) : [];
+  if (hits.length === 1) return { student: hits[0], by: '學號' };
+
+  hits = nm ? roster.filter(function(s) { return normalizeName_(s.name) === nm; }) : [];
+  if (hits.length === 1) return { student: hits[0], by: '姓名' };
+
+  // 同名的學生：要靠學號分
+  if (hits.length > 1) {
+    return { suggestions: hits.map(function(s) { return { student: s, reason: '同名' }; }) };
+  }
+
+  if (sid && learnedIds[sid]) return { student: learnedIds[sid], by: '同一個學號' };
+
+  // 姓名裡含有名單上的名字，例如「陳旻同學」「41100130E陳旻」
+  hits = nm ? roster.filter(function(s) {
+    const n = normalizeName_(s.name);
+    return n.length >= 2 && nm.indexOf(n) >= 0;
+  }) : [];
+  if (hits.length === 1) return { student: hits[0], by: '姓名' };
+
+  // 對不上：找可能是誰（打錯一個字、只寫名字沒寫姓）
+  const suggestions = [];
+
+  roster.forEach(function(s) {
+    const n = normalizeName_(s.name);
+    if (!nm || !n) return;
+    if (nm.length >= 2 && n.length >= 3 && editDistance_(nm, n) === 1) {
+      suggestions.push({ student: s, reason: '差一個字' });
+    } else if (nm.length >= 2 && n.indexOf(nm) >= 0) {
+      suggestions.push({ student: s, reason: '名字相同' });
+    }
+  });
+
+  return { suggestions: suggestions.slice(0, 5) };
+}
+
+
+/*
+ * 繳交狀況總表。
+ */
+function getSubmissionStatus(courseId) {
+
+  const course = requireCourse_(courseId);
+  const roster = readRoster_(course.id);
+  const students = roster.students;
+
+  // 這門課的題目（草稿不算）
+  const questions = [];
+
+  getQuestionSheet_().getDataRange().getValues().slice(1).forEach(function(row, i) {
+    const q = questionFromRow_(row, i + 2);
+    if (q.id && q.courseId === course.id && q.status !== '草稿') {
+      questions.push({ id: q.id, title: q.title, status: q.status, deadline: q.deadline, createdAt: toTime_(row[8]) || 0 });
+    }
+  });
+
+  questions.sort(function(a, b) { return a.createdAt - b.createdAt; });
+
+  const questionIds = {};
+  questions.forEach(function(q) { questionIds[q.id] = true; });
+
+  // 這門課的作答，依作答者（學號＋姓名）分組
+  const submitters = {};
+
+  getAnswerSheet_().getDataRange().getValues().slice(1).forEach(function(row) {
+
+    const questionId = cleanText_(row[ACOL.QUESTION_ID - 1]);
+    if (!questionIds[questionId] || !cleanText_(row[ACOL.ANSWER - 1])) return;
+
+    const studentId = cleanText_(row[ACOL.STUDENT_ID - 1]);
+    const name = cleanText_(row[ACOL.NAME - 1]);
+    const key = normalizeStudentId_(studentId) + '|' + normalizeName_(name);
+
+    const s = submitters[key] = submitters[key] || { key: key, studentId: studentId, name: name, answers: [] };
+
+    s.answers.push({
+      answerId: cleanText_(row[ACOL.ID - 1]),
+      questionId: questionId,
+      status: cleanText_(row[ACOL.STATUS - 1]),
+      submitted: row[ACOL.SUBMITTED - 1],
+      version: Number(row[ACOL.VERSION - 1]) || 1
+    });
+  });
+
+  const ignored = {};
+  roster.ignored.forEach(function(k) { ignored[cleanText_(k)] = true; });
+
+  // 第一輪：確定的比對，順便記下學號屬於誰
+  const learnedIds = {};
+  const results = {};
+
+  Object.keys(submitters).forEach(function(key) {
+    const m = matchSubmitter_(students, submitters[key], {});
+    results[key] = m;
+    const sid = normalizeStudentId_(submitters[key].studentId);
+    if (m.student && sid && m.by !== '同一個學號') {
+      learnedIds[sid] = learnedIds[sid] && learnedIds[sid] !== m.student ? 'conflict' : m.student;
+    }
+  });
+
+  Object.keys(learnedIds).forEach(function(sid) {
+    if (learnedIds[sid] === 'conflict') delete learnedIds[sid];
+  });
+
+  // 第二輪：用學號補上名字打錯的
+  Object.keys(submitters).forEach(function(key) {
+    if (!results[key].student) {
+      results[key] = matchSubmitter_(students, submitters[key], learnedIds);
+    }
+  });
+
+  const cells = {};
+  students.forEach(function(s) { cells[s.id] = {}; });
+
+  const unmatched = [];
+
+  Object.keys(submitters).forEach(function(key) {
+
+    const sub = submitters[key];
+    const m = results[key];
+
+    if (m.student) {
+
+      const row = cells[m.student.id];
+
+      sub.answers.forEach(function(a) {
+        const old = row[a.questionId];
+        // 同一題有兩份（換過學號或名字）時，取最新的
+        if (!old || toTime_(a.submitted) > old.time) {
+          const q = questions.filter(function(x) { return x.id === a.questionId; })[0];
+          row[a.questionId] = {
+            time: toTime_(a.submitted),
+            submittedAt: formatDate_(a.submitted),
+            status: a.status,
+            version: a.version,
+            late: !!q && isLate_(a.submitted, q.deadline),
+            by: m.by,
+            from: sub.studentId + ' ' + sub.name,
+            copies: (old ? old.copies : 0) + 1
+          };
+        } else {
+          old.copies++;
+        }
+      });
+
+      return;
+    }
+
+    if (ignored[key]) return;
+
+    unmatched.push({
+      key: key,
+      studentId: sub.studentId,
+      name: sub.name,
+      questions: sub.answers.map(function(a) {
+        const q = questions.filter(function(x) { return x.id === a.questionId; })[0];
+        return q ? q.title : '';
+      }),
+      suggestions: (m.suggestions || []).map(function(x) {
+        return { id: x.student.id, name: x.student.name, reason: x.reason };
+      })
+    });
+  });
+
+  const now = Date.now();
+
+  return {
+    courseId: course.id,
+    courseName: course.name,
+    rosterCount: students.length,
+    questions: questions.map(function(q) {
+      const submitted = students.filter(function(s) { return cells[s.id][q.id]; }).length;
+      return {
+        id: q.id,
+        title: q.title,
+        status: q.status,
+        deadlineText: formatDeadline_(q.deadline),
+        passed: !!q.deadline && now > q.deadline,
+        submitted: submitted,
+        missing: students.length - submitted
+      };
+    }),
+    students: students.map(function(s) {
+      const row = {};
+      Object.keys(cells[s.id]).forEach(function(qid) {
+        const c = cells[s.id][qid];
+        row[qid] = { submittedAt: c.submittedAt, status: c.status, version: c.version, late: c.late, by: c.by, from: c.from, copies: c.copies };
+      });
+      return {
+        id: s.id,
+        name: s.name,
+        studentId: s.studentId,
+        cells: row,
+        missing: questions.filter(function(q) { return !row[q.id]; }).length
+      };
+    }),
+    unmatched: unmatched,
+    ignoredCount: roster.ignored.length
+  };
+}
+
+
+/*
+ * 老師確認「這份作答是名單上的誰」，或標成不在名單。之後自動套用。
+ * target：名單ID，或 '' 代表不在名單（例如老師自己測試用的作答）
+ */
+function linkRosterSubmitter(courseId, submitter, target) {
+
+  const course = requireCourse_(courseId);
+  submitter = submitter || {};
+
+  const sid = normalizeStudentId_(submitter.studentId);
+  const nm = normalizeName_(submitter.name);
+
+  if (!sid && !nm) {
+    throw new Error('缺少作答者的學號或姓名');
+  }
+
+  return withLock_(function() {
+
+    const sheet = getRosterSheet_();
+    const roster = readRoster_(course.id);
+    const now = new Date();
+
+    if (!cleanText_(target)) {
+
+      const key = sid + '|' + nm;
+      const list = roster.ignored.indexOf(key) >= 0 ? roster.ignored : roster.ignored.concat([key]);
+
+      if (roster.ignoreRow) {
+        sheet.getRange(roster.ignoreRow, RCOL.ALIASES).setValue(JSON.stringify(list));
+      } else {
+        appendRows_(sheet, [[generateId_('R'), course.id, ROSTER_IGNORE, '', JSON.stringify(list), 0, now, now]], ROSTER_HEADERS.length);
+      }
+
+      return { success: true, ignored: true };
+    }
+
+    const student = roster.students.filter(function(s) { return s.id === cleanText_(target); })[0];
+
+    if (!student) {
+      throw new Error('名單上找不到這位學生，請重新整理');
+    }
+
+    // 只記學號：同一個學號之後換什麼名字都算他。沒有學號才記姓名。
+    const alias = sid ? 'ID:' + sid : 'NAME:' + nm.toUpperCase();
+    const aliases = student.aliases.indexOf(alias) >= 0 ? student.aliases : student.aliases.concat([alias]);
+
+    sheet
+      .getRange(student.rowNumber, RCOL.ALIASES)
+      .setValue(JSON.stringify(aliases));
+    sheet.getRange(student.rowNumber, RCOL.UPDATED).setValue(now);
+
+    return { success: true, name: student.name };
+  });
+}
+
+
+/*
+ * 取消「不在名單」。
+ */
+function unignoreRosterSubmitters(courseId) {
+
+  const course = requireCourse_(courseId);
+
+  return withLock_(function() {
+    const roster = readRoster_(course.id);
+    if (roster.ignoreRow) {
+      getRosterSheet_().getRange(roster.ignoreRow, RCOL.ALIASES).setValue('[]');
+    }
+    return { success: true };
+  });
 }
