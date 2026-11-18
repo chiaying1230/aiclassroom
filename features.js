@@ -32,10 +32,10 @@ window.PLATFORM_FEATURES = [
   { title: '教材庫與 AI 助理', role: 'teacher',   href: 'rag.html',      icon: '📚', status: 'live' },
   { title: '課程管理',         role: 'teacher',   href: 'courses.html',  icon: '🗂', status: 'live' },
   { title: '帳號管理',         role: 'teacher',   href: 'accounts.html', icon: '🔑', status: 'live' },
-  { title: '教師 AI 工具研習', role: 'teacher',   href: 'ai-tools.html', icon: '🧰', status: 'live' },
 
   { title: '開發者首頁',       role: 'developer', href: 'dev.html',      icon: '🛠', status: 'live' },
   { title: 'GitHub 原始碼',    role: 'developer', href: 'https://github.com/chiaying1230/aiclassroom', icon: '📦', newTab: true, status: 'live' },
 
-  { title: '師大 Moodle',      role: ['student', 'teacher'], href: 'https://moodle3.ntnu.edu.tw/', icon: '🎓', newTab: true, status: 'live' }
+  // 「教師 AI 工具研習」和教師用的「師大 Moodle」放在首頁右上角，教師選單不再列出，避免項目太多
+  { title: '師大 Moodle',      role: 'student',   href: 'https://moodle3.ntnu.edu.tw/', icon: '🎓', newTab: true, status: 'live' }
 ];
