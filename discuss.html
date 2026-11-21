@@ -347,6 +347,42 @@
     .answer-card.representative { box-shadow: 0 0 0 2px var(--yellow); }
     .answer-card.dragging { opacity: .4; }
 
+    /* 跨類別：在其他類別裡顯示一張「也屬於」的副本 */
+    .answer-card.also { border-left-style: dashed; background: var(--surface-2, #f6f4ef); cursor: default; }
+    .also-label { font-size: 12px; color: var(--ink-2); margin-bottom: 4px; }
+    .label-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .label-chip { font-size: 12px; padding: 1px 8px; border-radius: 999px; color: #fff; background: var(--chip, #7d8899); }
+    .cross-tag { font-size: 12px; font-weight: 700; color: #6446c0; }
+
+    /* 標籤編輯視窗 */
+    .label-dialog { border: none; border-radius: var(--radius); padding: 0; width: min(440px, calc(100vw - 32px)); box-shadow: 0 20px 50px rgba(16, 24, 40, .3); }
+    .label-dialog::backdrop { background: rgba(16, 24, 40, .45); }
+    .label-dialog form { padding: 20px 22px; }
+    .label-dialog h3 { margin: 0 0 4px; font-size: 18px; }
+    .label-dialog .preview { margin: 8px 0 12px; padding: 8px 10px; background: var(--surface-2, #f6f4ef); border-radius: 8px; font-size: 14px; max-height: 120px; overflow: auto; white-space: pre-wrap; }
+    .label-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 8px 4px; border-bottom: 1px solid var(--line); }
+    .label-row input { width: auto; margin: 0; }
+    .label-row .main { font-size: 13px; color: var(--ink-2); display: inline-flex; gap: 4px; align-items: center; }
+    .label-row .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; background: var(--chip); }
+    .label-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
+
+    /* ---------- 統計圖 ---------- */
+    .charts { margin-top: 16px; }
+    .charts[hidden] { display: none !important; }
+    .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+    .chart-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; min-width: 0; }
+    .chart-card h3 { margin: 0; font-size: 16px; }
+    .chart-card .chart-sub { margin: 2px 0 10px; font-size: 13px; color: var(--ink-2); }
+    .chart-card svg { width: 100%; height: auto; display: block; overflow: visible; }
+    .chart-card svg text { font-family: inherit; }
+    .chart-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: 13px; color: var(--ink-2); }
+    .chart-legend span::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; background: var(--chip); vertical-align: -1px; }
+    .chart-legend .hatch::before { background: repeating-linear-gradient(45deg, var(--ink-2) 0 2px, transparent 2px 5px); border: 1px solid var(--ink-2); }
+    .chart-empty { color: var(--ink-2); font-size: 14px; padding: 20px 0; }
+    .mix { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 12px; font-size: 15px; }
+    .mix b { font-size: 20px; margin-left: 4px; }
+    body.present .chart-card h3 { font-size: 20px; }
+
     .rep-label { font-size: 12px; font-weight: 700; color: #8a6200; margin-bottom: 4px; }
     .answer-text { white-space: pre-wrap; line-height: 1.75; word-break: break-word; }
 
@@ -507,6 +543,7 @@
     <div class="topbar-buttons">
       <button type="button" class="ghost" onclick="loadBoard(false)">🔄 重新整理</button>
       <button type="button" class="ghost" id="toolsToggle" aria-pressed="false">收起工具面板</button>
+      <button type="button" class="ghost" id="chartsToggle" aria-pressed="false" onclick="toggleCharts()">📊 統計圖</button>
       <button type="button" class="yellow" onclick="togglePresent()">📽 投影模式</button>
     </div>
   </header>
@@ -515,6 +552,8 @@
     <div id="questionInfo"><div class="empty">載入中……</div></div>
     <div id="stats" class="stats"></div>
   </section>
+
+  <section class="charts" id="charts" hidden aria-label="分類統計圖"></section>
 
   <div class="workspace">
 
@@ -544,6 +583,7 @@
           <div class="button-row">
             <button type="button" class="gray ai-action" onclick="addCategoryRow()">＋ 新增類別</button>
             <button type="button" class="purple ai-action" onclick="suggestCategories()">🤖 讓 AI 建議類別</button>
+            <button type="button" class="purple ai-action" onclick="suggestFromObjective()" title="還沒有學生回答也可以用：依題目的學習目標預先設計類別">🎯 依學習目標建議</button>
             <button type="button" class="green ai-action" onclick="saveCategories()">儲存類別</button>
           </div>
 
@@ -575,6 +615,19 @@
 </main>
 
 <div id="focusOverlay" class="focus-overlay" role="dialog" aria-modal="true"></div>
+
+<dialog class="label-dialog" id="labelDialog" aria-labelledby="labelTitle">
+  <form method="dialog" onsubmit="return false">
+    <h3 id="labelTitle">這份回答屬於哪幾類？</h3>
+    <p class="hint" style="margin:0">一份回答可以同時屬於多個類別（最多 3 個）。標「主要」的那一類，卡片會放在那一欄。</p>
+    <div class="preview" id="labelPreview"></div>
+    <div id="labelRows"></div>
+    <div class="label-actions">
+      <button type="button" class="ghost" onclick="$('labelDialog').close()">取消</button>
+      <button type="button" class="green" id="labelSave" onclick="saveLabels()">儲存</button>
+    </div>
+  </form>
+</dialog>
 
 
 <script>
@@ -661,6 +714,14 @@
   /* ==================================================
      題目與資料載入
   ================================================== */
+
+  // 上次有打開統計圖就維持打開
+  try {
+    if (localStorage.getItem('aiclassroom_discuss_charts') === '1') {
+      document.addEventListener('DOMContentLoaded', function() { if ($('charts').hidden) toggleCharts(); });
+    }
+  } catch (error) { /* 忽略 */ }
+
 
   function loadQuestionList(preferredId) {
 
@@ -835,6 +896,7 @@
     renderStats();
     renderBoard();
     renderFocus();
+    renderCharts();
   }
 
 
@@ -846,6 +908,7 @@
 
     renderBoard();
     renderFocus();
+    renderCharts();
   }
 
 
@@ -873,12 +936,14 @@
 
     const classified = answers.filter(function(a) { return a.classified; }).length;
     const confirmed = answers.filter(function(a) { return a.confirmed; }).length;
+    const cross = answers.filter(function(a) { return a.categoryId && (a.extraCategoryIds || []).length; }).length;
 
     $('stats').innerHTML = `
       <span>回答 <b>${answers.length}</b></span>
       <span>類別 <b>${state.board.categories.length}</b></span>
       <span class="teacher-only">已分類 <b>${classified}</b></span>
       <span class="teacher-only">已確認 <b>${confirmed}</b></span>
+      ${cross ? `<span>跨類別 <b>${cross}</b></span>` : ''}
       <span class="teacher-only">更新時間 ${escapeHtml(state.lastLoadedAt)}</span>
       ${autoStatusHtml()}
     `;
@@ -1019,6 +1084,7 @@
         representativeAnswerId: c.representativeAnswerId,
         color: colorFor(index),
         answers: [],
+        also: [],
         isUnclassified: false
       };
 
@@ -1036,6 +1102,7 @@
       representativeAnswerId: '',
       color: UNCLASSIFIED_COLOR,
       answers: [],
+      also: [],
       isUnclassified: true
     };
 
@@ -1049,6 +1116,13 @@
       }
 
       target.answers.push(a);
+
+      // 跨類別：在其他類別也放一張副本
+      if (target !== unclassified) {
+        (a.extraCategoryIds || []).forEach(function(id) {
+          if (map[id]) map[id].also.push(a);
+        });
+      }
     });
 
     // 代表回答排在最前面
@@ -1109,7 +1183,7 @@
 
         <div class="column-title">
           <span>${escapeHtml(column.name)}</span>
-          <span class="count">${column.answers.length}</span>
+          <span class="count" title="${column.also.length ? '其中 ' + column.also.length + ' 份主要在其他類別' : ''}">${column.answers.length + column.also.length}</span>
         </div>
 
         ${column.description ? `<div class="column-desc">${escapeHtml(column.description)}</div>` : ''}
@@ -1134,8 +1208,9 @@
 
         <div class="cards">
           ${
-            column.answers.length
-              ? column.answers.map(function(a) { return renderCard(a, column); }).join('')
+            column.answers.length || column.also.length
+              ? column.answers.map(function(a) { return renderCard(a, column); }).join('') +
+                column.also.map(function(a) { return renderCard(a, column, true); }).join('')
               : '<div class="drop-hint teacher-only">把回答拖到這裡</div>'
           }
         </div>
@@ -1144,9 +1219,37 @@
   }
 
 
-  function renderCard(a, column) {
+  function categoryColor(id) {
+    const i = state.board.categories.findIndex(function(c) { return c.id === id; });
+    return i >= 0 ? colorFor(i) : UNCLASSIFIED_COLOR;
+  }
+
+
+  function labelChips(ids) {
+    return '<div class="label-chips">' + ids.map(function(id) {
+      return '<span class="label-chip" style="--chip:' + categoryColor(id) + '">' + escapeHtml(categoryName(id)) + '</span>';
+    }).join('') + '</div>';
+  }
+
+
+  function renderCard(a, column, also) {
 
     const showNames = $('showNames').checked;
+    const extras = a.extraCategoryIds || [];
+
+    // 副本：只顯示回答、主要在哪一類
+    if (also) {
+      return `
+        <div class="answer-card also ${a.confirmed ? 'confirmed' : 'ai'}" draggable="false" data-also="1" data-answer-id="${escapeHtml(a.answerId)}">
+          <div class="also-label">也屬於這一類・主要在「${escapeHtml(categoryName(a.categoryId))}」</div>
+          <div class="answer-text">${escapeHtml(a.answer)}</div>
+          ${showNames ? `<div class="card-meta"><span class="student">${escapeHtml(a.name)}（${escapeHtml(a.studentId)}）</span></div>` : ''}
+          <div class="card-controls teacher-only">
+            <button type="button" class="mini ghost" onclick="openLabels('${a.answerId}')">🏷 標籤</button>
+          </div>
+        </div>
+      `;
+    }
     const isRepresentative =
       column.representativeAnswerId && column.representativeAnswerId === a.answerId;
 
@@ -1180,14 +1283,16 @@
 
         <div class="answer-text">${escapeHtml(a.answer)}</div>
 
+        ${extras.length ? `<div class="cross-tag">跨 ${extras.length + 1} 類</div>${labelChips([a.categoryId].concat(extras))}` : ''}
+
         <div class="card-meta">
           ${showNames ? `<span class="student">${escapeHtml(a.name)}（${escapeHtml(a.studentId)}）</span>` : ''}
           ${tag}
         </div>
 
         ${a.reason && !a.confirmed ? `<div class="reason teacher-only">AI 理由：${escapeHtml(a.reason)}</div>` : ''}
-        ${a.aiCategoryId && a.aiCategoryId !== a.categoryId
-          ? `<div class="reason teacher-only">AI 原本分在「${escapeHtml(categoryName(a.aiCategoryId))}」${a.aiReason ? '：' + escapeHtml(a.aiReason) : ''}</div>`
+        ${a.aiCategoryId && (a.aiCategoryId !== a.categoryId || (a.aiExtraCategoryIds || []).join() !== extras.join())
+          ? `<div class="reason teacher-only">AI 原本分在「${escapeHtml([a.aiCategoryId].concat(a.aiExtraCategoryIds || []).map(categoryName).join('、'))}」${a.aiReason ? '：' + escapeHtml(a.aiReason) : ''}</div>`
           : ''}
         ${a.studentAgree
           ? `<div class="reason teacher-only student-reply ${a.studentAgree === '符合' ? 'agree' : 'disagree'}">學生回覆：${escapeHtml(a.studentAgree)}${a.studentNote ? '・' + escapeHtml(a.studentNote) : ''}</div>`
@@ -1196,6 +1301,7 @@
         <div class="card-controls teacher-only">
           <select aria-label="移動到類別" onchange="moveAnswer('${a.answerId}', this.value)">${options}</select>
           ${canConfirm ? `<button type="button" class="mini green" title="確認這個分類" onclick="moveAnswer('${a.answerId}', '${a.categoryId}')">✓</button>` : ''}
+          ${state.board.categories.length > 1 ? `<button type="button" class="mini ghost" title="這份回答同時屬於好幾類時用" onclick="openLabels('${a.answerId}')">🏷 標籤</button>` : ''}
         </div>
       </div>
     `;
@@ -1625,6 +1731,10 @@
 
     // 先更新畫面，再寫回試算表
     previous.confirmedBy = a.confirmedBy;
+    previous.extraCategoryIds = (a.extraCategoryIds || []).slice();
+    a.extraCategoryIds = categoryId
+      ? (a.extraCategoryIds || []).filter(function(id) { return id !== categoryId; })
+      : [];
     a.categoryId = categoryId || '';
     a.confirmedBy = '教師';
     a.confirmed = true;
@@ -1826,7 +1936,7 @@
 
         <div class="focus-question">${escapeHtml(state.board.question.content)}</div>
 
-        <h2 class="focus-title">${escapeHtml(column.name)}<small>${column.answers.length} 份回答</small></h2>
+        <h2 class="focus-title">${escapeHtml(column.name)}<small>${column.answers.length + column.also.length} 份回答${column.also.length ? '（其中 ' + column.also.length + ' 份跨類別）' : ''}</small></h2>
 
         ${column.description ? `<p class="focus-desc">${escapeHtml(column.description)}</p>` : ''}
         ${column.summary ? `<div class="focus-summary">💡 ${escapeHtml(column.summary)}</div>` : ''}
@@ -1834,8 +1944,8 @@
 
         <div class="focus-cards">
           ${
-            column.answers.length
-              ? column.answers.map(function(a) {
+            column.answers.length || column.also.length
+              ? column.answers.concat(column.also).map(function(a) {
                   const rep = a.answerId === column.representativeAnswerId;
                   return `
                     <div class="focus-card ${rep ? 'representative' : ''}">${rep ? '<div class="rep-label">⭐ 代表回答</div>' : ''}${escapeHtml(a.answer)}${showNames ? `<span class="student">— ${escapeHtml(a.name)}</span>` : ''}</div>
@@ -1846,6 +1956,395 @@
         </div>
       </div>
     `;
+  }
+
+
+
+  /* ==================================================
+     跨類別標籤
+  ================================================== */
+
+  let labelAnswerId = '';
+
+  function openLabels(answerId) {
+
+    const a = state.board.answers.find(function(x) { return x.answerId === answerId; });
+
+    if (!a) return;
+
+    labelAnswerId = answerId;
+
+    const chosen = a.categoryId ? [a.categoryId].concat(a.extraCategoryIds || []) : [];
+
+    $('labelPreview').textContent = a.answer;
+    $('labelRows').innerHTML = state.board.categories.map(function(c, i) {
+      const on = chosen.indexOf(c.id) >= 0;
+      return '<label class="label-row">' +
+        '<input type="checkbox" value="' + escapeHtml(c.id) + '"' + (on ? ' checked' : '') + ' onchange="syncLabelRows()">' +
+        '<span><span class="swatch" style="--chip:' + colorFor(i) + '"></span>' + escapeHtml(c.name) + '</span>' +
+        '<span class="main"><input type="radio" name="labelMain" value="' + escapeHtml(c.id) + '"' + (c.id === a.categoryId ? ' checked' : '') + '> 主要</span>' +
+        '</label>';
+    }).join('');
+
+    syncLabelRows();
+    $('labelDialog').showModal();
+  }
+
+
+  function syncLabelRows() {
+
+    const boxes = Array.prototype.slice.call($('labelRows').querySelectorAll('input[type=checkbox]'));
+    const checked = boxes.filter(function(b) { return b.checked; });
+
+    boxes.forEach(function(b) {
+      const radio = b.closest('.label-row').querySelector('input[type=radio]');
+      radio.disabled = !b.checked;
+      if (!b.checked) radio.checked = false;
+      // 最多 3 個
+      b.disabled = !b.checked && checked.length >= 3;
+    });
+
+    // 沒有主要的時候，第一個勾的當主要
+    if (checked.length && !$('labelRows').querySelector('input[type=radio]:checked')) {
+      checked[0].closest('.label-row').querySelector('input[type=radio]').checked = true;
+    }
+  }
+
+
+  function saveLabels() {
+
+    const main = $('labelRows').querySelector('input[type=radio]:checked');
+    const ids = Array.prototype.map.call($('labelRows').querySelectorAll('input[type=checkbox]:checked'), function(b) { return b.value; });
+    const ordered = main ? [main.value].concat(ids.filter(function(id) { return id !== main.value; })) : [];
+    const a = state.board.answers.find(function(x) { return x.answerId === labelAnswerId; });
+
+    $('labelDialog').close();
+
+    if (!a) return;
+
+    const previous = { categoryId: a.categoryId, extraCategoryIds: (a.extraCategoryIds || []).slice(), confirmed: a.confirmed, classified: a.classified, confirmedBy: a.confirmedBy };
+
+    a.categoryId = ordered[0] || '';
+    a.extraCategoryIds = ordered.slice(1);
+    a.confirmed = true;
+    a.classified = true;
+    a.confirmedBy = '教師';
+
+    state.pendingOps++;
+    renderStats();
+    renderBoard();
+    renderFocus();
+    renderCharts();
+
+    google.script.run
+      .withSuccessHandler(function() {
+        state.pendingOps--;
+        if (state.pendingOps === 0) loadBoard(true);
+      })
+      .withFailureHandler(function(error) {
+        state.pendingOps--;
+        Object.assign(a, previous);
+        renderStats();
+        renderBoard();
+        renderCharts();
+        alert('沒有存到：' + (/不允許呼叫的功能/.test(error.message)
+          ? '要等 Apps Script 換上新版 Code.gs 並部署後才能使用跨類別標籤。'
+          : error.message));
+      })
+      .setAnswerCategories(labelAnswerId, ordered);
+  }
+
+
+  /* ==================================================
+     依學習目標建議類別（還沒有回答也可以）
+  ================================================== */
+
+  function suggestFromObjective() {
+
+    if (state.busy || !state.board) return;
+
+    if (
+      state.editorCats.length &&
+      !confirm('AI 建議會取代編輯區目前的類別。按「儲存類別」之前，實際資料不會改變。要繼續嗎？')
+    ) {
+      return;
+    }
+
+    setBusy(true, 'AI 正在依學習目標設計類別……', 'editorMessage');
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        setBusy(false);
+        const existingByName = {};
+        state.board.categories.forEach(function(c) { existingByName[c.name] = c.id; });
+        state.editorCats = result.categories.map(function(c) {
+          return { id: existingByName[c.name] || '', name: c.name, description: c.description };
+        });
+        state.editorDirty = true;
+        renderEditor();
+        showMessage('editorMessage', '✓ 依學習目標建議了 ' + result.categories.length + ' 個類別。請檢查、修改後按「儲存類別」。', 'warn');
+      })
+      .withFailureHandler(function(error) {
+        setBusy(false);
+        showMessage('editorMessage', '建議失敗：' + (/不允許呼叫的功能/.test(error.message)
+          ? '要等 Apps Script 換上新版 Code.gs 並部署後才能使用。'
+          : error.message), 'error');
+      })
+      .suggestCategoriesFromObjective({ questionId: state.questionId });
+  }
+
+
+  /* ==================================================
+     統計圖：長條圖、集合圖、折線圖
+  ================================================== */
+
+  function toggleCharts() {
+    const box = $('charts');
+    box.hidden = !box.hidden;
+    $('chartsToggle').setAttribute('aria-pressed', String(!box.hidden));
+    $('chartsToggle').textContent = box.hidden ? '📊 統計圖' : '📊 收起統計圖';
+    try { localStorage.setItem('aiclassroom_discuss_charts', box.hidden ? '0' : '1'); } catch (error) { /* 忽略 */ }
+    renderCharts();
+  }
+
+
+  function svgText(x, y, text, attrs) {
+    return '<text x="' + x + '" y="' + y + '" ' + (attrs || '') + '>' + escapeHtml(text) + '</text>';
+  }
+
+
+  function shorten(text, n) {
+    text = String(text || '');
+    return text.length > n ? text.slice(0, n - 1) + '…' : text;
+  }
+
+
+  /*
+   * 每份回答的類別（依「只顯示已確認的分類」篩選）。
+   */
+  function chartData() {
+
+    const cats = state.board.categories;
+    const valid = {};
+    cats.forEach(function(c) { valid[c.id] = true; });
+    const confirmedOnly = $('confirmedOnly').checked;
+
+    return state.board.answers.map(function(a) {
+      const ids = (a.categoryId && valid[a.categoryId] && (!confirmedOnly || a.confirmed))
+        ? [a.categoryId].concat((a.extraCategoryIds || []).filter(function(id) { return valid[id]; }))
+        : [];
+      return { a: a, ids: ids, time: parseTime(a.submittedAt) };
+    });
+  }
+
+
+  function parseTime(text) {
+    const m = String(text || '').match(/(\d{4})\D(\d{1,2})\D(\d{1,2})\D+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    return m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)).getTime() : 0;
+  }
+
+
+  function renderCharts() {
+
+    const box = $('charts');
+
+    if (!box || box.hidden || !state.board) return;
+
+    const cats = state.board.categories;
+    const rows = chartData();
+
+    if (!cats.length || !rows.some(function(r) { return r.ids.length; })) {
+      box.innerHTML = '<div class="chart-card"><p class="chart-empty">還沒有分類好的回答。建立類別並分類後，這裡會出現長條圖、集合圖和折線圖。</p></div>';
+      return;
+    }
+
+    const single = rows.filter(function(r) { return r.ids.length === 1; }).length;
+    const cross = rows.filter(function(r) { return r.ids.length > 1; }).length;
+    const none = rows.length - single - cross;
+
+    box.innerHTML =
+      '<div class="chart-card" style="margin-bottom:16px">' +
+        '<div class="mix"><span>單一類別<b>' + single + '</b></span><span>跨類別<b>' + cross + '</b></span>' +
+        '<span>未分類' + ($('confirmedOnly').checked ? '／待確認' : '') + '<b>' + none + '</b></span><span>共<b>' + rows.length + '</b> 份</span></div>' +
+        '<p class="chart-sub" style="margin:0">跨類別的回答會同時算進它所屬的每一類，所以各類加總會比回答份數多。</p>' +
+      '</div>' +
+      '<div class="chart-grid">' +
+        '<div class="chart-card"><h3>各類別人數</h3><p class="chart-sub">實心＝只屬於這一類；斜線＝同時屬於其他類</p>' + barChart(cats, rows) +
+          '<div class="chart-legend"><span style="--chip:#475c75">只屬於這一類</span><span class="hatch">跨類別</span></div></div>' +
+        '<div class="chart-card"><h3>類別的重疊</h3><p class="chart-sub">' + (cats.length <= 3 ? '圈圈重疊的地方是同時屬於那幾類的回答' : '每一直條是一種組合；下方的點表示包含哪幾類') + '</p>' +
+          (cats.length <= 3 ? vennChart(cats, rows) : upsetChart(cats, rows)) + '</div>' +
+        '<div class="chart-card"><h3>回答累積的過程</h3><p class="chart-sub">依送出時間，各類別累積的回答數</p>' + lineChart(cats, rows) +
+          '<div class="chart-legend">' + cats.map(function(c, i) { return '<span style="--chip:' + colorFor(i) + '">' + escapeHtml(c.name) + '</span>'; }).join('') + '</div></div>' +
+      '</div>';
+  }
+
+
+  function barChart(cats, rows) {
+
+    const data = cats.map(function(c, i) {
+      const has = rows.filter(function(r) { return r.ids.indexOf(c.id) >= 0; });
+      return { c: c, color: colorFor(i), only: has.filter(function(r) { return r.ids.length === 1; }).length, cross: has.filter(function(r) { return r.ids.length > 1; }).length };
+    });
+
+    const max = Math.max(1, Math.max.apply(null, data.map(function(d) { return d.only + d.cross; })));
+    const W = 430, left = 116, right = 34, rowH = 36, H = data.length * rowH + 10;
+    const scale = (W - left - right) / max;
+
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="各類別人數長條圖">' +
+      '<defs>' + data.map(function(d, i) {
+        return '<pattern id="hatch' + i + '" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="' + d.color + '" fill-opacity=".25"/><line x1="0" y1="0" x2="0" y2="6" stroke="' + d.color + '" stroke-width="3"/></pattern>';
+      }).join('') + '</defs>' +
+      data.map(function(d, i) {
+        const y = i * rowH + 6, w1 = d.only * scale, w2 = d.cross * scale;
+        return '<g>' +
+          svgText(left - 8, y + 18, shorten(d.c.name, 8), 'text-anchor="end" font-size="14" fill="currentColor"') +
+          '<rect x="' + left + '" y="' + y + '" width="' + Math.max(w1, 0) + '" height="24" rx="3" fill="' + d.color + '"><title>' + escapeHtml(d.c.name) + '：只屬於這一類 ' + d.only + ' 份</title></rect>' +
+          '<rect x="' + (left + w1) + '" y="' + y + '" width="' + Math.max(w2, 0) + '" height="24" rx="3" fill="url(#hatch' + i + ')" stroke="' + d.color + '"><title>' + escapeHtml(d.c.name) + '：跨類別 ' + d.cross + ' 份</title></rect>' +
+          svgText(left + w1 + w2 + 6, y + 18, String(d.only + d.cross), 'font-size="15" font-weight="700" fill="currentColor"') +
+        '</g>';
+      }).join('') + '</svg>';
+  }
+
+
+  function comboKey(ids, cats) {
+    return cats.map(function(c) { return ids.indexOf(c.id) >= 0 ? '1' : '0'; }).join('');
+  }
+
+
+  function vennChart(cats, rows) {
+
+    const counts = {};
+    rows.forEach(function(r) { if (r.ids.length) { const k = comboKey(r.ids, cats); counts[k] = (counts[k] || 0) + 1; } });
+    const n = function(k) { return counts[k] || 0; };
+    const col = function(i) { return colorFor(i); };
+
+    if (cats.length === 1) {
+      return '<svg viewBox="0 0 520 220" role="img" aria-label="集合圖"><circle cx="260" cy="110" r="90" fill="' + col(0) + '" fill-opacity=".2" stroke="' + col(0) + '" stroke-width="2"/>' +
+        svgText(260, 116, String(n('1')), 'text-anchor="middle" font-size="22" font-weight="700" fill="currentColor"') +
+        svgText(260, 214, shorten(cats[0].name, 12), 'text-anchor="middle" font-size="13" fill="currentColor"') + '</svg>';
+    }
+
+    if (cats.length === 2) {
+      return '<svg viewBox="0 0 520 250" role="img" aria-label="兩個類別的集合圖">' +
+        '<circle cx="200" cy="120" r="100" fill="' + col(0) + '" fill-opacity=".18" stroke="' + col(0) + '" stroke-width="2"/>' +
+        '<circle cx="320" cy="120" r="100" fill="' + col(1) + '" fill-opacity=".18" stroke="' + col(1) + '" stroke-width="2"/>' +
+        svgText(145, 127, String(n('10')), 'text-anchor="middle" font-size="22" font-weight="700" fill="currentColor"') +
+        svgText(375, 127, String(n('01')), 'text-anchor="middle" font-size="22" font-weight="700" fill="currentColor"') +
+        svgText(260, 127, String(n('11')), 'text-anchor="middle" font-size="22" font-weight="700" fill="currentColor"') +
+        svgText(260, 150, '兩類都有', 'text-anchor="middle" font-size="11.5" fill="currentColor" opacity=".7"') +
+        svgText(150, 244, shorten(cats[0].name, 12), 'text-anchor="middle" font-size="13" fill="' + col(0) + '" font-weight="700"') +
+        svgText(370, 244, shorten(cats[1].name, 12), 'text-anchor="middle" font-size="13" fill="' + col(1) + '" font-weight="700"') + '</svg>';
+    }
+
+    // 三類
+    return '<svg viewBox="0 0 520 330" role="img" aria-label="三個類別的集合圖">' +
+      '<circle cx="210" cy="125" r="100" fill="' + col(0) + '" fill-opacity=".16" stroke="' + col(0) + '" stroke-width="2"/>' +
+      '<circle cx="310" cy="125" r="100" fill="' + col(1) + '" fill-opacity=".16" stroke="' + col(1) + '" stroke-width="2"/>' +
+      '<circle cx="260" cy="210" r="100" fill="' + col(2) + '" fill-opacity=".16" stroke="' + col(2) + '" stroke-width="2"/>' +
+      svgText(170, 105, String(n('100')), 'text-anchor="middle" font-size="20" font-weight="700" fill="currentColor"') +
+      svgText(350, 105, String(n('010')), 'text-anchor="middle" font-size="20" font-weight="700" fill="currentColor"') +
+      svgText(260, 268, String(n('001')), 'text-anchor="middle" font-size="20" font-weight="700" fill="currentColor"') +
+      svgText(260, 98, String(n('110')), 'text-anchor="middle" font-size="18" font-weight="700" fill="currentColor"') +
+      svgText(200, 195, String(n('101')), 'text-anchor="middle" font-size="18" font-weight="700" fill="currentColor"') +
+      svgText(320, 195, String(n('011')), 'text-anchor="middle" font-size="18" font-weight="700" fill="currentColor"') +
+      svgText(260, 165, String(n('111')), 'text-anchor="middle" font-size="18" font-weight="700" fill="currentColor"') +
+      svgText(110, 30, shorten(cats[0].name, 10), 'text-anchor="middle" font-size="13" font-weight="700" fill="' + col(0) + '"') +
+      svgText(410, 30, shorten(cats[1].name, 10), 'text-anchor="middle" font-size="13" font-weight="700" fill="' + col(1) + '"') +
+      svgText(260, 326, shorten(cats[2].name, 14), 'text-anchor="middle" font-size="13" font-weight="700" fill="' + col(2) + '"') + '</svg>';
+  }
+
+
+  /*
+   * 四類以上：UpSet 圖。每一直條是一種組合（例如「A＋C」），下方的點標出包含哪幾類。
+   */
+  function upsetChart(cats, rows) {
+
+    const counts = {};
+    rows.forEach(function(r) { if (r.ids.length) { const k = comboKey(r.ids, cats); counts[k] = (counts[k] || 0) + 1; } });
+
+    const combos = Object.keys(counts)
+      .map(function(k) { return { k: k, n: counts[k], size: k.split('').filter(function(x) { return x === '1'; }).length }; })
+      .sort(function(a, b) { return b.n - a.n || a.size - b.size; })
+      .slice(0, 12);
+
+    const used = cats.map(function(c, i) { return i; }).filter(function(i) { return combos.some(function(c) { return c.k[i] === '1'; }); });
+    const left = 120, colW = 34, barH = 120, top = 18, dotTop = top + barH + 18, rowH = 22;
+    const W = Math.max(360, left + combos.length * colW + 20), H = dotTop + used.length * rowH + 6;
+    const max = Math.max.apply(null, combos.map(function(c) { return c.n; }));
+
+    let out = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="類別組合圖">';
+
+    combos.forEach(function(c, j) {
+      const x = left + j * colW + 6, h = c.n / max * barH, cross = c.size > 1;
+      out += '<rect x="' + x + '" y="' + (top + barH - h) + '" width="' + (colW - 12) + '" height="' + h + '" rx="3" fill="' + (cross ? '#6446c0' : '#7d8899') + '"><title>' + c.n + ' 份</title></rect>' +
+        svgText(x + (colW - 12) / 2, top + barH - h - 4, String(c.n), 'text-anchor="middle" font-size="12" font-weight="700" fill="currentColor"');
+    });
+
+    used.forEach(function(i, r) {
+      const y = dotTop + r * rowH + 8;
+      out += svgText(left - 10, y + 4, shorten(cats[i].name, 8), 'text-anchor="end" font-size="12" fill="currentColor"');
+      combos.forEach(function(c, j) {
+        const cx = left + j * colW + colW / 2;
+        out += '<circle cx="' + cx + '" cy="' + y + '" r="5" fill="' + (c.k[i] === '1' ? colorFor(i) : 'none') + '" stroke="' + (c.k[i] === '1' ? colorFor(i) : '#c9ced6') + '"/>';
+      });
+    });
+
+    combos.forEach(function(c, j) {
+      const on = used.filter(function(i) { return c.k[i] === '1'; });
+      if (on.length > 1) {
+        const cx = left + j * colW + colW / 2;
+        const y1 = dotTop + used.indexOf(on[0]) * rowH + 8, y2 = dotTop + used.indexOf(on[on.length - 1]) * rowH + 8;
+        out += '<line x1="' + cx + '" x2="' + cx + '" y1="' + y1 + '" y2="' + y2 + '" stroke="#6446c0" stroke-width="2"/>';
+      }
+    });
+
+    return out + '</svg><div class="chart-legend"><span style="--chip:#7d8899">只屬於一類</span><span style="--chip:#6446c0">跨類別的組合</span></div>';
+  }
+
+
+  function lineChart(cats, rows) {
+
+    const timed = rows.filter(function(r) { return r.time && r.ids.length; }).sort(function(a, b) { return a.time - b.time; });
+
+    if (timed.length < 2) {
+      return '<p class="chart-empty">回答累積到 2 份以上就會畫出折線。</p>';
+    }
+
+    const t0 = timed[0].time, t1 = timed[timed.length - 1].time, span = Math.max(t1 - t0, 60000);
+    const W = 440, H = 230, left = 34, right = 16, top = 16, bottom = 34;
+    const totals = cats.map(function(c) { return timed.filter(function(r) { return r.ids.indexOf(c.id) >= 0; }).length; });
+    const max = Math.max(1, Math.max.apply(null, totals));
+    const X = function(t) { return left + (t - t0) / span * (W - left - right); };
+    const Y = function(v) { return top + (1 - v / max) * (H - top - bottom); };
+    const step = Math.max(1, Math.ceil(max / 5));
+    const fmt = function(t) { const d = new Date(t); return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+
+    let out = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="各類別回答累積折線圖">';
+
+    for (let v = 0; v <= max; v += step) {
+      out += '<line x1="' + left + '" x2="' + (W - right) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="#e3e6eb"/>' +
+        svgText(left - 6, Y(v) + 4, String(v), 'text-anchor="end" font-size="11" fill="currentColor" opacity=".7"');
+    }
+
+    out += svgText(left, H - 10, fmt(t0), 'font-size="11" fill="currentColor" opacity=".7"') +
+      svgText(W - right, H - 10, fmt(t1), 'text-anchor="end" font-size="11" fill="currentColor" opacity=".7"');
+
+    cats.forEach(function(c, i) {
+      let count = 0;
+      const pts = [[X(t0), Y(0)]];
+      timed.forEach(function(r) {
+        if (r.ids.indexOf(c.id) >= 0) {
+          pts.push([X(r.time), Y(count)]);
+          count++;
+          pts.push([X(r.time), Y(count)]);
+        }
+      });
+      pts.push([X(t1), Y(count)]);
+      out += '<polyline fill="none" stroke="' + colorFor(i) + '" stroke-width="2.5" stroke-linejoin="round" points="' + pts.map(function(p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ') + '"><title>' + escapeHtml(c.name) + '：' + count + ' 份</title></polyline>' +
+        svgText(X(t1) + 2, Y(count) - 4, count ? String(count) : '', 'text-anchor="end" font-size="11" font-weight="700" fill="' + colorFor(i) + '"');
+    });
+
+    return out + '</svg>';
   }
 
 

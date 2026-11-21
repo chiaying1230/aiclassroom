@@ -174,6 +174,26 @@
       .unmatched-item select { flex: 1; min-width: 0; }
     }
 
+    .preset { margin-top: 14px; border-top: 1px dashed var(--line-strong); padding-top: 12px; }
+    .preset > summary { cursor: pointer; font-weight: 700; }
+    .preset[open] > summary { margin-bottom: 6px; }
+    .preset .try-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
+    .preset .try-row button { margin: 0; }
+
+    /* ---------- 選課學生 ---------- */
+    .students-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
+    .students-tools input { margin: 0; max-width: 260px; }
+    .students-tools button { margin: 0; }
+    .students-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--surface); }
+    table.students { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .students th, .students td { padding: 9px 12px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+    .students th { background: var(--surface-2, #f6f4ef); }
+    .students td.num { text-align: center; }
+    .students .src { font-size: 12px; color: var(--ink-2); }
+    .students .in { color: var(--green-dark, #1f6b45); font-weight: 700; }
+    .students .out { color: var(--orange); }
+    .students button { margin: 0; padding: 2px 10px; font-size: 13px; }
+
     /* ---------- AI 學習建議分三段 ---------- */
     .fb-parts { display: grid; gap: 6px; }
     .fb-part b { display: block; font-size: 13px; color: var(--purple); }
@@ -815,6 +835,7 @@
   <button type="button" data-section="create" class="active" onclick="showSection('create')">＋ 新增題目</button>
   <button type="button" data-section="questions" onclick="showSection('questions')">題目管理</button>
   <button type="button" data-section="answers" onclick="showSection('answers')">AI 批改／教師審核</button>
+  <button type="button" data-section="students" onclick="showSection('students')">選課學生</button>
   <button type="button" data-section="roster" onclick="showSection('roster')">繳交狀況</button>
   <button type="button" data-section="insights" onclick="showSection('insights')">學習診斷</button>
   <button type="button" data-section="settings" onclick="showSection('settings')">AI 評語風格</button>
@@ -949,7 +970,19 @@
           </div>
 
           <label class="check-row"><input type="checkbox" id="autoClassify"> 學生送出後，自動分類到課堂討論並標成已確認</label>
-          <p class="hint">還沒有類別時，滿 5 份回答會自動建立類別；也可以先到課堂討論自己設定類別。之後每份新回答約 1 分鐘內會分好。</p>
+          <p class="hint">一份回答可以同時分到好幾類（跨類別）。沒有預設類別時，滿 5 份回答會由 AI 自動建立類別。</p>
+
+          <details class="preset" id="presetBox">
+            <summary>預先設定分類類別 <span class="optional">（選填，例如依教學目標）</span></summary>
+            <p class="hint">一行一個類別，寫成「類別名稱：判斷特徵」。類別名稱會投影給全班看，請用中性的描述。存好後，課堂討論一開始就會有這些類別，第一份回答就能自動分類。</p>
+            <textarea id="presetCategories" class="short" placeholder="說出熱的方向：能說明熱從高溫處傳到低溫處
+提到周圍空氣：說明空氣在散熱中的角色
+以「冷」來解釋：認為冷會跑進水裡"></textarea>
+            <div class="try-row">
+              <button type="button" class="ghost" id="presetSuggestButton" onclick="suggestPreset()">🎯 依學習目標請 AI 建議</button>
+              <span class="hint" id="presetMessage" role="status"></span>
+            </div>
+          </details>
         </div>
 
         <div class="form-actions">
@@ -1022,6 +1055,18 @@
     </div>
 
     <div id="answerList"><div class="card empty">目前尚未載入學生作答</div></div>
+  </section>
+
+  <!-- 選課學生 -->
+  <section id="students" class="section">
+    <div class="section-top">
+      <div>
+        <h2>選課學生</h2>
+        <p>輸入課程代碼加入這門課的學生，以及已經交過作答的學生。</p>
+      </div>
+      <button type="button" class="ghost" onclick="loadCourseStudents()">🔄 重新整理</button>
+    </div>
+    <div id="studentsResult"><div class="card empty">載入中……</div></div>
   </section>
 
   <!-- 繳交狀況 -->
@@ -1375,6 +1420,7 @@
       if (id === 'answers') loadTeacherArea();
       if (id === 'insights') loadInsightArea('');
       if (id === 'roster') loadRosterStatus();
+      if (id === 'students') loadCourseStudents();
     });
     if (id === 'settings') loadSettings();
   }
@@ -2273,6 +2319,7 @@ function previewQuestionRAG() {
       courseId: TeacherCourse.id(),
       objective: document.getElementById('objective').value.trim(),
       assessment: document.getElementById('assessment').value,
+      presetCategories: parsePreset(document.getElementById('presetCategories').value),
       feedbackStyle: document.getElementById('instantStyle').value,
       feedbackNote: document.getElementById('instantNote').value.trim(),
       autoClassify: document.getElementById('autoClassify').checked
@@ -2308,9 +2355,10 @@ function previewQuestionRAG() {
         // 記住這次的設定，下次出題預設一樣
         saveInstantDefaults();
 
-        ['title', 'content', 'referenceAnswer', 'rubric', 'objective'].forEach(function(id) {
+        ['title', 'content', 'referenceAnswer', 'rubric', 'objective', 'presetCategories'].forEach(function(id) {
           document.getElementById(id).value = '';
         });
+        document.getElementById('presetMessage').textContent = '';
         document.getElementById('assessment').value = '評分';
         updateAssessment('');
 
@@ -3627,6 +3675,160 @@ function previewQuestionRAG() {
       .withSuccessHandler(loadRosterStatus)
       .withFailureHandler(function(error) { alert(error.message); })
       .unignoreRosterSubmitters(TeacherCourse.id());
+  }
+
+
+
+  /* ==================================================
+     出題：預先設定分類類別
+  ================================================== */
+
+  function parsePreset(text) {
+    return String(text || '').split(/\r?\n/).map(function(line) {
+      const m = line.trim().match(/^(.+?)\s*[：:]\s*(.*)$/);
+      return m ? { name: m[1].trim(), description: m[2].trim() } : { name: line.trim(), description: '' };
+    }).filter(function(c) { return c.name; });
+  }
+
+
+  function suggestPreset() {
+
+    const message = document.getElementById('presetMessage');
+    const button = document.getElementById('presetSuggestButton');
+    const box = document.getElementById('presetCategories');
+
+    if (box.value.trim() && !confirm('AI 建議會取代目前寫的類別，要繼續嗎？')) return;
+
+    button.disabled = true;
+    message.textContent = 'AI 正在依學習目標設計類別……';
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        button.disabled = false;
+        box.value = result.categories.map(function(c) { return c.name + (c.description ? '：' + c.description : ''); }).join('\n');
+        message.textContent = '✓ 建議了 ' + result.categories.length + ' 個類別，可以直接修改。';
+      })
+      .withFailureHandler(function(error) {
+        button.disabled = false;
+        message.textContent = /不允許呼叫的功能/.test(error.message)
+          ? '要等 Apps Script 換上新版 Code.gs 並部署後才能使用。'
+          : error.message;
+      })
+      .suggestCategoriesFromObjective({
+        content: document.getElementById('content').value,
+        objective: document.getElementById('objective').value,
+        referenceAnswer: document.getElementById('referenceAnswer').value,
+        rubric: document.getElementById('rubric').value
+      });
+  }
+
+
+  /* ==================================================
+     選課學生
+  ================================================== */
+
+  let courseStudents = null;
+
+  function loadCourseStudents() {
+
+    const box = document.getElementById('studentsResult');
+    box.innerHTML = '<div class="card empty">載入中……</div>';
+
+    google.script.run
+      .withSuccessHandler(function(data) {
+        courseStudents = data;
+        renderCourseStudents();
+      })
+      .withFailureHandler(function(error) {
+        box.innerHTML = '<div class="card error-message">' + escapeHtml(/不允許呼叫的功能/.test(error.message)
+          ? '選課學生要等 Apps Script 換上新版 Code.gs 並部署後才能使用。'
+          : error.message) + '</div>';
+      })
+      .getCourseStudents(TeacherCourse.id());
+  }
+
+
+  function renderCourseStudents() {
+
+    const data = courseStudents;
+    const box = document.getElementById('studentsResult');
+    const filter = window.studentsFilterValue || '';
+    const list = data.students.filter(function(s) {
+      return !filter || (s.name + s.studentId).toLowerCase().indexOf(filter.toLowerCase()) >= 0;
+    });
+
+    if (!data.students.length) {
+      box.innerHTML = '<div class="card empty">還沒有學生加入「' + escapeHtml(data.courseName) + '」。把課程代碼 <b>' + escapeHtml(data.courseCode) + '</b> 給學生，他們在學生頁輸入代碼和學號姓名後，就會出現在這裡。</div>';
+      return;
+    }
+
+    const joined = data.students.filter(function(s) { return s.source === '加入課程'; }).length;
+    const notInRoster = data.rosterCount ? data.students.filter(function(s) { return !s.rosterName; }).length : 0;
+
+    box.innerHTML =
+      '<div class="roster-stats">' +
+        '<div><b>' + data.students.length + '</b><span>學生</span></div>' +
+        '<div><b>' + joined + '</b><span>用課程代碼加入</span></div>' +
+        '<div><b>' + data.questionCount + '</b><span>題目（不含草稿）</span></div>' +
+        (data.rosterCount ? '<div class="' + (notInRoster ? 'warn' : '') + '"><b>' + notInRoster + '</b><span>不在繳交狀況的名單上</span></div>' : '') +
+      '</div>' +
+      '<div class="students-tools">' +
+        '<input type="search" id="studentsFilter" placeholder="搜尋姓名或學號" value="' + escapeHtml(filter) + '" oninput="studentsFilterValue = this.value; renderCourseStudents(); const el = document.getElementById(\'studentsFilter\'); el.focus(); el.setSelectionRange(el.value.length, el.value.length);" aria-label="搜尋姓名或學號">' +
+        '<button type="button" class="ghost" onclick="copyStudentList()">複製名單</button>' +
+        '<button type="button" class="ghost" onclick="useStudentsAsRoster()" title="把這些學生存成「繳交狀況」的名單">用這份名單比對繳交狀況</button>' +
+      '</div>' +
+      '<div class="students-wrap"><table class="students"><thead><tr><th>學號</th><th>姓名</th><th>加入時間</th><th>最後出現</th><th>已交題數</th>' +
+        (data.rosterCount ? '<th>繳交狀況名單</th>' : '') + '<th></th></tr></thead><tbody>' +
+      list.map(function(s, i) {
+        return '<tr><td>' + escapeHtml(s.studentId) + '</td><td>' + escapeHtml(s.name) + '<div class="src">' + escapeHtml(s.source) + '</div></td>' +
+          '<td>' + escapeHtml(s.joinedAt.slice(0, 16)) + '</td><td>' + escapeHtml(s.lastSeen.slice(0, 16)) + '</td>' +
+          '<td class="num">' + s.answered + '／' + data.questionCount + '</td>' +
+          (data.rosterCount ? '<td>' + (s.rosterName ? '<span class="in">✓ ' + escapeHtml(s.rosterName) + '</span>' : '<span class="out">不在名單上</span>') + '</td>' : '') +
+          '<td>' + (s.source === '加入課程' ? '<button type="button" class="ghost" onclick="removeStudent(' + data.students.indexOf(s) + ')" title="例如打錯學號又重新加入的那一筆">移除</button>' : '') + '</td></tr>';
+      }).join('') +
+      '</tbody></table></div>' +
+      '<p class="hint">「只有作答紀錄」是這個功能上線前就交過作答的學生。移除只會拿掉加入紀錄，作答不會刪。</p>';
+  }
+
+
+  function studentLines() {
+    return courseStudents.students.map(function(s) { return (s.studentId ? s.studentId + ' ' : '') + s.name; });
+  }
+
+
+  function copyStudentList() {
+    const lines = studentLines();
+    copyText(lines.join('\n')).then(
+      function() { showToast('已複製 ' + lines.length + ' 位學生'); },
+      function() { window.prompt('請複製：', lines.join('、')); }
+    );
+  }
+
+
+  function useStudentsAsRoster() {
+
+    if (courseStudents.rosterCount && !confirm('「繳交狀況」已經有 ' + courseStudents.rosterCount + ' 位的名單，要用選課學生（' + courseStudents.students.length + ' 位）取代嗎？')) return;
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        showToast('已存 ' + result.count + ' 位到繳交狀況的名單');
+        showSection('roster');
+      })
+      .withFailureHandler(function(error) { alert(error.message); })
+      .saveCourseRoster(TeacherCourse.id(), studentLines().join('\n'));
+  }
+
+
+  function removeStudent(index) {
+
+    const s = courseStudents.students[index];
+
+    if (!s || !confirm('要移除「' + s.name + '（' + s.studentId + '）」的加入紀錄嗎？作答紀錄不會刪。')) return;
+
+    google.script.run
+      .withSuccessHandler(loadCourseStudents)
+      .withFailureHandler(function(error) { alert(error.message); })
+      .removeCourseStudent(TeacherCourse.id(), s.studentId, s.name);
   }
 
 

@@ -1713,6 +1713,25 @@
   }
 
 
+  /*
+   * 讓老師在「選課學生」看得到誰加入了這門課。這一頁開著的期間同一組只送一次；失敗不影響作答。
+   */
+  const joinedThisPage = {};
+
+  function registerJoin(identity) {
+
+    const key = currentCourse.code + '|' + identity.studentId + '|' + identity.name;
+
+    if (joinedThisPage[key]) return;
+
+    joinedThisPage[key] = true;
+
+    google.script.run
+      .withFailureHandler(function() { delete joinedThisPage[key]; })
+      .joinCourse({ courseCode: currentCourse.code, studentId: identity.studentId, name: identity.name });
+  }
+
+
   function loadMyResults() {
 
     const identity = getIdentity();
@@ -1723,6 +1742,10 @@
     }
 
     const box = document.getElementById('myResults');
+
+    if (currentCourse) {
+      registerJoin(identity);
+    }
 
     if (!currentCourse) {
       box.innerHTML = '<div class="card empty">請先加入課程</div>';
@@ -1848,7 +1871,10 @@
     if (!c) return '';
 
     const id = escapeHtml(item.answerId);
-    const head = `<p>在課堂討論中，你的回答被歸在「<b>${escapeHtml(c.categoryName)}</b>」${c.description ? '：' + escapeHtml(c.description) : ''}</p>`;
+    const others = c.otherCategoryNames || [];
+    const head = others.length
+      ? `<p>在課堂討論中，你的回答同時屬於 ${others.length + 1} 類：「<b>${escapeHtml(c.categoryName)}</b>」${others.map(function(n) { return '、「<b>' + escapeHtml(n) + '</b>」'; }).join('')}</p>`
+      : `<p>在課堂討論中，你的回答被歸在「<b>${escapeHtml(c.categoryName)}</b>」${c.description ? '：' + escapeHtml(c.description) : ''}</p>`;
 
     if (c.agree) {
       return `<div class="cls-box" id="cls_${id}">${head}

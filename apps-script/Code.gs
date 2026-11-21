@@ -74,7 +74,8 @@ const CATEGORY_HEADERS = [
 const CODING_HEADERS = [
   '回答ID', '題目ID', '類別ID', 'AI理由', 'AI信心',
   '教師確認', '最後更新',
-  'AI原分類', 'AI原理由', '確認來源', '學生確認', '學生說明'
+  'AI原分類', 'AI原理由', '確認來源', '學生確認', '學生說明',
+  '其他類別', 'AI原其他類別'
 ];
 
 /* 欄位位置（從 1 開始算） */
@@ -137,8 +138,23 @@ const CCOL = {
 const KCOL = {
   ANSWER_ID: 1, QUESTION_ID: 2, CATEGORY_ID: 3, REASON: 4,
   CONFIDENCE: 5, CONFIRMED: 6, UPDATED: 7,
-  AI_CATEGORY: 8, AI_REASON: 9, CONFIRMED_BY: 10, STUDENT_AGREE: 11, STUDENT_NOTE: 12
+  AI_CATEGORY: 8, AI_REASON: 9, CONFIRMED_BY: 10, STUDENT_AGREE: 11, STUDENT_NOTE: 12,
+  // 一份回答可以同時屬於好幾類：類別ID 是主要的一類，其他的存成 JSON 陣列
+  EXTRA: 13, AI_EXTRA: 14
 };
+
+/* 一份回答最多屬於幾類 */
+const MAX_LABELS = 3;
+
+
+function parseIdList_(value) {
+  try {
+    const list = JSON.parse(value || '[]');
+    return Array.isArray(list) ? list.map(cleanText_).filter(Boolean) : [];
+  } catch (error) {
+    return [];
+  }
+}
 
 /* 分類是誰確認的 */
 const CONFIRMED_BY = { AI: 'AI自動', TEACHER: '教師' };
@@ -1245,6 +1261,7 @@ function getPublicApiHandlers_() {
     getStudentResults: getStudentResults,
     requestInstantFeedback: requestInstantFeedback,
     confirmMyClassification: confirmMyClassification,
+    joinCourse: joinCourse,
     teacherLogin: teacherLogin,
     teacherLogout: teacherLogout
   };
@@ -1284,6 +1301,10 @@ function getTeacherApiHandlers_() {
     getAISettings: getMyAISettings,
     saveAISettings: saveMyAISettings,
     saveInsightJudgement: saveInsightJudgement,
+    setAnswerCategories: setAnswerCategories,
+    suggestCategoriesFromObjective: suggestCategoriesFromObjective,
+    getCourseStudents: getCourseStudents,
+    removeCourseStudent: removeCourseStudent,
     getCourseRoster: getCourseRoster,
     saveCourseRoster: saveCourseRoster,
     getSubmissionStatus: getSubmissionStatus,
@@ -1427,6 +1448,7 @@ function setupSystem() {
   ensureSheet_(ss, INSIGHT_SHEET, INSIGHT_HEADERS, '#fff6d6', false);
   ensureSheet_(ss, EVENT_SHEET, EVENT_HEADERS, '#f3ecdf', false);
   ensureSheet_(ss, ROSTER_SHEET, ROSTER_HEADERS, '#e6f0e1', false);
+  ensureSheet_(ss, ENROLL_SHEET, ENROLL_HEADERS, '#e3eefc', false);
 
   // 即時回饋與自動分類的背景工作
   const trigger = installAutoTrigger_();
@@ -2856,9 +2878,14 @@ function studentClassifications_(answerRows) {
       return;
     }
 
+    const others = parseIdList_(row[KCOL.EXTRA - 1])
+      .map(function(id) { return categories[id]; })
+      .filter(Boolean);
+
     out[answerId] = {
       categoryName: c.name,
       description: c.description,
+      otherCategoryNames: others.map(function(x) { return x.name; }),
       agree: cleanText_(row[KCOL.STUDENT_AGREE - 1]),
       note: cleanText_(row[KCOL.STUDENT_NOTE - 1])
     };
@@ -2992,8 +3019,86 @@ function createQuestion(data) {
 
     sheet.getRange(rowNumber, QCOL.DEADLINE).setNumberFormat('yyyy/mm/dd hh:mm');
 
-    return { success: true, id: id, courseId: course.id };
+    // 老師事先設定的分類類別（例如依學習目標）
+    const presetCount = writePresetCategories_(id, data && data.presetCategories);
+
+    return { success: true, id: id, courseId: course.id, presetCategories: presetCount };
   });
+}
+
+
+/*
+ * 出題時先寫好分類類別。list：[{ name, description }]，空的就不寫。
+ */
+function cleanPresetCategories_(list) {
+
+  if (!Array.isArray(list)) return [];
+
+  const seen = {};
+
+  return list
+    .map(function(item) {
+      item = item || {};
+      return {
+        name: cleanText_(item.name).substring(0, 20),
+        description: cleanText_(item.description).substring(0, 300)
+      };
+    })
+    .filter(function(c) {
+      if (!c.name || seen[c.name]) return false;
+      seen[c.name] = true;
+      return true;
+    })
+    .slice(0, MAX_CATEGORIES);
+}
+
+
+function writePresetCategories_(questionId, list) {
+
+  const cleaned = cleanPresetCategories_(list);
+
+  if (!cleaned.length) return 0;
+
+  const now = new Date();
+
+  appendRows_(getCategorySheet_(), cleaned.map(function(c, i) {
+    return [generateId_('C' + (i + 1)), questionId, c.name, c.description, '', '', '', i + 1, now];
+  }), CATEGORY_HEADERS.length);
+
+  return cleaned.length;
+}
+
+
+/*
+ * 依題目與學習目標，在學生作答前先建議分類類別（不寫入，由老師決定要不要用）。
+ * data：{ questionId } 或出題表單的 { content, objective, referenceAnswer, rubric }
+ */
+function suggestCategoriesFromObjective(data) {
+
+  data = data || {};
+
+  let question;
+
+  if (cleanText_(data.questionId)) {
+    question = requireQuestion_(data.questionId);
+  } else {
+    question = {
+      content: cleanText_(data.content).substring(0, 3000),
+      objective: cleanText_(data.objective).substring(0, 500),
+      referenceAnswer: cleanText_(data.referenceAnswer).substring(0, 3000),
+      rubric: cleanText_(data.rubric).substring(0, 3000)
+    };
+  }
+
+  if (!question.content) {
+    throw new Error('請先填寫題目內容');
+  }
+
+  if (!cleanText_(question.objective) && !cleanText_(question.referenceAnswer)) {
+    throw new Error('請先填寫學習目標（或參考答案），AI 才知道要依什麼分類');
+  }
+
+  return { categories: cleanPresetCategories_(suggestCategoriesFromObjectiveWithAI_(question).categories) };
 }
 
 
@@ -3067,6 +3172,11 @@ function updateQuestion(data) {
       sheet
         .getRange(rowNumber, QCOL.OBJECTIVE, 1, 2)
         .setValues(cells_([[q.objective, q.assessment]]));
+    }
+
+    // 第一次設定預設類別（這一題還沒有類別時才寫入）
+    if (data.presetCategories && !getCategoriesForQuestion_(questionId).length) {
+      writePresetCategories_(questionId, data.presetCategories);
     }
 
     // 配分改小時，找出教師分數超過新配分的回答，提醒老師
@@ -3181,9 +3291,17 @@ function copyQuestions(questionIds, targetCourseId) {
 
     appendRows_(sheet, newRows, QUESTION_HEADERS.length);
 
+    // 類別的定義一起複製（學生回答與分類結果不複製）
+    let copiedCategories = 0;
+
+    ordered.forEach(function(q, i) {
+      copiedCategories += writePresetCategories_(newIds[i], getCategoriesForQuestion_(q.id));
+    });
+
     return {
       success: true,
       count: newIds.length,
+      categories: copiedCategories,
       ids: newIds,
       courseId: target.id,
       courseName: target.name
@@ -3850,7 +3968,9 @@ function getCodingMap_(questionId) {
       confirmedBy: cleanText_(row[KCOL.CONFIRMED_BY - 1]) ||
         (confirmed ? (/^AI 自動分類/.test(reason) ? CONFIRMED_BY.AI : CONFIRMED_BY.TEACHER) : ''),
       studentAgree: cleanText_(row[KCOL.STUDENT_AGREE - 1]),
-      studentNote: cleanText_(row[KCOL.STUDENT_NOTE - 1])
+      studentNote: cleanText_(row[KCOL.STUDENT_NOTE - 1]),
+      extraCategoryIds: parseIdList_(row[KCOL.EXTRA - 1]),
+      aiExtraCategoryIds: parseIdList_(row[KCOL.AI_EXTRA - 1])
     };
   }
 
@@ -3912,7 +4032,12 @@ function getDiscussionBoard(questionId) {
       aiCategoryId: k && validIds[k.aiCategoryId] ? k.aiCategoryId : '',
       aiReason: k ? k.aiReason : '',
       studentAgree: k ? k.studentAgree : '',
-      studentNote: k ? k.studentNote : ''
+      studentNote: k ? k.studentNote : '',
+      // 同時屬於的其他類別（主要類別存在時才有意義）
+      extraCategoryIds: k && validIds[k.categoryId]
+        ? k.extraCategoryIds.filter(function(id) { return validIds[id] && id !== k.categoryId; })
+        : [],
+      aiExtraCategoryIds: k ? k.aiExtraCategoryIds.filter(function(id) { return validIds[id]; }) : []
     };
   });
 
@@ -4040,8 +4165,28 @@ function saveCategories(questionId, list) {
         );
       });
 
-      // 被刪除類別裡的回答變回「未分類」
-      deleteRowsWhere_(getCodingSheet_(), function(row) {
+      // 被刪除的類別從每份回答的標籤拿掉；主要類別被刪、還有其他類別的，改用其他類別
+      const codingSheet = getCodingSheet_();
+      ensureColumns_(codingSheet, CODING_HEADERS);
+
+      codingSheet.getDataRange().getValues().forEach(function(row, i) {
+
+        if (i === 0 || cleanText_(row[KCOL.QUESTION_ID - 1]) !== questionId) return;
+
+        const primary = cleanText_(row[KCOL.CATEGORY_ID - 1]);
+        const extras = parseIdList_(row[KCOL.EXTRA - 1]);
+        const left = extras.filter(function(id) { return !removed[id]; });
+
+        if (removed[primary] && left.length) {
+          codingSheet.getRange(i + 1, KCOL.CATEGORY_ID).setValue(left[0]);
+          codingSheet.getRange(i + 1, KCOL.EXTRA).setValue(JSON.stringify(left.slice(1)));
+        } else if (left.length !== extras.length) {
+          codingSheet.getRange(i + 1, KCOL.EXTRA).setValue(JSON.stringify(left));
+        }
+      });
+
+      // 沒有其他類別可用的回答變回「未分類」
+      deleteRowsWhere_(codingSheet, function(row) {
         return (
           cleanText_(row[KCOL.QUESTION_ID - 1]) === questionId &&
           removed[cleanText_(row[KCOL.CATEGORY_ID - 1])] === true
@@ -4134,8 +4279,8 @@ function classifyAnswers(questionId) {
 
     const batch = pending.slice(0, AI_CONFIG.CLASSIFY_BATCH_SIZE);
 
-    // 呼叫 ai.gs
-    const results = classifyAnswersWithAI_(question, categories, batch) || {};
+    // 呼叫 ai_instant.gs：一份回答可以同時屬於好幾類
+    const results = classifyAnswersMultiWithAI_(question, categories, batch) || {};
 
     const written = withLock_(function() {
       return writeClassifications_(questionId, categories, batch, results);
@@ -4214,6 +4359,14 @@ function writeClassifications_(questionId, categories, batch, results, confirmed
 
     const reason = result.reason || (result.categoryId ? '' : '沒有符合的類別');
 
+    // 其他類別：只留這一題存在、不重複、不是主要類別的
+    const extras = (Array.isArray(result.extraCategoryIds) ? result.extraCategoryIds : [])
+      .map(cleanText_)
+      .filter(function(id, i, all) {
+        return id && validIds[id] && id !== result.categoryId && all.indexOf(id) === i;
+      })
+      .slice(0, MAX_LABELS - 1);
+
     rows.push([
       answer.answerId,
       questionId,
@@ -4227,7 +4380,9 @@ function writeClassifications_(questionId, categories, batch, results, confirmed
       reason,
       confirmed ? CONFIRMED_BY.AI : '',
       '',
-      ''
+      '',
+      JSON.stringify(result.categoryId ? extras : []),
+      JSON.stringify(result.categoryId ? extras : [])
     ]);
   });
 
@@ -4325,11 +4480,17 @@ function setAnswerCategory(answerId, categoryId) {
 
       sheet.getRange(codingIndex + 1, KCOL.CONFIRMED_BY).setValue(CONFIRMED_BY.TEACHER);
 
+      const extras = categoryId
+        ? parseIdList_(row[KCOL.EXTRA - 1]).filter(function(id) { return id !== categoryId; })
+        : [];
+      ensureColumns_(sheet, CODING_HEADERS);
+      sheet.getRange(codingIndex + 1, KCOL.EXTRA).setValue(JSON.stringify(extras));
+
     } else {
 
       appendRows_(
         sheet,
-        [[answerId, questionId, categoryId, '教師手動分類', '', '是', now, '', '', CONFIRMED_BY.TEACHER, '', '']],
+        [[answerId, questionId, categoryId, '教師手動分類', '', '是', now, '', '', CONFIRMED_BY.TEACHER, '', '', '[]', '']],
         CODING_HEADERS.length
       );
     }
@@ -4348,6 +4509,75 @@ function setAnswerCategory(answerId, categoryId) {
     });
 
     return { success: true };
+  });
+}
+
+
+/*
+ * 老師設定一份回答屬於哪幾類（跨類別）。categoryIds 的第一個是主要類別；空陣列＝未分類。
+ */
+function setAnswerCategories(answerId, categoryIds) {
+
+  answerId = cleanText_(answerId);
+
+  const ids = (Array.isArray(categoryIds) ? categoryIds : [])
+    .map(cleanText_)
+    .filter(function(id, i, all) { return id && all.indexOf(id) === i; });
+
+  if (ids.length > MAX_LABELS) {
+    throw new Error('一份回答最多標 ' + MAX_LABELS + ' 個類別');
+  }
+
+  const answerValues = getAnswerSheet_().getDataRange().getValues();
+  const index = findRowIndex_(answerValues, answerId);
+
+  if (index < 0) {
+    throw new Error('找不到這份回答');
+  }
+
+  const questionId = cleanText_(answerValues[index][ACOL.QUESTION_ID - 1]);
+  const question = requireQuestion_(questionId);
+  const valid = {};
+
+  getCategoriesForQuestion_(questionId).forEach(function(c) { valid[c.id] = true; });
+
+  ids.forEach(function(id) {
+    if (!valid[id]) throw new Error('找不到這個類別，請重新整理頁面');
+  });
+
+  // 主要類別交給 setAnswerCategory（保留 AI 原判、記錄歷程）
+  setAnswerCategory(answerId, ids[0] || '');
+
+  return withLock_(function() {
+
+    const sheet = getCodingSheet_();
+    const values = sheet.getDataRange().getValues();
+    const i = findRowIndex_(values, answerId);
+
+    if (i < 0) {
+      throw new Error('找不到這份回答的分類，請重新整理頁面');
+    }
+
+    const before = parseIdList_(values[i][KCOL.EXTRA - 1]);
+    const extras = ids.slice(1);
+
+    ensureColumns_(sheet, CODING_HEADERS);
+    sheet.getRange(i + 1, KCOL.EXTRA).setValue(JSON.stringify(extras));
+
+    if (JSON.stringify(before) !== JSON.stringify(extras)) {
+      logEvent_({
+        courseId: question.courseId,
+        questionId: questionId,
+        answerId: answerId,
+        studentId: answerValues[index][ACOL.STUDENT_ID - 1],
+        module: MODULE.DISCUSS,
+        type: '教師調整跨類別標籤',
+        source: teacherSource_(),
+        detail: { categories: ids, aiExtra: parseIdList_(values[i][KCOL.AI_EXTRA - 1]) }
+      });
+    }
+
+    return { success: true, categoryIds: ids };
   });
 }
 
@@ -4434,7 +4664,8 @@ function summarizeCategories(questionId) {
       return {
         category: category,
         answers: answers.filter(function(a) {
-          return coding[a.answerId] && coding[a.answerId].categoryId === category.id;
+          const k = coding[a.answerId];
+          return k && (k.categoryId === category.id || k.extraCategoryIds.indexOf(category.id) >= 0);
         })
       };
     })
@@ -4908,7 +5139,7 @@ function processQuestionAuto_(question, startedAt) {
       }
 
       const batch = pending.slice(0, AI_CONFIG.CLASSIFY_BATCH_SIZE);
-      const results = classifyAnswersWithAI_(question, categories, batch) || {};
+      const results = classifyAnswersMultiWithAI_(question, categories, batch) || {};
 
       const written = withLock_(function() {
         return writeClassifications_(question.id, categories, batch, results, true);
@@ -5629,6 +5860,8 @@ function checkTeacherApiHandlers() {
     'ai_instant.gs：instantFeedbackWithAI_': typeof instantFeedbackWithAI_,
     'ai_instant.gs：analyzeLearningWithAI_': typeof analyzeLearningWithAI_,
     'ai_instant.gs：describeAnswerWithAI_': typeof describeAnswerWithAI_,
+    'ai_instant.gs：classifyAnswersMultiWithAI_': typeof classifyAnswersMultiWithAI_,
+    'ai_instant.gs：suggestCategoriesFromObjectiveWithAI_': typeof suggestCategoriesFromObjectiveWithAI_,
     'ai_instant.gs：INSTANT_FEEDBACK_STYLES': typeof INSTANT_FEEDBACK_STYLES === 'object' ? 'function' : 'undefined',
     'ai.gs：saveAISettings': typeof saveAISettings,
     'RAG_Admin.gs：ragListDocuments': typeof ragListDocuments,
@@ -5753,7 +5986,8 @@ function exportResearchRecords(courseId, options) {
   answerRows.forEach(function(row) { studentOf[cleanText_(row[0])] = row[ACOL.STUDENT_ID - 1]; });
 
   const coding = [[anonymize ? '學生代號' : '學號', '題目ID', '題目', '回答ID',
-    'AI原分類', 'AI原理由', 'AI信心', '最後分類', '分類理由', '已確認', '確認來源', '學生回覆', '學生說明', '最後更新']];
+    'AI原分類', 'AI原理由', 'AI信心', '最後分類', '分類理由', '已確認', '確認來源', '學生回覆', '學生說明', '最後更新',
+    'AI原其他類別', '最後其他類別', '跨類別']];
 
   const codingSheet = getSpreadsheet_().getSheetByName(CODING_SHEET);
 
@@ -5776,7 +6010,10 @@ function exportResearchRecords(courseId, options) {
           (confirmed ? (/^AI 自動分類/.test(reason) ? CONFIRMED_BY.AI : CONFIRMED_BY.TEACHER) : ''),
         cleanText_(row[KCOL.STUDENT_AGREE - 1]),
         cleanText_(row[KCOL.STUDENT_NOTE - 1]),
-        date(row[KCOL.UPDATED - 1])
+        date(row[KCOL.UPDATED - 1]),
+        parseIdList_(row[KCOL.AI_EXTRA - 1]).map(function(id) { return categoryNames[id] || id; }).join('、'),
+        parseIdList_(row[KCOL.EXTRA - 1]).map(function(id) { return categoryNames[id] || id; }).join('、'),
+        parseIdList_(row[KCOL.EXTRA - 1]).length ? '是' : '否'
       ]);
     });
   }
@@ -6387,5 +6624,195 @@ function unignoreRosterSubmitters(courseId) {
       getRosterSheet_().getRange(roster.ignoreRow, RCOL.ALIASES).setValue('[]');
     }
     return { success: true };
+  });
+}
+
+
+
+/* =====================================================
+   選課學生：誰加入了這門課
+   學生在學生頁輸入課程代碼與學號姓名時記一筆；
+   改版前就交過作答的學生，從作答紀錄補上。
+===================================================== */
+
+const ENROLL_SHEET = '選課學生';
+const ENROLL_HEADERS = ['課程ID', '學號', '姓名', '第一次加入', '最後出現'];
+const ECOL = { COURSE_ID: 1, STUDENT_ID: 2, NAME: 3, JOINED: 4, LAST_SEEN: 5 };
+// 同一位學生一小時內重複打開，不再寫入
+const ENROLL_TOUCH_MS = 60 * 60 * 1000;
+
+
+function getEnrollSheet_() {
+
+  const ss = getSpreadsheet_();
+
+  return (
+    ss.getSheetByName(ENROLL_SHEET) ||
+    ensureSheet_(ss, ENROLL_SHEET, ENROLL_HEADERS, '#e3eefc', false)
+  );
+}
+
+
+/*
+ * 學生頁呼叫：{ courseCode, studentId, name }
+ */
+function joinCourse(data) {
+
+  data = data || {};
+
+  const course = findCourseByCode_(data.courseCode);
+  const studentId = cleanText_(data.studentId);
+  const name = cleanText_(data.name);
+
+  if (!course || course.status === COURSE_STATUS.ARCHIVED) {
+    throw new Error('找不到這門課程，請確認課程代碼');
+  }
+
+  if (!studentId || !name) {
+    throw new Error('請輸入學號和姓名');
+  }
+
+  if (studentId.length > 30 || name.length > 40) {
+    throw new Error('學號或姓名太長了');
+  }
+
+  const sheet = getEnrollSheet_();
+  const key = normalizeStudentId_(studentId) + '|' + normalizeName_(name);
+  const find = function(values) {
+    for (let i = 1; i < values.length; i++) {
+      if (
+        cleanText_(values[i][ECOL.COURSE_ID - 1]) === course.id &&
+        normalizeStudentId_(values[i][ECOL.STUDENT_ID - 1]) + '|' + normalizeName_(values[i][ECOL.NAME - 1]) === key
+      ) return i;
+    }
+    return -1;
+  };
+
+  // 先不加鎖看一次：最近才出現過就不用寫
+  const peek = find(sheet.getDataRange().getValues());
+
+  if (peek >= 0) {
+    const last = toTime_(sheet.getDataRange().getValues()[peek][ECOL.LAST_SEEN - 1]);
+    if (last && Date.now() - last < ENROLL_TOUCH_MS) {
+      return { success: true, courseName: course.name };
+    }
+  }
+
+  return withLock_(function() {
+
+    const values = sheet.getDataRange().getValues();
+    const i = find(values);
+    const now = new Date();
+
+    if (i >= 0) {
+      sheet.getRange(i + 1, ECOL.LAST_SEEN).setValue(now);
+      return { success: true, courseName: course.name };
+    }
+
+    const rowNumber = appendRows_(sheet, [[course.id, '', name, now, now]], ENROLL_HEADERS.length);
+    // 學號存成文字，保留開頭的 0
+    sheet.getRange(rowNumber, ECOL.STUDENT_ID).setNumberFormat('@').setValue(cell_(studentId));
+
+    return { success: true, courseName: course.name, joined: true };
+  });
+}
+
+
+/*
+ * 教師：這門課的選課學生，附上每人交了幾題、是否在繳交狀況的名單上。
+ */
+function getCourseStudents(courseId) {
+
+  const course = rosterCourse_(courseId);
+  const people = {};
+  const keyOf = function(id, name) { return normalizeStudentId_(id) + '|' + normalizeName_(name); };
+  const person = function(id, name) {
+    const key = keyOf(id, name);
+    return people[key] = people[key] || {
+      key: key, studentId: cleanText_(id), name: cleanText_(name),
+      joined: 0, lastSeen: 0, questions: {}, joinedCourse: false
+    };
+  };
+
+  const sheet = getSpreadsheet_().getSheetByName(ENROLL_SHEET);
+
+  if (sheet && sheet.getLastRow() >= 2) {
+    sheet.getDataRange().getValues().slice(1).forEach(function(row) {
+      if (cleanText_(row[ECOL.COURSE_ID - 1]) !== course.id) return;
+      const p = person(row[ECOL.STUDENT_ID - 1], row[ECOL.NAME - 1]);
+      p.joinedCourse = true;
+      p.joined = toTime_(row[ECOL.JOINED - 1]) || p.joined;
+      p.lastSeen = Math.max(p.lastSeen, toTime_(row[ECOL.LAST_SEEN - 1]) || 0);
+    });
+  }
+
+  // 交過作答的也算（改版前就加入的學生）
+  const questionIds = {};
+  let questionCount = 0;
+
+  getQuestionSheet_().getDataRange().getValues().slice(1).forEach(function(row, i) {
+    const q = questionFromRow_(row, i + 2);
+    if (q.id && q.courseId === course.id && q.status !== '草稿') {
+      questionIds[q.id] = true;
+      questionCount++;
+    }
+  });
+
+  getAnswerSheet_().getDataRange().getValues().slice(1).forEach(function(row) {
+    if (!questionIds[cleanText_(row[ACOL.QUESTION_ID - 1])] || !cleanText_(row[ACOL.ANSWER - 1])) return;
+    const p = person(row[ACOL.STUDENT_ID - 1], row[ACOL.NAME - 1]);
+    const t = toTime_(row[ACOL.SUBMITTED - 1]) || 0;
+    p.questions[cleanText_(row[ACOL.QUESTION_ID - 1])] = true;
+    p.lastSeen = Math.max(p.lastSeen, t);
+    if (!p.joined || (t && t < p.joined)) p.joined = t;
+  });
+
+  const roster = readRoster_(course.id).students;
+
+  const list = Object.keys(people).map(function(key) {
+    const p = people[key];
+    const m = roster.length ? matchSubmitter_(roster, { studentId: p.studentId, name: p.name }, {}) : {};
+    return {
+      studentId: p.studentId,
+      name: p.name,
+      joinedAt: p.joined ? formatDate_(new Date(p.joined)) : '',
+      lastSeen: p.lastSeen ? formatDate_(new Date(p.lastSeen)) : '',
+      joinedTime: p.joined,
+      answered: Object.keys(p.questions).length,
+      source: p.joinedCourse ? '加入課程' : '只有作答紀錄',
+      rosterName: m.student ? m.student.name : ''
+    };
+  });
+
+  list.sort(function(a, b) {
+    return a.studentId.localeCompare(b.studentId) || a.name.localeCompare(b.name);
+  });
+
+  return {
+    courseId: course.id,
+    courseName: course.name,
+    courseCode: course.code,
+    questionCount: questionCount,
+    rosterCount: roster.length,
+    students: list
+  };
+}
+
+
+/*
+ * 教師：把一筆選課紀錄拿掉（例如學生打錯學號又重新加入）。作答紀錄不會刪。
+ */
+function removeCourseStudent(courseId, studentId, name) {
+
+  const course = rosterCourse_(courseId);
+  const key = normalizeStudentId_(studentId) + '|' + normalizeName_(name);
+
+  return withLock_(function() {
+    const sheet = getEnrollSheet_();
+    const count = deleteRowsWhere_(sheet, function(row) {
+      return cleanText_(row[ECOL.COURSE_ID - 1]) === course.id &&
+        normalizeStudentId_(row[ECOL.STUDENT_ID - 1]) + '|' + normalizeName_(row[ECOL.NAME - 1]) === key;
+    });
+    return { success: true, removed: count };
   });
 }
