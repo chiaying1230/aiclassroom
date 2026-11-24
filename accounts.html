@@ -359,7 +359,8 @@
         ? '<span class="k-hint">密碼在指令碼屬性修改</span>'
         : '<button type="button" class="k-btn small" data-action="edit">編輯</button>' +
           '<button type="button" class="k-btn small" data-action="reset">重設密碼</button>' +
-          '<button type="button" class="k-btn small' + (off ? '' : ' danger') + '" data-action="toggle">' + (off ? '啟用' : '停用') + '</button>';
+          '<button type="button" class="k-btn small' + (off ? '' : ' danger') + '" data-action="toggle">' + (off ? '啟用' : '停用') + '</button>' +
+          '<button type="button" class="k-btn small danger" data-action="delete">刪除</button>';
 
       return '<tr data-account="' + escapeHtml(a.account) + '"' + (off ? ' class="is-off"' : '') + '>' +
         '<td class="who"><b>' + escapeHtml(a.name) + '</b><small>' + escapeHtml(a.account) + '</small></td>' +
@@ -437,6 +438,24 @@
       setMessage('resetMessage', '');
       $('resetDialog').showModal();
       $('resetPassword').select();
+    }
+
+    if (button.dataset.action === 'delete') {
+      if (!confirm('要刪除「' + a.name + '（' + a.account + '）」這個帳號嗎？\n\n' +
+        (a.courseCount ? '他的 ' + a.courseCount + ' 門課會轉給管理員 admin，題目和學生作答都會保留。\n' : '') +
+        '刪除後無法復原；如果只是暫時不用，請改按「停用」。')) return;
+      button.disabled = true;
+      api('deleteTeacherAccount', a.account)
+        .then(function(result) {
+          toast('已刪除' + (result.movedCourses ? '，' + result.movedCourses + ' 門課已轉給 admin' : ''));
+          return loadAccounts();
+        })
+        .catch(function(error) {
+          alert(/不允許呼叫的功能/.test(error.message)
+            ? '要等 Apps Script 換上新版 Code.gs 並部署後才能刪除帳號。'
+            : error.message);
+          button.disabled = false;
+        });
     }
 
     if (button.dataset.action === 'toggle') {

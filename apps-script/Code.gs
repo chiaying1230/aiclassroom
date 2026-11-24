@@ -466,6 +466,14 @@ function normalizeAccount_(value) {
 }
 
 
+/*
+ * 帳號這類文字設成「純文字」再寫入，避免 002 被試算表存成數字 2。
+ */
+function writeText_(sheet, rowNumber, column, value) {
+  sheet.getRange(rowNumber, column).setNumberFormat('@').setValue(cell_(value));
+}
+
+
 function teacherFromRow_(row, rowNumber) {
 
   return {
@@ -618,11 +626,14 @@ function createTeacherAccount(data) {
 
     const salt = Utilities.getUuid();
     const now = new Date();
+    const sheet = getTeacherSheet_();
 
-    appendRows_(getTeacherSheet_(), [[
-      account, name, role, ACCOUNT_STATUS.ACTIVE,
+    const rowNumber = appendRows_(sheet, [[
+      '', name, role, ACCOUNT_STATUS.ACTIVE,
       hashPassword_(password, salt), salt, now, ''
     ]], TEACHER_HEADERS.length);
+
+    writeText_(sheet, rowNumber, TCOL.ACCOUNT, account);
 
     return { success: true, account: account };
   });
@@ -662,6 +673,51 @@ function updateTeacherAccount(data) {
       .setValues(cells_([[name, role, status]]));
 
     return { success: true };
+  });
+}
+
+
+/*
+ * 刪除教師帳號（例如建錯的帳號）。這位老師的課程轉給管理員，題目與學生作答都保留。
+ */
+function deleteTeacherAccount(account) {
+
+  requireAdmin_();
+
+  account = normalizeAccount_(account);
+
+  if (account === ADMIN_ACCOUNT) {
+    throw new Error('admin 是內建的管理員帳號，不能刪除');
+  }
+
+  if (REQUEST_ && REQUEST_.teacher && REQUEST_.teacher.account === account) {
+    throw new Error('不能刪除自己正在使用的帳號');
+  }
+
+  return withLock_(function() {
+
+    const row = findTeacherRow_(account);
+
+    if (!row) {
+      throw new Error('找不到這個帳號，請重新整理');
+    }
+
+    // 他的課程轉給管理員
+    const courseSheet = getCourseSheet_();
+    let moved = 0;
+
+    getCourses_().forEach(function(course) {
+      if (course.owner === account) {
+        writeText_(courseSheet, course.rowNumber, COURSE_COL.OWNER, ADMIN_ACCOUNT);
+        moved++;
+      }
+    });
+
+    coursesCache_ = null;
+
+    getTeacherSheet_().deleteRows(row.rowNumber, 1);
+
+    return { success: true, account: account, movedCourses: moved };
   });
 }
 
@@ -1142,10 +1198,12 @@ function createCourse(data) {
     const code = generateJoinCode_();
     const now = new Date();
 
-    appendRows_(getCourseSheet_(), [[
-      id, input.name, owner, input.teacherName, input.description,
+    const rowNumber = appendRows_(getCourseSheet_(), [[
+      id, input.name, '', input.teacherName, input.description,
       code, COURSE_STATUS.OPEN, now, now
     ]], COURSE_HEADERS.length);
+
+    writeText_(getCourseSheet_(), rowNumber, COURSE_COL.OWNER, owner);
 
     coursesCache_ = null;
 
@@ -1168,6 +1226,7 @@ function updateCourse(data) {
       .getRange(course.rowNumber, COURSE_COL.NAME, 1, 4)
       .setValues(cells_([[input.name, owner, input.teacherName, input.description]]));
 
+    writeText_(getCourseSheet_(), course.rowNumber, COURSE_COL.OWNER, owner);
     getCourseSheet_().getRange(course.rowNumber, COURSE_COL.UPDATED).setValue(new Date());
 
     coursesCache_ = null;
@@ -1324,6 +1383,7 @@ function getTeacherApiHandlers_() {
     listTeacherAccounts: listTeacherAccounts,
     createTeacherAccount: createTeacherAccount,
     updateTeacherAccount: updateTeacherAccount,
+    deleteTeacherAccount: deleteTeacherAccount,
     resetTeacherPassword: resetTeacherPassword,
 
     // 課堂討論
