@@ -366,6 +366,36 @@
     .label-row .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; background: var(--chip); }
     .label-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
 
+    /* ---------- 轉盤 ---------- */
+    .wheel-overlay { position: fixed; inset: 0; z-index: 60; background: rgba(15, 23, 42, .97); color: #fff; overflow: auto; }
+    .wheel-overlay[hidden] { display: none; }
+    .wheel-inner { max-width: 1200px; margin: 0 auto; padding: 20px 16px 40px; }
+    .wheel-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .wheel-top h2 { margin: 0; font-size: 24px; }
+    .wheel-top button { color: #fff; border-color: rgba(255, 255, 255, .5); background: transparent; }
+    .wheel-body { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px; align-items: start; margin-top: 16px; }
+    .wheel-stage { position: relative; width: min(100%, 560px); aspect-ratio: 1; margin: 0 auto; }
+    .wheel-stage svg { width: 100%; height: 100%; transition: transform 4.2s cubic-bezier(.12, .7, .1, 1); }
+    .wheel-pointer { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 18px solid transparent; border-right: 18px solid transparent; border-top: 34px solid #facc15; z-index: 2; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .5)); }
+    .wheel-go { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 96px; height: 96px; border-radius: 50%; font-size: 26px; font-weight: 800; background: #facc15; color: #1f2937; border: 4px solid #fff; box-shadow: 0 4px 14px rgba(0, 0, 0, .4); margin: 0; }
+    .wheel-go:disabled { opacity: .6; }
+    .wheel-side label { color: #e2e8f0; }
+    .wheel-side select { width: 100%; padding: 10px 12px; border-radius: 10px; font-size: 16px; margin-top: 6px; }
+    .wheel-check { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-weight: 400; }
+    .wheel-check input { width: auto; margin: 0; }
+    .wheel-count { color: #cbd5e1; margin: 12px 0; }
+    .wheel-result { background: #fff; color: #111827; border-radius: 16px; padding: 20px 22px; border-left: 10px solid var(--col, #facc15); animation: pop .35s ease-out; }
+    .wheel-result .wr-text { font-size: 24px; line-height: 1.6; white-space: pre-wrap; }
+    .wheel-result .wr-name { margin-top: 10px; font-size: 18px; color: #475569; }
+    .wheel-result .label-chips { margin-top: 10px; }
+    .wheel-result .wr-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .wheel-result .wr-actions button { margin: 0; }
+    .wheel-history { margin-top: 18px; color: #cbd5e1; font-size: 14px; line-height: 1.8; }
+    .wheel-history ol { margin: 4px 0 0; padding-left: 20px; }
+    @keyframes pop { from { transform: scale(.92); opacity: 0; } to { transform: none; opacity: 1; } }
+    @media (max-width: 860px) { .wheel-body { grid-template-columns: 1fr; } }
+    @media (prefers-reduced-motion: reduce) { .wheel-stage svg { transition-duration: .01s; } }
+
     /* ---------- 統計圖 ---------- */
     .charts { margin-top: 16px; }
     .charts[hidden] { display: none !important; }
@@ -516,6 +546,7 @@
 <body data-shell-collapsed="true">
 
 <div class="present-bar">
+  <button type="button" class="ghost" onclick="openWheel()">🎡 轉盤抽答案</button>
   <button type="button" class="ghost" onclick="togglePresent()">✕ 離開投影模式</button>
 </div>
 
@@ -544,6 +575,7 @@
       <button type="button" class="ghost" onclick="loadBoard(false)">🔄 重新整理</button>
       <button type="button" class="ghost" id="toolsToggle" aria-pressed="false">收起工具面板</button>
       <button type="button" class="ghost" id="chartsToggle" aria-pressed="false" onclick="toggleCharts()">📊 統計圖</button>
+      <button type="button" class="ghost" id="wheelOpen" onclick="openWheel()">🎡 轉盤抽答案</button>
       <button type="button" class="yellow" onclick="togglePresent()">📽 投影模式</button>
     </div>
   </header>
@@ -615,6 +647,31 @@
 </main>
 
 <div id="focusOverlay" class="focus-overlay" role="dialog" aria-modal="true"></div>
+
+<div class="wheel-overlay" id="wheelOverlay" role="dialog" aria-modal="true" aria-labelledby="wheelTitle" hidden>
+  <div class="wheel-inner">
+    <div class="wheel-top">
+      <h2 id="wheelTitle">🎡 轉盤抽答案</h2>
+      <button type="button" class="ghost" onclick="closeWheel()">✕ 關閉（Esc）</button>
+    </div>
+    <div class="wheel-body">
+      <div class="wheel-stage">
+        <div class="wheel-pointer" aria-hidden="true"></div>
+        <svg id="wheelSvg" viewBox="-210 -210 420 420" role="img" aria-label="答案轉盤"></svg>
+        <button type="button" class="wheel-go" id="wheelGo" onclick="spinWheel()">轉！</button>
+      </div>
+      <div class="wheel-side">
+        <label for="wheelScope">從哪些回答抽</label>
+        <select id="wheelScope" onchange="resetWheel()"></select>
+        <label class="wheel-check"><input type="checkbox" id="wheelNoRepeat" checked onchange="resetWheel()"> 抽過的不再抽</label>
+        <label class="wheel-check"><input type="checkbox" id="wheelShowName"> 顯示姓名</label>
+        <p class="wheel-count" id="wheelCount"></p>
+        <div class="wheel-result" id="wheelResult" hidden></div>
+        <div class="wheel-history" id="wheelHistory"></div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <dialog class="label-dialog" id="labelDialog" aria-labelledby="labelTitle">
   <form method="dialog" onsubmit="return false">
@@ -2348,13 +2405,172 @@
   }
 
 
+
+  /* ==================================================
+     轉盤抽答案：每一格是一份回答，轉到哪份就放大那份答案
+  ================================================== */
+
+  const wheel = { rotation: 0, pool: [], drawn: {}, history: [], spinning: false, questionId: '' };
+
+  function openWheel() {
+
+    if (!state.board) return;
+
+    // 換題目就重新開始
+    if (wheel.questionId !== state.questionId) {
+      wheel.drawn = {};
+      wheel.history = [];
+      wheel.questionId = state.questionId;
+    }
+
+    const cats = state.board.categories;
+    $('wheelScope').innerHTML = '<option value="">全部回答（' + state.board.answers.length + ' 份）</option>' +
+      cats.map(function(c) {
+        const n = state.board.answers.filter(function(a) { return a.categoryId === c.id || (a.extraCategoryIds || []).indexOf(c.id) >= 0; }).length;
+        return '<option value="' + escapeHtml(c.id) + '">只抽「' + escapeHtml(c.name) + '」（' + n + ' 份）</option>';
+      }).join('');
+    $('wheelShowName').checked = $('showNames').checked;
+    $('wheelResult').hidden = true;
+    $('wheelOverlay').hidden = false;
+    resetWheel();
+    $('wheelGo').focus();
+  }
+
+
+  function closeWheel() {
+    $('wheelOverlay').hidden = true;
+  }
+
+
+  function wheelPool() {
+    const scope = $('wheelScope').value;
+    return state.board.answers.filter(function(a) {
+      if (scope && a.categoryId !== scope && (a.extraCategoryIds || []).indexOf(scope) < 0) return false;
+      if ($('wheelNoRepeat').checked && wheel.drawn[a.answerId]) return false;
+      return true;
+    });
+  }
+
+
+  function resetWheel() {
+
+    wheel.pool = wheelPool();
+
+    const n = wheel.pool.length;
+    const svg = $('wheelSvg');
+    const R = 200;
+    const palette = ['#2563eb', '#16a34a', '#ea580c', '#7c3aed', '#db2777', '#0891b2', '#ca8a04', '#4f46e5', '#059669', '#dc2626'];
+
+    svg.style.transition = 'none';
+    svg.style.transform = 'rotate(' + (wheel.rotation % 360) + 'deg)';
+    wheel.rotation = wheel.rotation % 360;
+    void svg.getBoundingClientRect();
+    svg.style.transition = '';
+
+    $('wheelCount').textContent = n ? '轉盤上有 ' + n + ' 份回答' + ($('wheelNoRepeat').checked && wheel.history.length ? '（已抽過 ' + wheel.history.length + ' 份）' : '') : '';
+    $('wheelGo').disabled = n === 0;
+
+    if (!n) {
+      svg.innerHTML = '<circle r="' + R + '" fill="#334155"/><text text-anchor="middle" y="-120" fill="#fff" font-size="18">' +
+        (state.board.answers.length ? '這個範圍的回答都抽過了' : '還沒有回答') + '</text>';
+      return;
+    }
+
+    if (n === 1) {
+      svg.innerHTML = '<circle r="' + R + '" fill="' + palette[0] + '"/>' + wheelLabel(wheel.pool[0], 0, 0, n);
+      return;
+    }
+
+    const step = 360 / n;
+    let out = '';
+
+    wheel.pool.forEach(function(a, i) {
+      const a0 = (i * step - 90) * Math.PI / 180, a1 = ((i + 1) * step - 90) * Math.PI / 180;
+      const large = step > 180 ? 1 : 0;
+      out += '<path d="M0 0 L' + (R * Math.cos(a0)).toFixed(2) + ' ' + (R * Math.sin(a0)).toFixed(2) +
+        ' A' + R + ' ' + R + ' 0 ' + large + ' 1 ' + (R * Math.cos(a1)).toFixed(2) + ' ' + (R * Math.sin(a1)).toFixed(2) + ' Z" fill="' + palette[i % palette.length] + '" stroke="#fff" stroke-width="2"/>' +
+        wheelLabel(a, i, step, n);
+    });
+
+    svg.innerHTML = out + '<circle r="' + R + '" fill="none" stroke="#fff" stroke-width="6"/>';
+  }
+
+
+  function wheelLabel(a, i, step, n) {
+    // 格子少時寫答案開頭幾個字，格子多時只寫編號
+    const text = n <= 16 ? shorten(a.answer.replace(/\s+/g, ' '), n <= 8 ? 10 : 6) : String(i + 1);
+    const mid = i * step + step / 2;
+    const size = n <= 8 ? 15 : n <= 16 ? 13 : n <= 30 ? 12 : 9;
+    return '<g transform="rotate(' + (mid - 90) + ')"><text x="' + (n <= 16 ? 112 : 170) + '" y="' + (size / 3) + '" text-anchor="middle" fill="#fff" font-size="' + size + '" font-weight="700">' + escapeHtml(text) + '</text></g>';
+  }
+
+
+  function spinWheel() {
+
+    if (wheel.spinning) return;
+
+    // 抽過的先從轉盤拿掉，再轉
+    if (wheel.pool.some(function(a) { return wheel.drawn[a.answerId]; }) && $('wheelNoRepeat').checked) resetWheel();
+    if (!wheel.pool.length) return;
+
+    const n = wheel.pool.length;
+    const pick = Math.floor(Math.random() * n);
+    const step = 360 / n;
+    // 指針在正上方：讓選中那一格的中間轉到上面，多轉 5 到 7 圈
+    const target = 360 - (pick * step + step / 2) + (Math.random() - 0.5) * step * 0.6;
+    const turns = 5 + Math.floor(Math.random() * 3);
+    const current = ((wheel.rotation % 360) + 360) % 360;
+
+    wheel.rotation += turns * 360 + ((target - current) % 360 + 360) % 360;
+    wheel.spinning = true;
+    $('wheelGo').disabled = true;
+    $('wheelResult').hidden = true;
+    $('wheelSvg').style.transform = 'rotate(' + wheel.rotation + 'deg)';
+
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    setTimeout(function() {
+      wheel.spinning = false;
+      showWheelResult(wheel.pool[pick]);
+    }, reduce ? 50 : 4300);
+  }
+
+
+  function showWheelResult(a) {
+
+    wheel.drawn[a.answerId] = true;
+    wheel.history.push(a);
+
+    const ids = a.categoryId ? [a.categoryId].concat(a.extraCategoryIds || []) : [];
+    const box = $('wheelResult');
+
+    box.style.setProperty('--col', ids.length ? categoryColor(ids[0]) : '#facc15');
+    box.innerHTML = '<div class="wr-text">' + escapeHtml(a.answer) + '</div>' +
+      ($('wheelShowName').checked ? '<div class="wr-name">— ' + escapeHtml(a.name) + '</div>' : '') +
+      (ids.length ? labelChips(ids) : '') +
+      '<div class="wr-actions"><button type="button" onclick="spinWheel()">🎡 再轉一次</button>' +
+      (ids.length ? '<button type="button" class="ghost" onclick="closeWheel(); openFocus(\'' + ids[0] + '\')">🔍 聚焦這一類</button>' : '') + '</div>';
+    box.hidden = false;
+
+    $('wheelHistory').innerHTML = '抽過的回答：<ol>' + wheel.history.map(function(h) {
+      return '<li>' + escapeHtml(shorten(h.answer.replace(/\s+/g, ' '), 30)) + ($('wheelShowName').checked ? '（' + escapeHtml(h.name) + '）' : '') + '</li>';
+    }).join('') + '</ol>';
+
+    const left = wheelPool().length;
+    $('wheelGo').disabled = left === 0;
+    $('wheelCount').textContent = left ? '還有 ' + left + ' 份回答可以抽' : '這個範圍的回答都抽過了';
+  }
+
+
   function handleKeydown(event) {
 
     const tag = document.activeElement ? document.activeElement.tagName : '';
     const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
 
     if (event.key === 'Escape') {
-      if (state.focusCategoryId !== null) {
+      if (!$('wheelOverlay').hidden) {
+        closeWheel();
+      } else if (state.focusCategoryId !== null) {
         closeFocus();
       } else if (state.present) {
         togglePresent();

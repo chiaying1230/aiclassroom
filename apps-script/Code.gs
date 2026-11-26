@@ -22,7 +22,8 @@ const QUESTION_HEADERS = [
   '評分規準', 'AI審核', '狀態', '建立時間',
   '截止時間', '截止後', '最後修改', '課程ID',
   '即時回饋風格', '回饋補充指示', '自動分類',
-  '學習目標', '評量方式'
+  '學習目標', '評量方式',
+  '題型', '題型設定', '題目圖片'
 ];
 
 /* 學生重新送出時，自己勾選有沒有參考 AI 學習建議 */
@@ -46,7 +47,7 @@ const ANSWER_HEADERS = [
   '送出時間', 'AI分數', 'AI評語', 'AI信心', '教師分數',
   '教師評語', '狀態', '最後更新', 'AI教師口吻評語',
   'AI即時回饋', '繳交次數',
-  'AI草稿採用', '修改說明', 'AI建議採納'
+  'AI草稿採用', '修改說明', 'AI建議採納', '作答資料'
 ];
 
 /* 學生每次重新送出前，舊的版本存到這裡 */
@@ -56,14 +57,14 @@ const HISTORY_HEADERS = [
   '歷程ID', '回答ID', '題目ID', '學號', '姓名', '第幾次',
   '學生回答', '送出時間', 'AI即時回饋', 'AI分數', 'AI評語',
   '教師分數', '教師評語', '狀態', '被取代時間',
-  '修改說明', 'AI建議採納', 'AI草稿採用'
+  '修改說明', 'AI建議採納', 'AI草稿採用', '作答資料'
 ];
 
 const HCOL = {
   ID: 1, ANSWER_ID: 2, QUESTION_ID: 3, STUDENT_ID: 4, NAME: 5, VERSION: 6,
   ANSWER: 7, SUBMITTED: 8, INSTANT_FEEDBACK: 9, AI_SCORE: 10, AI_FEEDBACK: 11,
   TEACHER_SCORE: 12, TEACHER_FEEDBACK: 13, STATUS: 14, REPLACED: 15,
-  REVISION_NOTE: 16, AI_ADOPTED: 17, DRAFT_ADOPTION: 18
+  REVISION_NOTE: 16, AI_ADOPTED: 17, DRAFT_ADOPTION: 18, RESPONSE: 19
 };
 
 const CATEGORY_HEADERS = [
@@ -85,7 +86,8 @@ const QCOL = {
   RUBRIC: 6, AI: 7, STATUS: 8, CREATED: 9,
   DEADLINE: 10, LATE_POLICY: 11, UPDATED: 12, COURSE: 13,
   FEEDBACK_STYLE: 14, FEEDBACK_NOTE: 15, AUTO_CLASSIFY: 16,
-  OBJECTIVE: 17, ASSESSMENT: 18
+  OBJECTIVE: 17, ASSESSMENT: 18,
+  TYPE: 19, TYPE_SETTINGS: 20, IMAGES: 21
 };
 
 const COURSE_COL = {
@@ -127,7 +129,9 @@ const ACOL = {
   TEACHER_SCORE: 10, TEACHER_FEEDBACK: 11, STATUS: 12,
   UPDATED: 13, AI_STUDENT_FEEDBACK: 14,
   INSTANT_FEEDBACK: 15, VERSION: 16,
-  DRAFT_ADOPTION: 17, REVISION_NOTE: 18, AI_ADOPTED: 19
+  DRAFT_ADOPTION: 17, REVISION_NOTE: 18, AI_ADOPTED: 19,
+  // 選擇題、填空、連連看：學生的選擇與自動批改結果（JSON）
+  RESPONSE: 20
 };
 
 const CCOL = {
@@ -1321,6 +1325,7 @@ function getPublicApiHandlers_() {
     requestInstantFeedback: requestInstantFeedback,
     confirmMyClassification: confirmMyClassification,
     joinCourse: joinCourse,
+    getQuestionImage: getQuestionImage,
     teacherLogin: teacherLogin,
     teacherLogout: teacherLogout
   };
@@ -1361,6 +1366,8 @@ function getTeacherApiHandlers_() {
     saveAISettings: saveMyAISettings,
     saveInsightJudgement: saveInsightJudgement,
     setAnswerCategories: setAnswerCategories,
+    uploadQuestionImage: uploadQuestionImage,
+    getQuestionImageAsTeacher: getQuestionImageAsTeacher,
     suggestCategoriesFromObjective: suggestCategoriesFromObjective,
     getCourseStudents: getCourseStudents,
     removeCourseStudent: removeCourseStudent,
@@ -2003,7 +2010,11 @@ function questionFromRow_(row, rowNumber) {
     // 空白（舊題目）視為評分
     assessment: cleanText_(row[QCOL.ASSESSMENT - 1]) === ASSESSMENT.DESCRIPTIVE
       ? ASSESSMENT.DESCRIPTIVE
-      : ASSESSMENT.SCORE
+      : ASSESSMENT.SCORE,
+    // 空白（舊題目）＝申論
+    type: QUESTION_TYPES[cleanText_(row[QCOL.TYPE - 1])] ? cleanText_(row[QCOL.TYPE - 1]) : 'essay',
+    typeSettings: parseJson_(row[QCOL.TYPE_SETTINGS - 1], {}),
+    images: parseJson_(row[QCOL.IMAGES - 1], []).filter(function(id) { return /^[\w-]{10,100}$/.test(String(id)); }).slice(0, MAX_QUESTION_IMAGES)
   };
 }
 
@@ -2105,6 +2116,21 @@ function ensureColumns_(sheet, headers) {
  */
 function cleanQuestionInput_(data) {
 
+  const q = cleanQuestionInputBase_(data);
+
+  // 自動批改的題型（選擇、是非、填空、連連看）不用 AI 學習建議和自動分類，省下 AI 呼叫
+  if (AUTO_GRADED_TYPES[q.type]) {
+    q.feedbackStyle = '';
+    q.feedbackNote = '';
+    q.autoClassify = false;
+  }
+
+  return q;
+}
+
+
+function cleanQuestionInputBase_(data) {
+
   data = data || {};
 
   const title = cleanText_(data.title);
@@ -2146,10 +2172,438 @@ function cleanQuestionInput_(data) {
     objective: cleanText_(data.objective).substring(0, 500),
     assessment: cleanText_(data.assessment) === ASSESSMENT.DESCRIPTIVE
       ? ASSESSMENT.DESCRIPTIVE
-      : ASSESSMENT.SCORE
+      : ASSESSMENT.SCORE,
+    // 舊版網頁不會送題型，編輯時就保留原本的
+    hasType: data.type !== undefined,
+    type: QUESTION_TYPES[cleanText_(data.type)] ? cleanText_(data.type) : 'essay',
+    typeSettings: cleanTypeSettings_(cleanText_(data.type), data.typeSettings),
+    hasImages: Array.isArray(data.images),
+    images: (Array.isArray(data.images) ? data.images : [])
+      .map(cleanText_)
+      .filter(function(id) { return /^[\w-]{10,100}$/.test(id); })
+      .slice(0, MAX_QUESTION_IMAGES)
   };
 }
 
+
+/* =====================================================
+   題型
+   - 申論、簡答：和以前一樣，學生寫文字，AI 輔助批改
+   - 單選、多選（勾選）、是非、填空、連連看：學生送出時系統自動批改
+   題型設定（JSON）：
+     single / multiple：{ options: [{ text }], correct: [索引], shuffle: true|false }
+     truefalse：{ correct: true|false }
+     fill：{ blanks: [{ answers: ['可接受的答案', …] }] }
+     matching：{ pairs: [{ left, right }] }
+===================================================== */
+
+const QUESTION_TYPES = {
+  essay: '申論題',
+  short: '簡答題',
+  single: '單選題',
+  multiple: '多選題',
+  truefalse: '是非題',
+  fill: '填空題',
+  matching: '連連看'
+};
+
+const AUTO_GRADED_TYPES = { single: true, multiple: true, truefalse: true, fill: true, matching: true };
+
+const MAX_QUESTION_IMAGES = 4;
+const MAX_OPTIONS = 10;
+
+
+function parseJson_(value, fallback) {
+  try {
+    const v = JSON.parse(value || '');
+    return v === null || v === undefined ? fallback : v;
+  } catch (error) {
+    return fallback;
+  }
+}
+
+
+function parseResponse_(value) {
+  return parseJson_(value, null);
+}
+
+
+function isAutoGraded_(question) {
+  return !!question && AUTO_GRADED_TYPES[question.type] === true;
+}
+
+
+/*
+ * 檢查老師填的題型設定。不合理就擋下並說明。
+ */
+function cleanTypeSettings_(type, raw) {
+
+  raw = raw || {};
+
+  if (type === 'single' || type === 'multiple') {
+
+    const options = (Array.isArray(raw.options) ? raw.options : [])
+      .map(function(o) { return { text: cleanText_(o && o.text !== undefined ? o.text : o).substring(0, 300) }; });
+
+    const kept = [];
+    const map = {};
+
+    options.forEach(function(o, i) {
+      if (o.text) { map[i] = kept.length; kept.push(o); }
+    });
+
+    if (kept.length < 2) throw new Error('選擇題至少要有 2 個選項');
+    if (kept.length > MAX_OPTIONS) throw new Error('選項最多 ' + MAX_OPTIONS + ' 個');
+
+    const correct = (Array.isArray(raw.correct) ? raw.correct : [])
+      .map(Number)
+      .filter(function(i, k, all) { return map[i] !== undefined && all.indexOf(i) === k; })
+      .map(function(i) { return map[i]; })
+      .sort(function(a, b) { return a - b; });
+
+    if (!correct.length) throw new Error('請勾選正確答案');
+    if (type === 'single' && correct.length !== 1) throw new Error('單選題只能有 1 個正確答案；要多個正確答案請選「多選題」');
+
+    return { options: kept, correct: correct, shuffle: raw.shuffle === true };
+  }
+
+  if (type === 'truefalse') {
+    if (raw.correct !== true && raw.correct !== false) throw new Error('請選擇正確答案是「○」還是「×」');
+    return { correct: raw.correct };
+  }
+
+  if (type === 'fill') {
+
+    const blanks = (Array.isArray(raw.blanks) ? raw.blanks : []).map(function(b) {
+      // 一個空格可以有好幾個可接受的答案，用「|」隔開
+      const list = [].concat(b && b.answers !== undefined ? b.answers : '')
+        .reduce(function(all, v) { return all.concat(String(v).split(/[|｜]/)); }, []);
+      return {
+        answers: list.map(function(a) { return cleanText_(a).substring(0, 100); })
+          .filter(function(a, i, all) { return a && all.indexOf(a) === i; })
+          .slice(0, 10)
+      };
+    }).filter(function(b) { return b.answers.length; });
+
+    if (!blanks.length) throw new Error('填空題至少要有 1 個空格的答案');
+    if (blanks.length > 20) throw new Error('空格最多 20 個');
+
+    return { blanks: blanks };
+  }
+
+  if (type === 'matching') {
+
+    const pairs = (Array.isArray(raw.pairs) ? raw.pairs : []).map(function(p) {
+      return { left: cleanText_(p && p.left).substring(0, 200), right: cleanText_(p && p.right).substring(0, 200) };
+    }).filter(function(p) { return p.left && p.right; });
+
+    if (pairs.length < 2) throw new Error('連連看至少要有 2 組配對');
+    if (pairs.length > 12) throw new Error('連連看最多 12 組');
+
+    return { pairs: pairs };
+  }
+
+  return {};
+}
+
+
+/*
+ * 依題目ID固定的洗牌：同一題每次打開順序一樣，不同題順序不同。
+ */
+function stableShuffle_(list, seedText) {
+
+  let seed = 0;
+  String(seedText).split('').forEach(function(c) { seed = (seed * 31 + c.charCodeAt(0)) % 2147483647; });
+
+  const out = list.slice();
+
+  for (let i = out.length - 1; i > 0; i--) {
+    seed = (seed * 48271) % 2147483647;
+    const j = seed % (i + 1);
+    const tmp = out[i]; out[i] = out[j]; out[j] = tmp;
+  }
+
+  return out;
+}
+
+
+/*
+ * 給學生看的題型設定：不含正確答案。選項帶原本的索引，送出時用索引回傳。
+ */
+function publicTypeSettings_(q) {
+
+  const t = q.typeSettings || {};
+
+  if (q.type === 'single' || q.type === 'multiple') {
+    const opts = (t.options || []).map(function(o, i) { return { index: i, text: o.text }; });
+    return { options: t.shuffle ? stableShuffle_(opts, q.id) : opts };
+  }
+
+  if (q.type === 'fill') {
+    return { blankCount: (t.blanks || []).length };
+  }
+
+  if (q.type === 'matching') {
+    const pairs = t.pairs || [];
+    return {
+      left: pairs.map(function(p, i) { return { index: i, text: p.left }; }),
+      right: stableShuffle_(pairs.map(function(p, i) { return { index: i, text: p.right }; }), q.id + 'R')
+    };
+  }
+
+  return {};
+}
+
+
+function normalizeFill_(text) {
+  return cleanText_(text)
+    .replace(/[！-～]/g, function(c) { return String.fromCharCode(c.charCodeAt(0) - 0xfee0); })
+    .replace(/[\s　]/g, '')
+    .toLowerCase();
+}
+
+
+const OPTION_LETTERS = 'ABCDEFGHIJ';
+
+
+/*
+ * 自動批改。response 是學生的選擇；回傳 { answerText, score, result: { correct, total, items: [true/false] } }
+ */
+function gradeResponse_(question, response) {
+
+  const t = question.typeSettings || {};
+  response = response || {};
+
+  const points = Number(question.points) || 0;
+  const round = function(v) { return Math.round(v * 10) / 10; };
+
+  if (question.type === 'single' || question.type === 'multiple') {
+
+    const options = t.options || [];
+    let picked = question.type === 'single' ? [Number(response.choice)] : (Array.isArray(response.choices) ? response.choices.map(Number) : []);
+
+    picked = picked.filter(function(i, k, all) { return i >= 0 && i < options.length && Math.floor(i) === i && all.indexOf(i) === k; }).sort(function(a, b) { return a - b; });
+
+    if (!picked.length) throw new Error('請先選擇答案');
+    if (question.type === 'single' && picked.length > 1) throw new Error('單選題只能選一個');
+
+    const correct = t.correct || [];
+    let ratio;
+
+    if (question.type === 'single') {
+      ratio = picked[0] === correct[0] ? 1 : 0;
+    } else {
+      // 多選：選對一個加一份，選錯一個扣一份，最低 0 分
+      const right = picked.filter(function(i) { return correct.indexOf(i) >= 0; }).length;
+      const wrong = picked.length - right;
+      ratio = Math.max(0, (right - wrong) / correct.length);
+    }
+
+    return {
+      answerText: picked.map(function(i) { return OPTION_LETTERS.charAt(i) + '. ' + options[i].text; }).join('\n'),
+      score: round(points * ratio),
+      response: { choices: picked },
+      result: {
+        correct: ratio === 1 ? 1 : 0, total: 1, ratio: ratio,
+        items: options.map(function(o, i) { return picked.indexOf(i) >= 0 ? correct.indexOf(i) >= 0 : null; })
+      }
+    };
+  }
+
+  if (question.type === 'truefalse') {
+
+    if (response.value !== true && response.value !== false) throw new Error('請選擇「○」或「×」');
+
+    const ok = response.value === t.correct;
+
+    return {
+      answerText: response.value ? '○（對）' : '×（錯）',
+      score: ok ? points : 0,
+      response: { value: response.value },
+      result: { correct: ok ? 1 : 0, total: 1, ratio: ok ? 1 : 0, items: [ok] }
+    };
+  }
+
+  if (question.type === 'fill') {
+
+    const blanks = t.blanks || [];
+    const given = (Array.isArray(response.blanks) ? response.blanks : []).map(function(v) { return cleanText_(v).substring(0, 200); });
+
+    if (!given.some(Boolean)) throw new Error('請至少填一個空格');
+
+    const items = blanks.map(function(b, i) {
+      const v = normalizeFill_(given[i]);
+      return !!v && b.answers.some(function(a) { return normalizeFill_(a) === v; });
+    });
+
+    const right = items.filter(Boolean).length;
+
+    return {
+      answerText: blanks.map(function(b, i) { return '(' + (i + 1) + ') ' + (given[i] || '（空白）'); }).join('\n'),
+      score: round(points * right / blanks.length),
+      response: { blanks: blanks.map(function(b, i) { return given[i] || ''; }) },
+      result: { correct: right, total: blanks.length, ratio: right / blanks.length, items: items }
+    };
+  }
+
+  if (question.type === 'matching') {
+
+    const pairs = t.pairs || [];
+    const given = Array.isArray(response.matches) ? response.matches : [];
+
+    const picked = pairs.map(function(p, i) {
+      const v = given[i];
+      return v === '' || v === null || v === undefined || isNaN(Number(v)) ? -1 : Number(v);
+    });
+
+    if (!picked.some(function(v) { return v >= 0; })) throw new Error('請至少配對一組');
+
+    const items = picked.map(function(v, i) { return v === i; });
+    const right = items.filter(Boolean).length;
+
+    return {
+      answerText: pairs.map(function(p, i) {
+        return p.left + ' → ' + (picked[i] >= 0 && pairs[picked[i]] ? pairs[picked[i]].right : '（沒有配對）');
+      }).join('\n'),
+      score: round(points * right / pairs.length),
+      response: { matches: picked },
+      result: { correct: right, total: pairs.length, ratio: right / pairs.length, items: items }
+    };
+  }
+
+  throw new Error('這個題型不能自動批改');
+}
+
+
+/*
+ * 正確答案的文字（老師看、或學生在截止後看）。
+ */
+function correctAnswerText_(question) {
+
+  const t = question.typeSettings || {};
+
+  if (question.type === 'single' || question.type === 'multiple') {
+    return (t.correct || []).map(function(i) { return OPTION_LETTERS.charAt(i) + '. ' + ((t.options || [])[i] || {}).text; }).join('\n');
+  }
+  if (question.type === 'truefalse') return t.correct ? '○（對）' : '×（錯）';
+  if (question.type === 'fill') {
+    return (t.blanks || []).map(function(b, i) { return '(' + (i + 1) + ') ' + b.answers.join(' 或 '); }).join('\n');
+  }
+  if (question.type === 'matching') {
+    return (t.pairs || []).map(function(p) { return p.left + ' → ' + p.right; }).join('\n');
+  }
+  return '';
+}
+
+
+/* =====================================================
+   題目圖片：存在 Drive 的「AI課堂題目圖片」資料夾，不公開分享，
+   網頁透過 API 讀取（只有發布中或已關閉題目的圖片，學生才讀得到）。
+===================================================== */
+
+const IMAGE_FOLDER_KEY = 'QUESTION_IMAGE_FOLDER_ID';
+const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
+
+
+function getImageFolder_() {
+
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty(IMAGE_FOLDER_KEY);
+
+  if (id) {
+    try {
+      return DriveApp.getFolderById(id);
+    } catch (error) {
+      // 資料夾被刪了就重建
+    }
+  }
+
+  const folder = DriveApp.createFolder('AI課堂題目圖片');
+  props.setProperty(IMAGE_FOLDER_KEY, folder.getId());
+
+  return folder;
+}
+
+
+/*
+ * 教師上傳圖片。data：{ name, mimeType, base64 }（網頁會先把圖片縮小）
+ */
+function uploadQuestionImage(data) {
+
+  data = data || {};
+
+  const mime = cleanText_(data.mimeType);
+
+  if (!/^image\/(png|jpeg|gif|webp)$/.test(mime)) {
+    throw new Error('只能上傳 PNG、JPG、GIF 或 WebP 圖片');
+  }
+
+  const bytes = Utilities.base64Decode(String(data.base64 || ''));
+
+  if (!bytes.length) throw new Error('圖片是空的');
+  if (bytes.length > MAX_IMAGE_BYTES) throw new Error('圖片太大了，請小於 3 MB');
+
+  const name = (cleanText_(data.name) || 'image').replace(/[\\/:*?"<>|]/g, '_').substring(0, 80);
+  const file = getImageFolder_().createFile(Utilities.newBlob(bytes, mime, name));
+
+  return { id: file.getId(), name: name };
+}
+
+
+function imageResult_(fileId) {
+
+  const file = DriveApp.getFileById(fileId);
+  const blob = file.getBlob();
+
+  return { id: fileId, mimeType: blob.getContentType(), base64: Utilities.base64Encode(blob.getBytes()) };
+}
+
+
+/*
+ * 學生讀圖片：只限發布中或已關閉題目用到的圖片。
+ */
+function getQuestionImage(fileId) {
+
+  fileId = cleanText_(fileId);
+
+  const used = getQuestionSheet_().getDataRange().getValues().slice(1).some(function(row, i) {
+    const q = questionFromRow_(row, i + 2);
+    return (q.status === '發布' || q.status === '關閉') && q.images.indexOf(fileId) >= 0;
+  });
+
+  if (!used) {
+    throw new Error('找不到這張圖片');
+  }
+
+  return imageResult_(fileId);
+}
+
+
+/*
+ * 教師讀圖片（含草稿題目與剛上傳的）：只限放在題目圖片資料夾裡的檔案。
+ */
+function getQuestionImageAsTeacher(fileId) {
+
+  fileId = cleanText_(fileId);
+
+  const folderId = PropertiesService.getScriptProperties().getProperty(IMAGE_FOLDER_KEY);
+  let inFolder = false;
+
+  try {
+    const parents = DriveApp.getFileById(fileId).getParents();
+    while (parents.hasNext()) {
+      if (parents.next().getId() === folderId) inFolder = true;
+    }
+  } catch (error) {
+    inFolder = false;
+  }
+
+  if (!inFolder) {
+    throw new Error('找不到這張圖片');
+  }
+
+  return imageResult_(fileId);
+}
 
 /*
  * 回饋風格只接受 ai_instant.gs 裡定義的代號，其他一律當作「不提供」。
@@ -2242,7 +2696,11 @@ function getPublishedQuestions(courseCode) {
         closed: passed && !q.allowLate,
         submittedCount: submitted[q.id] || 0,
         instantFeedback: !!q.feedbackStyle,
-        descriptive: isDescriptiveQuestion_(q)
+        descriptive: isDescriptiveQuestion_(q),
+        type: q.type,
+        typeLabel: QUESTION_TYPES[q.type],
+        typeSettings: publicTypeSettings_(q),
+        images: q.images
       };
     });
 }
@@ -2259,9 +2717,9 @@ function submitAnswer(data) {
   const studentId = cleanText_(data.studentId);
   const name = cleanText_(data.name);
   const questionId = cleanText_(data.questionId);
-  const answer = cleanText_(data.answer);
+  let answer = cleanText_(data.answer);
 
-  if (!studentId || !name || !questionId || !answer) {
+  if (!studentId || !name || !questionId || (!answer && !data.response)) {
     throw new Error('請完整填寫學號、姓名與回答');
   }
 
@@ -2307,9 +2765,27 @@ function submitAnswer(data) {
     throw new Error('這一題已在 ' + formatDeadline_(question.deadline) + ' 截止，無法再繳交');
   }
 
-  const initialStatus = question.enableAI
-    ? STATUS.WAIT_AI
-    : STATUS.WAIT_TEACHER;
+  // 選擇、是非、填空、連連看：系統直接批改
+  const graded = isAutoGraded_(question) ? gradeResponse_(question, data.response) : null;
+
+  if (graded) {
+    answer = graded.answerText;
+  } else if (!answer) {
+    throw new Error('請先寫下你的回答');
+  }
+
+  const gradedFeedback = graded
+    ? '系統自動批改：' + (question.type === 'single' || question.type === 'truefalse' || question.type === 'multiple'
+        ? (graded.result.ratio === 1 ? '答對了' : graded.result.ratio > 0 ? '部分答對' : '答錯了')
+        : '答對 ' + graded.result.correct + '／' + graded.result.total)
+    : '';
+  const responseJson = graded ? JSON.stringify({ response: graded.response, result: graded.result }) : '';
+
+  const initialStatus = graded
+    ? STATUS.PASSED
+    : question.enableAI
+      ? STATUS.WAIT_AI
+      : STATUS.WAIT_TEACHER;
 
   return withLock_(function() {
 
@@ -2319,7 +2795,7 @@ function submitAnswer(data) {
 
     const rows = sheet.getDataRange().getValues();
     const now = new Date();
-    const instantFeedback = !!question.feedbackStyle;
+    const instantFeedback = !!question.feedbackStyle && !graded;
 
     // 有即時回饋或自動分類的題目，通知背景工作來處理
     if (instantFeedback || question.autoClassify) {
@@ -2361,8 +2837,14 @@ function submitAnswer(data) {
       // L 狀態、M 最後更新、N AI教師口吻評語、O AI即時回饋、P 繳交次數、
       // Q AI草稿採用、R 修改說明、S AI建議採納
       sheet
-        .getRange(rowNumber, ACOL.STATUS, 1, 8)
-        .setValues(cells_([[initialStatus, now, '', '', oldVersion + 1, '', revisionNote, aiAdopted]]));
+        .getRange(rowNumber, ACOL.STATUS, 1, 9)
+        .setValues(cells_([[initialStatus, now, '', '', oldVersion + 1, '', revisionNote, aiAdopted, responseJson]]));
+
+      if (graded) {
+        sheet
+          .getRange(rowNumber, ACOL.TEACHER_SCORE, 1, 2)
+          .setValues(cells_([[graded.score, gradedFeedback]]));
+      }
 
       // 回答內容變了，舊的分類也要清掉
       deleteCodingForAnswers_([answerId]);
@@ -2390,7 +2872,8 @@ function submitAnswer(data) {
         answerId: answerId,
         late: late,
         version: oldVersion + 1,
-        instantFeedback: instantFeedback
+        instantFeedback: instantFeedback,
+        graded: graded ? { score: graded.score, maxScore: question.points, result: graded.result, feedback: gradedFeedback } : null
       };
     }
 
@@ -2401,7 +2884,7 @@ function submitAnswer(data) {
 
     const rowNumber = appendRows_(sheet, [[
       answerId, questionId, '', name, answer,
-      now, '', '', '', '', '', initialStatus, now, '', '', 1, '', '', ''
+      now, '', '', '', graded ? graded.score : '', gradedFeedback, initialStatus, now, '', '', 1, '', '', '', responseJson
     ]], ANSWER_HEADERS.length);
 
     // 學號設成純文字後再寫入，避免 0123 變成 123
@@ -2416,7 +2899,8 @@ function submitAnswer(data) {
       answerId: answerId,
       late: late,
       version: 1,
-      instantFeedback: instantFeedback
+      instantFeedback: instantFeedback,
+      graded: graded ? { score: graded.score, maxScore: question.points, result: graded.result, feedback: gradedFeedback } : null
     };
   });
 }
@@ -2746,7 +3230,8 @@ function archiveAnswerVersion_(row, version, replacedAt) {
     replacedAt,
     row[ACOL.REVISION_NOTE - 1] || '',
     row[ACOL.AI_ADOPTED - 1] || '',
-    row[ACOL.DRAFT_ADOPTION - 1] || ''
+    row[ACOL.DRAFT_ADOPTION - 1] || '',
+    row[ACOL.RESPONSE - 1] || ''
   ]], HISTORY_HEADERS.length);
 
   // 學號存成純文字，避免 0123 變成 123
@@ -2792,7 +3277,8 @@ function getHistoryMap_(answerIds) {
       status: cleanText_(row[HCOL.STATUS - 1]),
       revisionNote: cleanText_(row[HCOL.REVISION_NOTE - 1]),
       aiAdopted: cleanText_(row[HCOL.AI_ADOPTED - 1]),
-      draftAdoption: cleanText_(row[HCOL.DRAFT_ADOPTION - 1])
+      draftAdoption: cleanText_(row[HCOL.DRAFT_ADOPTION - 1]),
+      response: parseResponse_(row[HCOL.RESPONSE - 1])
     });
   });
 
@@ -2827,17 +3313,23 @@ function getStudentResults(data) {
 
   const questionMap = {};
 
-  questions.slice(1).forEach(function(row) {
+  questions.slice(1).forEach(function(row, index) {
 
     const id = cleanText_(row[0]);
 
     if (id) {
+      const full = questionFromRow_(row, index + 2);
+      // 截止或關閉後才公布正確答案
+      const reveal = isAutoGraded_(full) && (full.status === '關閉' || (!!full.deadline && Date.now() > full.deadline));
       questionMap[id] = {
         title: row[1],
         points: row[3],
         deadline: toTime_(row[QCOL.DEADLINE - 1]),
         courseId: courseIdOf_(row),
-        descriptive: cleanText_(row[QCOL.ASSESSMENT - 1]) === ASSESSMENT.DESCRIPTIVE
+        descriptive: cleanText_(row[QCOL.ASSESSMENT - 1]) === ASSESSMENT.DESCRIPTIVE,
+        type: full.type,
+        typeLabel: QUESTION_TYPES[full.type],
+        correctAnswer: reveal ? correctAnswerText_(full) : ''
       };
     }
   });
@@ -2877,12 +3369,17 @@ function getStudentResults(data) {
             teacherFeedback: h.status === STATUS.PASSED || h.status === STATUS.RETURNED ? h.teacherFeedback : '',
             status: h.status,
             revisionNote: h.revisionNote,
-            aiAdopted: h.aiAdopted
+            aiAdopted: h.aiAdopted,
+            response: h.response
           };
         }),
         revisionNote: cleanText_(row[ACOL.REVISION_NOTE - 1]),
         aiAdopted: cleanText_(row[ACOL.AI_ADOPTED - 1]),
         descriptive: !!q.descriptive,
+        type: q.type || 'essay',
+        typeLabel: q.typeLabel || '',
+        response: parseResponse_(row[ACOL.RESPONSE - 1]),
+        correctAnswer: q.correctAnswer || '',
         // 課堂討論的分類（已確認的才給學生看），學生可以回覆是否符合自己的想法
         classification: classified[cleanText_(row[0])] || null,
         answerId: row[0],
@@ -3074,7 +3571,10 @@ function createQuestion(data) {
       q.feedbackNote,
       q.autoClassify ? '是' : '否',
       q.objective,
-      q.assessment
+      q.assessment,
+      q.type,
+      JSON.stringify(q.typeSettings),
+      JSON.stringify(q.images)
     ]], QUESTION_HEADERS.length);
 
     sheet.getRange(rowNumber, QCOL.DEADLINE).setNumberFormat('yyyy/mm/dd hh:mm');
@@ -3234,6 +3734,18 @@ function updateQuestion(data) {
         .setValues(cells_([[q.objective, q.assessment]]));
     }
 
+    if (q.hasType) {
+      ensureQuestionColumns_(sheet);
+      sheet
+        .getRange(rowNumber, QCOL.TYPE, 1, 2)
+        .setValues(cells_([[q.type, JSON.stringify(q.typeSettings)]]));
+    }
+
+    if (q.hasImages) {
+      ensureQuestionColumns_(sheet);
+      sheet.getRange(rowNumber, QCOL.IMAGES).setValue(JSON.stringify(q.images));
+    }
+
     // 第一次設定預設類別（這一題還沒有類別時才寫入）
     if (data.presetCategories && !getCategoriesForQuestion_(questionId).length) {
       writePresetCategories_(questionId, data.presetCategories);
@@ -3345,7 +3857,10 @@ function copyQuestions(questionIds, targetCourseId) {
         q.feedbackNote,
         q.autoClassify ? '是' : '否',
         q.objective,
-        q.assessment
+        q.assessment,
+        q.type,
+        JSON.stringify(q.typeSettings),
+        JSON.stringify(q.images)
       ];
     });
 
@@ -3456,7 +3971,10 @@ function getTeacherQuestions(courseId) {
         feedbackNote: q.feedbackNote,
         autoClassify: q.autoClassify,
         objective: q.objective,
-        assessment: q.assessment
+        assessment: q.assessment,
+        type: q.type,
+        typeSettings: q.typeSettings,
+        images: q.images
       };
     })
     .reverse();
@@ -3526,6 +4044,7 @@ function getTeacherAnswers(questionId, courseId) {
     const q = questionFromRow_(row, index + 2);
 
     if (q.id) {
+      q.correctAnswer = isAutoGraded_(q) ? correctAnswerText_(q) : '';
       questionMap[q.id] = q;
     }
   });
@@ -3611,7 +4130,11 @@ function getTeacherAnswers(questionId, courseId) {
         revisionNote: cleanText_(row[ACOL.REVISION_NOTE - 1]),
         aiAdopted: cleanText_(row[ACOL.AI_ADOPTED - 1]),
         // 之前每一次按「AI 批改」的建議（最新的一次就是上面的 aiScore、aiFeedback）
-        aiSuggestions: suggestions[cleanText_(row[ACOL.ID - 1])] || []
+        aiSuggestions: suggestions[cleanText_(row[ACOL.ID - 1])] || [],
+        type: q.type || 'essay',
+        typeLabel: QUESTION_TYPES[q.type || 'essay'],
+        response: parseResponse_(row[ACOL.RESPONSE - 1]),
+        correctAnswer: q.correctAnswer || ''
       };
     })
     .reverse();

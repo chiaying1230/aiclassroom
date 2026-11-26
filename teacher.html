@@ -180,6 +180,39 @@
     .preset .try-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
     .preset .try-row button { margin: 0; }
 
+    /* ---------- 題型與圖片 ---------- */
+    [data-essay-only].type-hidden { display: none !important; }
+    .type-editor { margin-top: 8px; }
+    .type-editor:empty { display: none; }
+    .type-panel { padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--surface-2, #f6f4ef); }
+    .type-panel .hint { margin: 0 0 10px; }
+    .opt-row { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .opt-row input[type=text] { margin: 0; }
+    .opt-row input[type=radio], .opt-row input[type=checkbox] { width: 20px; height: 20px; margin: 0; }
+    .opt-row .letter { font-weight: 700; width: 1.4em; text-align: center; }
+    .opt-row button, .type-panel .add { margin: 0; padding: 4px 10px; }
+    .pair-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .pair-row input { margin: 0; }
+    .blank-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .blank-row input { margin: 0; }
+    .tf-choice { display: flex; gap: 12px; }
+    .tf-choice label { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 8px 18px; border: 1px solid var(--line-strong); border-radius: 999px; font-size: 18px; cursor: pointer; background: var(--surface); }
+    .tf-choice input { width: auto; margin: 0; }
+    .tf-choice label:has(input:checked) { border-color: var(--purple); background: var(--purple-soft); }
+    .check-inline { display: inline-flex; align-items: center; gap: 6px; font-weight: 400; margin-top: 6px; }
+    .check-inline input { width: auto; margin: 0; }
+    .image-box { margin-top: 12px; }
+    .image-list { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0; }
+    .image-list:empty { display: none; }
+    .image-thumb { position: relative; width: 120px; height: 90px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); background: var(--surface-2, #f6f4ef); display: grid; place-items: center; font-size: 12px; color: var(--ink-2); }
+    .image-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .image-thumb button { position: absolute; top: 4px; right: 4px; margin: 0; padding: 0; width: 26px; height: 26px; border-radius: 50%; background: rgba(0, 0, 0, .6); color: #fff; font-size: 14px; }
+    .image-add { display: inline-flex; align-items: center; gap: 4px; margin: 4px 0 0; padding: 6px 14px; border: 1px dashed var(--line-strong); border-radius: 999px; cursor: pointer; font-weight: 400; }
+    .type-badge { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--blue-soft, #eaf1ff); color: var(--blue-dark, #1d4ed8); margin-left: 6px; vertical-align: 2px; }
+    .resp { white-space: pre-wrap; }
+    .resp .ok { color: var(--green-dark, #1f6b45); font-weight: 700; }
+    .resp .no { color: #b42318; font-weight: 700; }
+
     /* ---------- 選課學生 ---------- */
     .students-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
     .students-tools input { margin: 0; max-width: 260px; }
@@ -869,6 +902,27 @@
           <label for="content">題目內容</label>
           <textarea id="content" placeholder="請輸入要讓學生回答的問題"></textarea>
 
+          <label for="qtype">題型</label>
+          <select id="qtype" onchange="changeType('')">
+            <option value="essay">申論題（學生寫一段文字）</option>
+            <option value="short">簡答題（一兩句話）</option>
+            <option value="single">單選題</option>
+            <option value="multiple">多選題（勾選）</option>
+            <option value="truefalse">是非題</option>
+            <option value="fill">填空題</option>
+            <option value="matching">連連看</option>
+          </select>
+          <div class="type-editor" id="typeEditor"></div>
+
+          <div class="image-box">
+            <label>題目圖片 <span class="optional">（選填，最多 4 張，會自動縮小）</span></label>
+            <div class="image-list" id="imageList"></div>
+            <label class="image-add" id="imageAdd">＋ 加入圖片
+              <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple onchange="addImages('', this)" hidden>
+            </label>
+            <span class="hint" id="imageMessage" role="status"></span>
+          </div>
+
           <label for="objective">學習目標 <span class="optional">（建議填寫：AI 學習建議、AI 批改和學習診斷都會以這個為準）</span></label>
           <textarea id="objective" class="short" maxlength="500" placeholder="例如：能說明熱會從溫度高的地方傳到溫度低的地方"></textarea>
 
@@ -884,7 +938,7 @@
               <label for="points">配分</label>
               <input id="points" type="number" min="0" value="10">
             </div>
-            <div>
+            <div data-essay-only="create">
               <label for="enableAI">AI 批改</label>
               <select id="enableAI">
                 <option value="true">啟用 AI 初步批改</option>
@@ -921,7 +975,7 @@
           </div>
         </div>
 
-        <div class="form-block">
+        <div class="form-block" data-essay-only="create">
           <h2 class="form-block-title">批改依據</h2>
 
           <label for="referenceAnswer">參考答案</label>
@@ -941,7 +995,7 @@
 表達清楚 2 分"></textarea>
         </div>
 
-        <div class="form-block automation">
+        <div class="form-block automation" data-essay-only="create">
           <h2 class="form-block-title">學生送出後</h2>
 
           <label for="instantStyle">AI 學習建議 <span class="optional">（學生送出後馬上看到）</span></label>
@@ -1186,6 +1240,27 @@
         <label for="editContent">題目內容</label>
         <textarea id="editContent"></textarea>
 
+          <label for="editQtype">題型</label>
+          <select id="editQtype" onchange="changeType('edit')">
+            <option value="essay">申論題（學生寫一段文字）</option>
+            <option value="short">簡答題（一兩句話）</option>
+            <option value="single">單選題</option>
+            <option value="multiple">多選題（勾選）</option>
+            <option value="truefalse">是非題</option>
+            <option value="fill">填空題</option>
+            <option value="matching">連連看</option>
+          </select>
+          <div class="type-editor" id="editTypeEditor"></div>
+
+          <div class="image-box">
+            <label>題目圖片 <span class="optional">（選填，最多 4 張，會自動縮小）</span></label>
+            <div class="image-list" id="editImageList"></div>
+            <label class="image-add" id="editImageAdd">＋ 加入圖片
+              <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple onchange="addImages('edit', this)" hidden>
+            </label>
+            <span class="hint" id="editImageMessage" role="status"></span>
+          </div>
+
           <label for="editObjective">學習目標 <span class="optional">（建議填寫：AI 學習建議、AI 批改和學習診斷都會以這個為準）</span></label>
           <textarea id="editObjective" class="short" maxlength="500" placeholder="例如：能說明熱會從溫度高的地方傳到溫度低的地方"></textarea>
 
@@ -1201,7 +1276,7 @@
             <label for="editPoints">配分</label>
             <input id="editPoints" type="number" min="0">
           </div>
-          <div>
+          <div data-essay-only="edit">
             <label for="editEnableAI">AI 批改</label>
             <select id="editEnableAI">
               <option value="true">啟用 AI 初步批改</option>
@@ -1241,7 +1316,7 @@
     </div>
 
     <div class="card">
-      <div class="form-block">
+      <div class="form-block" data-essay-only="edit">
         <h2 class="form-block-title">批改依據</h2>
 
         <label for="editReferenceAnswer">參考答案</label>
@@ -1257,7 +1332,7 @@
     </div>
 
     <div class="card">
-        <div class="form-block automation">
+        <div class="form-block automation" data-essay-only="edit">
           <h2 class="form-block-title">學生送出後</h2>
 
           <label for="editInstantStyle">AI 學習建議 <span class="optional">（學生送出後馬上看到）</span></label>
@@ -1877,6 +1952,7 @@ function previewQuestionRAG() {
     document.getElementById('autoClassify').checked = saved.auto !== false;
     updateInstantHint('');
     updateAssessment('');
+    setTypeState('', 'essay', {}, []);
   }
 
 
@@ -2325,6 +2401,28 @@ function previewQuestionRAG() {
       autoClassify: document.getElementById('autoClassify').checked
     };
 
+    const typed = typePayload('');
+
+    if (typed.problem) {
+      alert(typed.problem);
+      return;
+    }
+
+    if (typeState[''].images.some(function(i) { return !i.id; })) {
+      alert('圖片還在上傳，請稍等一下再儲存');
+      return;
+    }
+
+    data.type = typed.type;
+    data.typeSettings = typed.typeSettings;
+    data.images = typed.images;
+
+    if (AUTO_TYPES[data.type]) {
+      data.feedbackStyle = '';
+      data.autoClassify = false;
+      data.enableAI = false;
+    }
+
     if (data.feedbackStyle === 'custom' && !data.feedbackNote) {
       alert('選「自訂」時，請在「給 AI 的補充指示」寫下你希望 AI 怎麼回饋');
       document.getElementById('instantNote').focus();
@@ -2358,6 +2456,9 @@ function previewQuestionRAG() {
         ['title', 'content', 'referenceAnswer', 'rubric', 'objective', 'presetCategories'].forEach(function(id) {
           document.getElementById(id).value = '';
         });
+        // 題型保留（常常連出好幾題同題型），內容清空
+        setTypeState('', typeState[''].type, defaultSettings(typeState[''].type), []);
+        document.getElementById('imageMessage').textContent = '';
         document.getElementById('presetMessage').textContent = '';
         document.getElementById('assessment').value = '評分';
         updateAssessment('');
@@ -2421,7 +2522,7 @@ function previewQuestionRAG() {
       div.innerHTML = `
         <div class="q-body">
           <div class="q-top">
-            <h3>${escapeHtml(q.title)}</h3>
+            <h3>${escapeHtml(q.title)}${q.type && q.type !== 'essay' ? `<span class="type-badge">${escapeHtml(TYPE_LABELS[q.type] || '')}</span>` : ''}${(q.images || []).length ? `<span class="type-badge">🖼 ${q.images.length}</span>` : ''}</h3>
             <div class="q-top-side">
               <span class="badge" data-status="${escapeHtml(q.status)}">${escapeHtml(q.status)}</span>
               <button type="button" class="edit-link" onclick="openEditDialog('${q.id}')">✏️ 編輯</button>
@@ -2618,6 +2719,8 @@ function previewQuestionRAG() {
     set('editAssessment', q.assessment === '描述性回饋' ? '描述性回饋' : '評分');
     document.getElementById('editPoints').disabled = false;
     updateAssessment('edit');
+    setTypeState('edit', q.type || 'essay', q.typeSettings || {}, q.images || []);
+    document.getElementById('editImageMessage').textContent = '';
     set('editInstantStyle', q.feedbackStyle || '');
     set('editInstantNote', q.feedbackNote || '');
     set('editInstantSample', '');
@@ -2871,6 +2974,28 @@ function previewQuestionRAG() {
       feedbackNote: value('editInstantNote'),
       autoClassify: document.getElementById('editAutoClassify').checked
     };
+
+    const typed = typePayload('edit');
+
+    if (typed.problem) {
+      alert(typed.problem);
+      return;
+    }
+
+    if (typeState.edit.images.some(function(i) { return !i.id; })) {
+      alert('圖片還在上傳，請稍等一下再儲存');
+      return;
+    }
+
+    data.type = typed.type;
+    data.typeSettings = typed.typeSettings;
+    data.images = typed.images;
+
+    if (AUTO_TYPES[data.type]) {
+      data.feedbackStyle = '';
+      data.autoClassify = false;
+      data.enableAI = false;
+    }
 
     if (data.feedbackStyle === 'custom' && !data.feedbackNote) {
       alert('選「自訂」時，請在「給 AI 的補充指示」寫下你希望 AI 怎麼回饋');
@@ -3140,7 +3265,8 @@ function previewQuestionRAG() {
             ${a.objective ? `<p class="q-objective"><b>學習目標</b>${escapeHtml(a.objective)}</p>` : ''}
 
             <h4>學生回答</h4>
-            <div class="text-box student-answer">${escapeHtml(a.answer)}</div>
+            <div class="text-box student-answer resp">${responseHtml(a)}</div>
+            ${a.correctAnswer ? `<h4>正確答案</h4><div class="text-box resp">${escapeHtml(a.correctAnswer)}</div>` : ''}
 
             ${a.revisionNote || a.aiAdopted
               ? `<h4>學生的修改說明</h4><div class="text-box">${escapeHtml(a.revisionNote || '（沒有寫）')}${a.aiAdopted ? `<br><span class="hint">學生自評：${escapeHtml(a.aiAdopted)} AI 學習建議</span>` : ''}</div>`
@@ -3201,6 +3327,35 @@ function previewQuestionRAG() {
         document.getElementById('status_' + a.answerId).value = a.status;
       }
     });
+  }
+
+
+  /*
+   * 學生的作答：自動批改的題型在每一行標出對錯。
+   */
+  function responseHtml(a) {
+
+    const r = a.response && a.response.result;
+
+    if (!r || !Array.isArray(r.items)) {
+      return escapeHtml(a.answer);
+    }
+
+    const lines = String(a.answer || '').split('\n');
+
+    // 單選、多選的作答只列選了的選項，對錯要對應到選了的那幾個
+    if (a.type === 'single' || a.type === 'multiple') {
+      const picked = r.items.map(function(v, i) { return v === null ? -1 : i; }).filter(function(i) { return i >= 0; });
+      return lines.map(function(line, k) {
+        const ok = r.items[picked[k]];
+        return '<span class="' + (ok ? 'ok' : 'no') + '">' + (ok ? '✓ ' : '✗ ') + '</span>' + escapeHtml(line);
+      }).join('\n') + '\n\n<b>' + (a.typeLabel || '') + '・自動批改得分 ' + escapeHtml(a.teacherScore) + '</b>';
+    }
+
+    return lines.map(function(line, k) {
+      const ok = r.items[k];
+      return '<span class="' + (ok ? 'ok' : 'no') + '">' + (ok ? '✓ ' : '✗ ') + '</span>' + escapeHtml(line);
+    }).join('\n') + '\n\n<b>' + (a.typeLabel || '') + '・答對 ' + r.correct + '／' + r.total + '</b>';
   }
 
 
@@ -3677,6 +3832,292 @@ function previewQuestionRAG() {
       .unignoreRosterSubmitters(TeacherCourse.id());
   }
 
+
+
+
+  /* ==================================================
+     題型與題目圖片（新增、編輯共用；mode 是 '' 或 'edit'）
+  ================================================== */
+
+  const TYPE_LABELS = { essay: '申論題', short: '簡答題', single: '單選題', multiple: '多選題', truefalse: '是非題', fill: '填空題', matching: '連連看' };
+  const AUTO_TYPES = { single: true, multiple: true, truefalse: true, fill: true, matching: true };
+  const LETTERS = 'ABCDEFGHIJ';
+  const typeState = { '': { type: 'essay', settings: {}, images: [] }, edit: { type: 'essay', settings: {}, images: [] } };
+
+  function tid(mode, name) { return mode ? mode + name.charAt(0).toUpperCase() + name.slice(1) : name; }
+
+
+  function defaultSettings(type) {
+    if (type === 'single' || type === 'multiple') return { options: [{ text: '' }, { text: '' }, { text: '' }, { text: '' }], correct: [], shuffle: false };
+    if (type === 'truefalse') return { correct: null };
+    if (type === 'fill') return { blanks: [{ answers: [] }] };
+    if (type === 'matching') return { pairs: [{ left: '', right: '' }, { left: '', right: '' }, { left: '', right: '' }] };
+    return {};
+  }
+
+
+  function changeType(mode) {
+    const st = typeState[mode];
+    syncTypeState(mode);
+    const type = document.getElementById(tid(mode, 'qtype')).value;
+    if (type !== st.type) {
+      // 選擇題之間切換時保留選項
+      const keep = (type === 'single' || type === 'multiple') && (st.type === 'single' || st.type === 'multiple');
+      st.settings = keep ? Object.assign({}, st.settings, { correct: type === 'single' ? (st.settings.correct || []).slice(0, 1) : st.settings.correct }) : defaultSettings(type);
+      st.type = type;
+    }
+    renderTypeEditor(mode);
+  }
+
+
+  function setTypeState(mode, type, settings, images) {
+    typeState[mode] = { type: TYPE_LABELS[type] ? type : 'essay', settings: settings && Object.keys(settings).length ? JSON.parse(JSON.stringify(settings)) : defaultSettings(type), images: (images || []).map(function(id) { return { id: id, src: '' }; }) };
+    document.getElementById(tid(mode, 'qtype')).value = typeState[mode].type;
+    renderTypeEditor(mode);
+    renderImages(mode);
+    typeState[mode].images.forEach(function(img) { loadTeacherImage(mode, img); });
+  }
+
+
+  function renderTypeEditor(mode) {
+
+    const st = typeState[mode];
+    const t = st.settings;
+    const box = document.getElementById(tid(mode, 'typeEditor'));
+    const auto = !!AUTO_TYPES[st.type];
+
+    // 自動批改的題型不需要參考答案、AI 批改與 AI 學習建議
+    document.querySelectorAll('[data-essay-only="' + (mode || 'create') + '"]').forEach(function(el) {
+      el.classList.toggle('type-hidden', auto);
+    });
+
+    if (st.type === 'single' || st.type === 'multiple') {
+      const multi = st.type === 'multiple';
+      box.innerHTML = '<div class="type-panel"><p class="hint">' + (multi ? '勾選所有正確的選項。部分答對會依比例給分（選錯一個扣一份）。' : '點選正確的那一個。') + '送出後系統自動批改。</p>' +
+        t.options.map(function(o, i) {
+          return '<div class="opt-row">' +
+            '<input type="' + (multi ? 'checkbox' : 'radio') + '" name="' + mode + 'Correct" ' + ((t.correct || []).indexOf(i) >= 0 ? 'checked' : '') + ' onchange="syncTypeState(\'' + mode + '\')" aria-label="選項 ' + LETTERS.charAt(i) + ' 是正確答案">' +
+            '<span class="letter">' + LETTERS.charAt(i) + '</span>' +
+            '<input type="text" class="opt-text" value="' + escapeHtml(o.text) + '" placeholder="選項 ' + LETTERS.charAt(i) + '" maxlength="300" oninput="syncTypeState(\'' + mode + '\')">' +
+            '<button type="button" class="ghost" onclick="removeTypeRow(\'' + mode + '\',' + i + ')" ' + (t.options.length <= 2 ? 'disabled' : '') + ' aria-label="刪除這個選項">✕</button>' +
+          '</div>';
+        }).join('') +
+        (t.options.length < 10 ? '<button type="button" class="ghost add" onclick="addTypeRow(\'' + mode + '\')">＋ 新增選項</button>' : '') +
+        '<br><label class="check-inline"><input type="checkbox" class="opt-shuffle" ' + (t.shuffle ? 'checked' : '') + ' onchange="syncTypeState(\'' + mode + '\')"> 學生看到的選項順序打亂</label></div>';
+      return;
+    }
+
+    if (st.type === 'truefalse') {
+      box.innerHTML = '<div class="type-panel"><p class="hint">選出正確答案，送出後系統自動批改。</p><div class="tf-choice">' +
+        '<label><input type="radio" name="' + mode + 'Tf" value="true" ' + (t.correct === true ? 'checked' : '') + ' onchange="syncTypeState(\'' + mode + '\')"> ○ 對</label>' +
+        '<label><input type="radio" name="' + mode + 'Tf" value="false" ' + (t.correct === false ? 'checked' : '') + ' onchange="syncTypeState(\'' + mode + '\')"> × 錯</label></div></div>';
+      return;
+    }
+
+    if (st.type === 'fill') {
+      box.innerHTML = '<div class="type-panel"><p class="hint">在題目內容用「＿＿(1)＿＿」標出空格位置。每一格可以有好幾個可接受的答案，用「|」隔開，例如「高溫|高」。大小寫、全形半形和空白不影響。</p>' +
+        t.blanks.map(function(b, i) {
+          return '<div class="blank-row"><b>第 ' + (i + 1) + ' 格</b>' +
+            '<input type="text" class="blank-text" value="' + escapeHtml((b.answers || []).join('|')) + '" placeholder="正確答案" oninput="syncTypeState(\'' + mode + '\')">' +
+            '<button type="button" class="ghost" onclick="removeTypeRow(\'' + mode + '\',' + i + ')" ' + (t.blanks.length <= 1 ? 'disabled' : '') + ' aria-label="刪除這一格">✕</button></div>';
+        }).join('') +
+        (t.blanks.length < 20 ? '<button type="button" class="ghost add" onclick="addTypeRow(\'' + mode + '\')">＋ 新增空格</button>' : '') + '</div>';
+      return;
+    }
+
+    if (st.type === 'matching') {
+      box.innerHTML = '<div class="type-panel"><p class="hint">每一列寫一組正確的配對。學生看到的右邊會打亂順序，從下拉選單選出配對。每組答對各得一份分數。</p>' +
+        t.pairs.map(function(p, i) {
+          return '<div class="pair-row">' +
+            '<input type="text" class="pair-left" value="' + escapeHtml(p.left) + '" placeholder="左邊 ' + (i + 1) + '" oninput="syncTypeState(\'' + mode + '\')">' +
+            '<span aria-hidden="true">↔</span>' +
+            '<input type="text" class="pair-right" value="' + escapeHtml(p.right) + '" placeholder="配對的右邊" oninput="syncTypeState(\'' + mode + '\')">' +
+            '<button type="button" class="ghost" onclick="removeTypeRow(\'' + mode + '\',' + i + ')" ' + (t.pairs.length <= 2 ? 'disabled' : '') + ' aria-label="刪除這一組">✕</button></div>';
+        }).join('') +
+        (t.pairs.length < 12 ? '<button type="button" class="ghost add" onclick="addTypeRow(\'' + mode + '\')">＋ 新增一組</button>' : '') + '</div>';
+      return;
+    }
+
+    box.innerHTML = st.type === 'short'
+      ? '<div class="type-panel"><p class="hint" style="margin:0">學生用一兩句話回答，作答框比較小。批改方式和申論題一樣（可用 AI 初步批改）。</p></div>'
+      : '';
+  }
+
+
+  /*
+   * 把畫面上的輸入讀回 typeState。
+   */
+  function syncTypeState(mode) {
+
+    const st = typeState[mode];
+    const box = document.getElementById(tid(mode, 'typeEditor'));
+    const all = function(sel) { return Array.prototype.slice.call(box.querySelectorAll(sel)); };
+
+    if (st.type === 'single' || st.type === 'multiple') {
+      st.settings.options = all('.opt-text').map(function(el) { return { text: el.value }; });
+      st.settings.correct = all('input[name="' + mode + 'Correct"]').map(function(el, i) { return el.checked ? i : -1; }).filter(function(i) { return i >= 0; });
+      const sh = box.querySelector('.opt-shuffle');
+      st.settings.shuffle = !!(sh && sh.checked);
+    } else if (st.type === 'truefalse') {
+      const c = box.querySelector('input[name="' + mode + 'Tf"]:checked');
+      st.settings.correct = c ? c.value === 'true' : null;
+    } else if (st.type === 'fill') {
+      st.settings.blanks = all('.blank-text').map(function(el) { return { answers: el.value.split(/[|｜]/).map(function(x) { return x.trim(); }).filter(Boolean) }; });
+    } else if (st.type === 'matching') {
+      const rights = all('.pair-right');
+      st.settings.pairs = all('.pair-left').map(function(el, i) { return { left: el.value, right: rights[i].value }; });
+    }
+  }
+
+
+  function addTypeRow(mode) {
+    syncTypeState(mode);
+    const t = typeState[mode].settings, type = typeState[mode].type;
+    if (type === 'single' || type === 'multiple') t.options.push({ text: '' });
+    if (type === 'fill') t.blanks.push({ answers: [] });
+    if (type === 'matching') t.pairs.push({ left: '', right: '' });
+    renderTypeEditor(mode);
+  }
+
+
+  function removeTypeRow(mode, index) {
+    syncTypeState(mode);
+    const t = typeState[mode].settings, type = typeState[mode].type;
+    if (type === 'single' || type === 'multiple') {
+      t.options.splice(index, 1);
+      t.correct = (t.correct || []).filter(function(i) { return i !== index; }).map(function(i) { return i > index ? i - 1 : i; });
+    }
+    if (type === 'fill') t.blanks.splice(index, 1);
+    if (type === 'matching') t.pairs.splice(index, 1);
+    renderTypeEditor(mode);
+  }
+
+
+  /*
+   * 送出前檢查，回傳 null 代表沒問題，否則回傳錯誤訊息。
+   */
+  function typePayload(mode) {
+
+    syncTypeState(mode);
+
+    const st = typeState[mode];
+    const t = st.settings;
+    let problem = '';
+
+    if (st.type === 'single' || st.type === 'multiple') {
+      const filled = t.options.filter(function(o) { return o.text.trim(); });
+      if (filled.length < 2) problem = '選擇題至少要填 2 個選項';
+      else if (!t.correct.length) problem = '請勾選正確答案';
+      else if (t.correct.some(function(i) { return !t.options[i].text.trim(); })) problem = '勾選的正確答案是空白選項，請檢查';
+    }
+    if (st.type === 'truefalse' && t.correct === null) problem = '請選擇正確答案是「○」還是「×」';
+    if (st.type === 'fill' && !t.blanks.some(function(b) { return b.answers.length; })) problem = '請至少填一格的正確答案';
+    if (st.type === 'matching' && t.pairs.filter(function(p) { return p.left.trim() && p.right.trim(); }).length < 2) problem = '連連看至少要填 2 組配對';
+
+    return {
+      problem: problem,
+      type: st.type,
+      typeSettings: st.type === 'essay' || st.type === 'short' ? {} : t,
+      images: st.images.filter(function(i) { return i.id; }).map(function(i) { return i.id; })
+    };
+  }
+
+
+  /* ---------- 圖片 ---------- */
+
+  function renderImages(mode) {
+    const st = typeState[mode];
+    document.getElementById(tid(mode, 'imageList')).innerHTML = st.images.map(function(img, i) {
+      return '<div class="image-thumb">' + (img.src ? '<img src="' + img.src + '" alt="題目圖片 ' + (i + 1) + '">' : (img.id ? '載入中…' : '上傳中…')) +
+        '<button type="button" onclick="removeImage(\'' + mode + '\',' + i + ')" aria-label="移除這張圖片">✕</button></div>';
+    }).join('');
+    document.getElementById(tid(mode, 'imageAdd')).hidden = st.images.length >= 4;
+  }
+
+
+  function removeImage(mode, index) {
+    typeState[mode].images.splice(index, 1);
+    renderImages(mode);
+  }
+
+
+  function loadTeacherImage(mode, img) {
+    google.script.run
+      .withSuccessHandler(function(r) { img.src = 'data:' + r.mimeType + ';base64,' + r.base64; renderImages(mode); })
+      .withFailureHandler(function() { img.src = ''; })
+      .getQuestionImageAsTeacher(img.id);
+  }
+
+
+  /*
+   * 縮小到長邊 1600 像素、轉成 JPEG（GIF 不轉），再上傳。
+   */
+  function shrinkImage(file) {
+    return new Promise(function(resolve, reject) {
+      const reader = new FileReader();
+      reader.onload = function() {
+        if (file.type === 'image/gif' || file.size < 400 * 1024) {
+          return resolve({ dataUrl: reader.result, mimeType: file.type });
+        }
+        const img = new Image();
+        img.onload = function() {
+          const scale = Math.min(1, 1600 / Math.max(img.width, img.height));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve({ dataUrl: canvas.toDataURL('image/jpeg', 0.85), mimeType: 'image/jpeg' });
+        };
+        img.onerror = function() { reject(new Error('這個檔案讀不出圖片')); };
+        img.src = reader.result;
+      };
+      reader.onerror = function() { reject(new Error('讀取檔案失敗')); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+
+  function addImages(mode, input) {
+
+    const st = typeState[mode];
+    const files = Array.prototype.slice.call(input.files || []).slice(0, 4 - st.images.length);
+    const message = document.getElementById(tid(mode, 'imageMessage'));
+
+    input.value = '';
+
+    files.forEach(function(file) {
+
+      const img = { id: '', src: '' };
+      st.images.push(img);
+      renderImages(mode);
+      message.textContent = '上傳中……';
+
+      shrinkImage(file)
+        .then(function(r) {
+          img.src = r.dataUrl;
+          renderImages(mode);
+          return new Promise(function(resolve, reject) {
+            google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)
+              .uploadQuestionImage({ name: file.name, mimeType: r.mimeType, base64: r.dataUrl.split(',')[1] });
+          });
+        })
+        .then(function(result) {
+          img.id = result.id;
+          renderImages(mode);
+          message.textContent = st.images.some(function(i) { return !i.id; }) ? '上傳中……' : '✓ 圖片已上傳，儲存題目後學生就看得到';
+        })
+        .catch(function(error) {
+          st.images.splice(st.images.indexOf(img), 1);
+          renderImages(mode);
+          message.textContent = '上傳失敗：' + (/不允許呼叫的功能/.test(error.message)
+            ? '要等 Apps Script 換上新版 Code.gs 並部署後才能上傳圖片。'
+            : error.message);
+        });
+    });
+  }
 
 
   /* ==================================================

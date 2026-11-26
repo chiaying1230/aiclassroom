@@ -266,6 +266,35 @@
 
     .q-card.highlight { box-shadow: 0 0 0 3px var(--yellow); transition: box-shadow .3s; }
 
+    /* ---------- 題型 ---------- */
+    .type-tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--blue-soft); color: var(--blue-dark); font-size: 12px; font-weight: 700; vertical-align: 3px; }
+    fieldset.typed { border: 1px solid var(--line); border-radius: var(--radius-s); padding: 10px 14px 12px; margin: 12px 0 0; min-width: 0; }
+    fieldset.typed legend { padding: 0 6px; font-weight: 700; font-size: 14px; }
+    fieldset.typed[disabled] { opacity: .6; }
+    .choice { display: flex; align-items: center; gap: 10px; margin: 6px 0 0; padding: 10px 12px; min-height: 44px; border: 1px solid var(--line); border-radius: var(--radius-s); font-weight: 400; cursor: pointer; background: var(--surface); }
+    .choice input { width: 20px; height: 20px; margin: 0; flex: none; }
+    .choice .letter { font-weight: 700; color: var(--blue-dark); }
+    .choice:has(input:checked) { border-color: var(--blue); background: var(--blue-soft); }
+    .tf { display: flex; gap: 10px; flex-wrap: wrap; }
+    .tf legend { width: 100%; }
+    .tf .choice { flex: 1 1 120px; justify-content: center; }
+    .tf .big { font-size: 24px; font-weight: 700; }
+    .blank { display: flex; align-items: center; gap: 8px; margin: 8px 0 0; font-weight: 400; }
+    .blank span { flex: none; font-weight: 700; }
+    .blank input { margin: 0; }
+    .match { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.2fr); gap: 8px; align-items: center; margin: 8px 0 0; font-weight: 400; }
+    .match select { margin: 0; min-width: 0; }
+    .match .left { font-weight: 700; }
+    .q-images { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+    .q-image { flex: 1 1 220px; max-width: 100%; min-height: 80px; display: grid; place-items: center; border-radius: var(--radius-s); background: var(--surface-2); color: var(--ink-2); font-size: 13px; overflow: hidden; }
+    .q-image img { display: block; max-width: 100%; max-height: 420px; object-fit: contain; cursor: zoom-in; }
+    .image-zoom { position: fixed; inset: 0; z-index: 100; background: rgba(0, 0, 0, .85); display: grid; place-items: center; padding: 16px; cursor: zoom-out; }
+    .image-zoom[hidden] { display: none; }
+    .image-zoom img { max-width: 100%; max-height: 100%; }
+    textarea.short-answer { min-height: 80px; }
+    .mark-ok { color: var(--green); font-weight: 700; }
+    .mark-no { color: var(--red); font-weight: 700; }
+
     /* ---------- 展開／收合 ---------- */
     details.q-card > summary, details.result-item > summary { list-style: none; cursor: pointer; }
     details.q-card > summary::-webkit-details-marker, details.result-item > summary::-webkit-details-marker { display: none; }
@@ -1097,6 +1126,184 @@
   }
 
 
+  // 題目ID → 題目資料（題型、選項）
+  const questionData = {};
+  const AUTO_TYPES = { single: true, multiple: true, truefalse: true, fill: true, matching: true };
+  const LETTERS = 'ABCDEFGHIJ';
+
+
+  /*
+   * 依題型產生作答區。申論、簡答是文字框；其他題型另外有一個隱藏的文字框，讓既有的程式照常運作。
+   */
+  function answerInputHtml(q) {
+
+    const id = q.id;
+    const t = q.typeSettings || {};
+    const hidden = '<textarea id="answer_' + id + '" hidden></textarea>';
+
+    if (q.type === 'single' || q.type === 'multiple') {
+      const multi = q.type === 'multiple';
+      return '<fieldset class="typed" id="typed_' + id + '"><legend>' + (multi ? '我的答案（可以選好幾個）' : '我的答案（選一個）') + '</legend>' +
+        (t.options || []).map(function(o, k) {
+          return '<label class="choice"><input type="' + (multi ? 'checkbox' : 'radio') + '" name="opt_' + id + '" value="' + o.index + '">' +
+            '<span class="letter">' + LETTERS.charAt(o.index) + '</span><span>' + escapeHtml(o.text) + '</span></label>';
+        }).join('') + '</fieldset>' + hidden;
+    }
+
+    if (q.type === 'truefalse') {
+      return '<fieldset class="typed tf" id="typed_' + id + '"><legend>我的答案</legend>' +
+        '<label class="choice"><input type="radio" name="tf_' + id + '" value="true"><span class="big">○</span><span>對</span></label>' +
+        '<label class="choice"><input type="radio" name="tf_' + id + '" value="false"><span class="big">×</span><span>錯</span></label></fieldset>' + hidden;
+    }
+
+    if (q.type === 'fill') {
+      let html = '<fieldset class="typed" id="typed_' + id + '"><legend>把答案填進空格</legend>';
+      for (let k = 0; k < (t.blankCount || 0); k++) {
+        html += '<label class="blank"><span>(' + (k + 1) + ')</span><input type="text" class="fill-input" maxlength="200" autocomplete="off"></label>';
+      }
+      return html + '</fieldset>' + hidden;
+    }
+
+    if (q.type === 'matching') {
+      const right = t.right || [];
+      return '<fieldset class="typed" id="typed_' + id + '"><legend>幫左邊每一項選出配對</legend>' +
+        (t.left || []).map(function(l) {
+          return '<label class="match"><span class="left">' + escapeHtml(l.text) + '</span><span aria-hidden="true">→</span>' +
+            '<select class="match-select" aria-label="' + escapeHtml(l.text) + ' 的配對"><option value="">選擇…</option>' +
+            right.map(function(r) { return '<option value="' + r.index + '">' + escapeHtml(r.text) + '</option>'; }).join('') +
+            '</select></label>';
+        }).join('') + '</fieldset>' + hidden;
+    }
+
+    return '<label for="answer_' + id + '">我的回答</label>' +
+      '<textarea id="answer_' + id + '"' + (q.type === 'short' ? ' class="short-answer" rows="3"' : '') +
+      ' placeholder="' + (q.type === 'short' ? '用一兩句話回答……' : '請在這裡輸入你的回答……') + '" oninput="this.dataset.prefilled = \'false\'"></textarea>';
+  }
+
+
+  /*
+   * 讀出學生的選擇。沒作答回傳 null。
+   */
+  function readTypedResponse(id) {
+
+    const q = questionData[id];
+    const box = document.getElementById('typed_' + id);
+    const all = function(sel) { return Array.prototype.slice.call(box.querySelectorAll(sel)); };
+
+    if (q.type === 'single') {
+      const c = box.querySelector('input:checked');
+      return c ? { choice: Number(c.value) } : null;
+    }
+    if (q.type === 'multiple') {
+      const list = all('input:checked').map(function(c) { return Number(c.value); });
+      return list.length ? { choices: list } : null;
+    }
+    if (q.type === 'truefalse') {
+      const c = box.querySelector('input:checked');
+      return c ? { value: c.value === 'true' } : null;
+    }
+    if (q.type === 'fill') {
+      const list = all('.fill-input').map(function(i) { return i.value.trim(); });
+      return list.some(Boolean) ? { blanks: list } : null;
+    }
+    if (q.type === 'matching') {
+      const list = all('.match-select').map(function(sel) { return sel.value === '' ? -1 : Number(sel.value); });
+      return list.some(function(v) { return v >= 0; }) ? { matches: list } : null;
+    }
+    return null;
+  }
+
+
+  /*
+   * 把交過的選擇放回畫面上。
+   */
+  function restoreTypedResponse(id, saved) {
+
+    const box = document.getElementById('typed_' + id);
+    const r = saved && saved.response;
+
+    if (!box || !r || box.dataset.touched === 'true') return;
+
+    const q = questionData[id];
+    const all = function(sel) { return Array.prototype.slice.call(box.querySelectorAll(sel)); };
+
+    if (q.type === 'single' || q.type === 'multiple') {
+      all('input').forEach(function(i) { i.checked = (r.choices || []).indexOf(Number(i.value)) >= 0; });
+    }
+    if (q.type === 'truefalse') {
+      all('input').forEach(function(i) { i.checked = (i.value === 'true') === r.value; });
+    }
+    if (q.type === 'fill') {
+      all('.fill-input').forEach(function(i, k) { i.value = (r.blanks || [])[k] || ''; });
+    }
+    if (q.type === 'matching') {
+      all('.match-select').forEach(function(sel, k) { const v = (r.matches || [])[k]; sel.value = v >= 0 ? String(v) : ''; });
+    }
+  }
+
+
+  /*
+   * 題目圖片：從伺服器讀，存在記憶體，同一張不重複下載。
+   */
+  const imageCache = {};
+
+  function loadQuestionImages() {
+
+    document.querySelectorAll('.q-image[data-image]:not([data-loaded])').forEach(function(el) {
+
+      const id = el.dataset.image;
+      el.dataset.loaded = '1';
+
+      const show = function(src) {
+        el.innerHTML = '<img src="' + src + '" alt="題目圖片" loading="lazy" onclick="zoomImage(this.src)">';
+      };
+
+      if (imageCache[id]) return show(imageCache[id]);
+
+      google.script.run
+        .withSuccessHandler(function(r) {
+          imageCache[id] = 'data:' + r.mimeType + ';base64,' + r.base64;
+          show(imageCache[id]);
+        })
+        .withFailureHandler(function() {
+          el.textContent = '圖片讀取失敗，請重新整理';
+          delete el.dataset.loaded;
+        })
+        .getQuestionImage(id);
+    });
+  }
+
+
+  function zoomImage(src) {
+    const box = document.getElementById('imageZoom');
+    box.querySelector('img').src = src;
+    box.hidden = false;
+  }
+
+
+  /*
+   * 自動批改的作答：每一行標出對錯。
+   */
+  function gradedHtml(item) {
+
+    const r = item.response && item.response.result;
+    const lines = String(item.answer || '').split('\n');
+
+    if (!r || !Array.isArray(r.items)) return escapeHtml(item.answer);
+
+    let marks = r.items;
+
+    if (item.type === 'single' || item.type === 'multiple') {
+      marks = r.items.filter(function(v) { return v !== null; });
+    }
+
+    return lines.map(function(line, k) {
+      const ok = marks[k];
+      return '<span class="' + (ok ? 'mark-ok' : 'mark-no') + '">' + (ok ? '✓ ' : '✗ ') + '</span>' + escapeHtml(line);
+    }).join('<br>');
+  }
+
+
   function fillMyAnswers() {
 
     document.querySelectorAll('.q-card').forEach(function(card) {
@@ -1123,6 +1330,8 @@
         textarea.value = mine.answer || '';
         textarea.dataset.prefilled = 'true';
       }
+
+      restoreTypedResponse(id, mine.response);
 
       const time = String(mine.submittedAt || '').replace(/:\d\d$/, '');
       let text = '✓ 你已在 ' + time + ' 送出' + (mine.version > 1 ? '（第 ' + mine.version + ' 次）' : '') +
@@ -1240,12 +1449,14 @@
       card.dataset.title = q.title || '';
       card.dataset.count = q.submittedCount == null ? '' : q.submittedCount;
       card.dataset.instant = q.instantFeedback ? 'true' : 'false';
+      card.dataset.type = q.type || 'essay';
+      questionData[q.id] = q;
 
       card.innerHTML = `
         <summary class="q-head">
           <span class="q-num">${index + 1}</span>
           <div class="q-titles">
-            <div class="question-title">${escapeHtml(q.title)}</div>
+            <div class="question-title">${escapeHtml(q.title)}${q.type && q.type !== 'essay' ? `<span class="type-tag">${escapeHtml(q.typeLabel || '')}</span>` : ''}</div>
             <div class="q-meta">
               ${q.deadline ? '<span class="q-due"></span>' : ''}
               ${q.submittedCount == null ? '' : '<span class="q-count"></span>'}
@@ -1260,13 +1471,12 @@
           <span class="chev" aria-hidden="true"></span>
         </summary>
         <div class="question-content">${escapeHtml(q.content)}</div>
+        ${(q.images || []).length ? `<div class="q-images" id="images_${q.id}">${q.images.map(function(img, i) { return `<div class="q-image" data-image="${escapeHtml(img)}">圖片載入中…</div>`; }).join('')}</div>` : ''}
 
         <div class="q-answer">
           <div class="mine" id="mine_${q.id}" hidden></div>
           <div class="nudge" id="nudge_${q.id}" hidden></div>
-          <label for="answer_${q.id}">我的回答</label>
-          <textarea id="answer_${q.id}" placeholder="請在這裡輸入你的回答……"
-            oninput="this.dataset.prefilled = 'false'"></textarea>
+          ${answerInputHtml(q)}
 
           <div class="revise" id="revise_${q.id}" hidden>
             <label for="revisionNote_${q.id}">這次改了什麼？為什麼這樣改？（選填）</label>
@@ -1294,6 +1504,13 @@
 
     refreshDeadlines();
     fillMyAnswers();
+    loadQuestionImages();
+
+    // 學生動過選項，就不要再用交過的答案蓋掉
+    list.querySelectorAll('fieldset.typed').forEach(function(f) {
+      f.addEventListener('change', function() { f.dataset.touched = 'true'; });
+      f.addEventListener('input', function() { f.dataset.touched = 'true'; });
+    });
   }
 
 
@@ -1358,6 +1575,9 @@
       const closed = passed && !allowLate;
 
       card.classList.toggle('is-closed', closed);
+
+      const typed = document.getElementById('typed_' + id);
+      if (typed) typed.disabled = closed;
 
       if (closed) {
         textarea.disabled = true;
@@ -1572,10 +1792,17 @@
       return;
     }
 
-    const answer = document.getElementById('answer_' + questionId).value.trim();
+    const q = questionData[questionId] || {};
+    const typed = !!AUTO_TYPES[q.type];
+    const response = typed ? readTypedResponse(questionId) : null;
+    const answer = typed ? '' : document.getElementById('answer_' + questionId).value.trim();
 
-    if (!answer) {
-      alert('請先輸入回答');
+    if (typed ? !response : !answer) {
+      alert(typed ? '請先作答' : '請先輸入回答');
+      return;
+    }
+
+    if (typed && !confirm('送出後系統會馬上批改，送出後就不能再修改。確定要送出嗎？')) {
       return;
     }
 
@@ -1601,6 +1828,13 @@
         button.textContent = '重新送出';
         message.className = 'message success';
         message.textContent = (result.updated ? '✓ 回答已更新，之前的回答也保留著' : '✓ 回答已送出') + (result.late ? '（遲交）' : '');
+
+        if (result.graded) {
+          message.textContent = '✓ 已送出・' + result.graded.feedback.replace('系統自動批改：', '') +
+            '・得分 ' + result.graded.score + ' / ' + result.graded.maxScore + (result.late ? '（遲交）' : '');
+          const f = document.getElementById('typed_' + questionId);
+          if (f) delete f.dataset.touched;
+        }
 
         // 修改說明送出後清空，下次修改再填
         if (noteBox) noteBox.value = '';
@@ -1633,6 +1867,7 @@
         name: identity.name,
         questionId: questionId,
         answer: answer,
+        response: response,
         courseCode: currentCourse ? currentCourse.code : '',
         revisionNote: revising && noteBox ? noteBox.value.trim() : '',
         aiAdopted: revising && adopted ? adopted.value : ''
@@ -1838,7 +2073,8 @@
         <div class="r-body">
           <div>
             <div class="r-label">我的回答${item.version > 1 ? `（第 ${escapeHtml(item.version)} 次）` : ''}</div>
-            <div class="feedback">${escapeHtml(item.answer)}</div>
+            <div class="feedback">${AUTO_TYPES[item.type] ? gradedHtml(item) : escapeHtml(item.answer)}</div>
+            ${item.correctAnswer ? `<div class="r-label">正確答案</div><div class="feedback">${escapeHtml(item.correctAnswer).replace(/\n/g, '<br>')}</div>` : ''}
             <p class="meta">送出時間：${escapeHtml(item.submittedAt)}</p>
             ${item.revisionNote || item.aiAdopted
               ? `<p class="meta">這次的修改：${escapeHtml(item.revisionNote || '（沒有寫）')}${item.aiAdopted ? `・${escapeHtml(item.aiAdopted)} AI 學習建議` : ''}</p>`
@@ -2004,5 +2240,6 @@
   })();
 </script>
 
+<div class="image-zoom" id="imageZoom" hidden onclick="this.hidden = true" role="dialog" aria-label="放大的圖片"><img alt="放大的題目圖片"></div>
 </body>
 </html>
