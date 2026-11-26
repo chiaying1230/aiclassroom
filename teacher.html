@@ -208,6 +208,8 @@
     .image-thumb img { width: 100%; height: 100%; object-fit: cover; }
     .image-thumb button { position: absolute; top: 4px; right: 4px; margin: 0; padding: 0; width: 26px; height: 26px; border-radius: 50%; background: rgba(0, 0, 0, .6); color: #fff; font-size: 14px; }
     .image-add { display: inline-flex; align-items: center; gap: 4px; margin: 4px 0 0; padding: 6px 14px; border: 1px dashed var(--line-strong); border-radius: 999px; cursor: pointer; font-weight: 400; }
+    .type-badge.purpose-homework { background: #fff4e5; color: #b45309; }
+    .type-badge.purpose-class { background: #ecfdf5; color: #047857; }
     .type-badge { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--blue-soft, #eaf1ff); color: var(--blue-dark, #1d4ed8); margin-left: 6px; vertical-align: 2px; }
     .resp { white-space: pre-wrap; }
     .resp .ok { color: var(--green-dark, #1f6b45); font-weight: 700; }
@@ -902,6 +904,12 @@
           <label for="content">題目內容</label>
           <textarea id="content" placeholder="請輸入要讓學生回答的問題"></textarea>
 
+          <label for="purpose">題目用途 <span class="optional">（學生會看到標示，也可以篩選）</span></label>
+          <select id="purpose">
+            <option value="class">🗣 課堂討論</option>
+            <option value="homework">🏠 回家作業</option>
+          </select>
+
           <label for="qtype">題型</label>
           <select id="qtype" onchange="changeType('')">
             <option value="essay">申論題（學生寫一段文字）</option>
@@ -1239,6 +1247,12 @@
 
         <label for="editContent">題目內容</label>
         <textarea id="editContent"></textarea>
+
+          <label for="editPurpose">題目用途</label>
+          <select id="editPurpose">
+            <option value="class">🗣 課堂討論</option>
+            <option value="homework">🏠 回家作業</option>
+          </select>
 
           <label for="editQtype">題型</label>
           <select id="editQtype" onchange="changeType('edit')">
@@ -2413,6 +2427,7 @@ function previewQuestionRAG() {
       return;
     }
 
+    data.purpose = document.getElementById('purpose').value;
     data.type = typed.type;
     data.typeSettings = typed.typeSettings;
     data.images = typed.images;
@@ -2522,7 +2537,7 @@ function previewQuestionRAG() {
       div.innerHTML = `
         <div class="q-body">
           <div class="q-top">
-            <h3>${escapeHtml(q.title)}${q.type && q.type !== 'essay' ? `<span class="type-badge">${escapeHtml(TYPE_LABELS[q.type] || '')}</span>` : ''}${(q.images || []).length ? `<span class="type-badge">🖼 ${q.images.length}</span>` : ''}</h3>
+            <h3>${escapeHtml(q.title)}<span class="type-badge purpose-${q.purpose === 'homework' ? 'homework' : 'class'}">${q.purpose === 'homework' ? '🏠 回家作業' : '🗣 課堂討論'}</span>${q.type && q.type !== 'essay' ? `<span class="type-badge">${escapeHtml(TYPE_LABELS[q.type] || '')}</span>` : ''}${(q.images || []).length ? `<span class="type-badge">🖼 ${q.images.length}</span>` : ''}</h3>
             <div class="q-top-side">
               <span class="badge" data-status="${escapeHtml(q.status)}">${escapeHtml(q.status)}</span>
               <button type="button" class="edit-link" onclick="openEditDialog('${q.id}')">✏️ 編輯</button>
@@ -2720,6 +2735,7 @@ function previewQuestionRAG() {
     document.getElementById('editPoints').disabled = false;
     updateAssessment('edit');
     setTypeState('edit', q.type || 'essay', q.typeSettings || {}, q.images || []);
+    document.getElementById('editPurpose').value = q.purpose === 'homework' ? 'homework' : 'class';
     document.getElementById('editImageMessage').textContent = '';
     set('editInstantStyle', q.feedbackStyle || '');
     set('editInstantNote', q.feedbackNote || '');
@@ -2987,6 +3003,7 @@ function previewQuestionRAG() {
       return;
     }
 
+    data.purpose = document.getElementById('editPurpose').value;
     data.type = typed.type;
     data.typeSettings = typed.typeSettings;
     data.images = typed.images;

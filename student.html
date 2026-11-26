@@ -267,6 +267,15 @@
     .q-card.highlight { box-shadow: 0 0 0 3px var(--yellow); transition: box-shadow .3s; }
 
     /* ---------- 題型 ---------- */
+    .purpose-tag { display: inline-block; margin-right: 8px; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; vertical-align: 3px; }
+    .purpose-tag.class { background: #ecfdf5; color: #047857; }
+    .purpose-tag.homework { background: #fff4e5; color: #b45309; }
+    .purpose-filter { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+    .purpose-filter[hidden] { display: none; }
+    .purpose-filter button { height: auto; min-height: 36px; padding: 6px 14px; border-radius: 999px; background: var(--surface); color: var(--text); border: 1px solid var(--line); font-weight: 600; margin: 0; }
+    .purpose-filter button[aria-pressed="true"] { background: var(--blue); color: #fff; border-color: var(--blue); }
+    #questionList[data-show="class"] .q-card[data-purpose="homework"],
+    #questionList[data-show="homework"] .q-card[data-purpose="class"] { display: none; }
     .type-tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--blue-soft); color: var(--blue-dark); font-size: 12px; font-weight: 700; vertical-align: 3px; }
     fieldset.typed { border: 1px solid var(--line); border-radius: var(--radius-s); padding: 10px 14px 12px; margin: 12px 0 0; min-width: 0; }
     fieldset.typed legend { padding: 0 6px; font-weight: 700; font-size: 14px; }
@@ -656,6 +665,7 @@
 
   <section id="panelQuestions" role="tabpanel" aria-labelledby="tabQuestions">
     <div id="todoBanner" class="todo-banner" role="status" hidden></div>
+    <div class="purpose-filter" id="purposeFilter" role="group" aria-label="依題目用途篩選" hidden></div>
     <div id="questionList">
       <div class="card empty">題目載入中……</div>
     </div>
@@ -1414,17 +1424,55 @@
   }
 
 
+
+  /* 題目用途：課堂討論／回家作業 */
+  let purposeShow = localStorage.getItem('aiclassroom_purpose_filter') || 'all';
+
+  function purposeTag(purpose) {
+    return purpose === 'homework'
+      ? '<span class="purpose-tag homework">🏠 回家作業</span>'
+      : '<span class="purpose-tag class">🗣 課堂討論</span>';
+  }
+
+  function renderPurposeFilter() {
+    const box = document.getElementById('purposeFilter');
+    const cards = Array.prototype.slice.call(document.querySelectorAll('#questionList .q-card'));
+    const n = { class: 0, homework: 0 };
+    cards.forEach(function(c) { n[c.dataset.purpose] = (n[c.dataset.purpose] || 0) + 1; });
+    // 兩種都有才需要篩選
+    if (!n.class || !n.homework) {
+      box.hidden = true;
+      document.getElementById('questionList').dataset.show = 'all';
+      return;
+    }
+    if (['all', 'class', 'homework'].indexOf(purposeShow) < 0) purposeShow = 'all';
+    const chip = function(key, label) {
+      return '<button type="button" aria-pressed="' + (purposeShow === key) + '" onclick="setPurposeFilter(\'' + key + '\')">' + label + '</button>';
+    };
+    box.innerHTML = chip('all', '全部（' + cards.length + '）') + chip('class', '🗣 課堂討論（' + n.class + '）') + chip('homework', '🏠 回家作業（' + n.homework + '）');
+    box.hidden = false;
+    document.getElementById('questionList').dataset.show = purposeShow;
+  }
+
+  function setPurposeFilter(key) {
+    purposeShow = key;
+    try { localStorage.setItem('aiclassroom_purpose_filter', key); } catch (e) {}
+    renderPurposeFilter();
+  }
+
   function renderQuestions(questions) {
 
     const list = document.getElementById('questionList');
 
     if (currentCourse && currentCourse.archived) {
+      document.getElementById('purposeFilter').hidden = true;
       list.innerHTML = '<div class="archived-note">這門課程已經結束，不能再作答。你的作答和老師的評語可以在「我的作答紀錄」查看。</div>';
       updateReminders();
       return;
     }
 
     if (!questions || questions.length === 0) {
+      document.getElementById('purposeFilter').hidden = true;
       list.innerHTML = '<div class="card empty">老師目前沒有發布題目。</div>';
       updateReminders();
       return;
@@ -1450,13 +1498,14 @@
       card.dataset.count = q.submittedCount == null ? '' : q.submittedCount;
       card.dataset.instant = q.instantFeedback ? 'true' : 'false';
       card.dataset.type = q.type || 'essay';
+      card.dataset.purpose = q.purpose === 'homework' ? 'homework' : 'class';
       questionData[q.id] = q;
 
       card.innerHTML = `
         <summary class="q-head">
           <span class="q-num">${index + 1}</span>
           <div class="q-titles">
-            <div class="question-title">${escapeHtml(q.title)}${q.type && q.type !== 'essay' ? `<span class="type-tag">${escapeHtml(q.typeLabel || '')}</span>` : ''}</div>
+            <div class="question-title">${purposeTag(q.purpose)}${escapeHtml(q.title)}${q.type && q.type !== 'essay' ? `<span class="type-tag">${escapeHtml(q.typeLabel || '')}</span>` : ''}</div>
             <div class="q-meta">
               ${q.deadline ? '<span class="q-due"></span>' : ''}
               ${q.submittedCount == null ? '' : '<span class="q-count"></span>'}
@@ -1505,6 +1554,7 @@
     refreshDeadlines();
     fillMyAnswers();
     loadQuestionImages();
+    renderPurposeFilter();
 
     // 學生動過選項，就不要再用交過的答案蓋掉
     list.querySelectorAll('fieldset.typed').forEach(function(f) {
@@ -1711,7 +1761,7 @@
     return '<div class="my-status" aria-label="我的繳交情況">' + cards.map(function(card, i) {
       const st = questionState(card, signed);
       return '<button type="button" onclick="goToQuestion(\'' + card.dataset.id + '\')" title="跳到這一題">' +
-        '<span class="n">' + (i + 1) + '</span><span class="t">' + escapeHtml(card.dataset.title) + '</span>' +
+        '<span class="n">' + (i + 1) + '</span><span class="t">' + (card.dataset.purpose === 'homework' ? '🏠 ' : '🗣 ') + escapeHtml(card.dataset.title) + '</span>' +
         (st ? '<span class="q-state" data-state="' + st.key + '">' + escapeHtml(st.label) + '</span>' : '') +
         '</button>';
     }).join('') + '</div>';
@@ -1765,6 +1815,10 @@
     const card = document.querySelector('.q-card[data-id="' + id + '"]');
 
     if (!card) return;
+
+    // 被篩選藏起來的題目，先顯示全部
+    const show = document.getElementById('questionList').dataset.show;
+    if (show && show !== 'all' && show !== card.dataset.purpose) setPurposeFilter('all');
 
     // 從作答紀錄點過來時，先切回「老師的問題」
     if (document.getElementById('panelQuestions').hidden) {

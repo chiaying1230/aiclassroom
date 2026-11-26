@@ -23,7 +23,7 @@ const QUESTION_HEADERS = [
   '截止時間', '截止後', '最後修改', '課程ID',
   '即時回饋風格', '回饋補充指示', '自動分類',
   '學習目標', '評量方式',
-  '題型', '題型設定', '題目圖片'
+  '題型', '題型設定', '題目圖片', '題目用途'
 ];
 
 /* 學生重新送出時，自己勾選有沒有參考 AI 學習建議 */
@@ -87,7 +87,7 @@ const QCOL = {
   DEADLINE: 10, LATE_POLICY: 11, UPDATED: 12, COURSE: 13,
   FEEDBACK_STYLE: 14, FEEDBACK_NOTE: 15, AUTO_CLASSIFY: 16,
   OBJECTIVE: 17, ASSESSMENT: 18,
-  TYPE: 19, TYPE_SETTINGS: 20, IMAGES: 21
+  TYPE: 19, TYPE_SETTINGS: 20, IMAGES: 21, PURPOSE: 22
 };
 
 const COURSE_COL = {
@@ -2014,7 +2014,9 @@ function questionFromRow_(row, rowNumber) {
     // 空白（舊題目）＝申論
     type: QUESTION_TYPES[cleanText_(row[QCOL.TYPE - 1])] ? cleanText_(row[QCOL.TYPE - 1]) : 'essay',
     typeSettings: parseJson_(row[QCOL.TYPE_SETTINGS - 1], {}),
-    images: parseJson_(row[QCOL.IMAGES - 1], []).filter(function(id) { return /^[\w-]{10,100}$/.test(String(id)); }).slice(0, MAX_QUESTION_IMAGES)
+    images: parseJson_(row[QCOL.IMAGES - 1], []).filter(function(id) { return /^[\w-]{10,100}$/.test(String(id)); }).slice(0, MAX_QUESTION_IMAGES),
+    // 題目用途：課堂討論或回家作業（舊題目沒有填，當成課堂討論）
+    purpose: cleanPurpose_(row[QCOL.PURPOSE - 1])
   };
 }
 
@@ -2075,6 +2077,15 @@ function isLate_(submitted, deadline) {
  * 舊的題目表只有 9 欄，第一次寫入新欄位前自動補上標題。
  * 只會填空白的標題格，不會改到已經有的內容。
  */
+const QUESTION_PURPOSES = { class: '課堂討論', homework: '回家作業' };
+
+function cleanPurpose_(value) {
+  const v = cleanText_(value);
+  if (v === 'homework' || v === QUESTION_PURPOSES.homework) return 'homework';
+  return 'class';
+}
+
+
 function ensureQuestionColumns_(sheet) {
   ensureColumns_(sheet, QUESTION_HEADERS);
 }
@@ -2177,6 +2188,8 @@ function cleanQuestionInputBase_(data) {
     hasType: data.type !== undefined,
     type: QUESTION_TYPES[cleanText_(data.type)] ? cleanText_(data.type) : 'essay',
     typeSettings: cleanTypeSettings_(cleanText_(data.type), data.typeSettings),
+    hasPurpose: data.purpose !== undefined,
+    purpose: cleanPurpose_(data.purpose),
     hasImages: Array.isArray(data.images),
     images: (Array.isArray(data.images) ? data.images : [])
       .map(cleanText_)
@@ -2700,7 +2713,8 @@ function getPublishedQuestions(courseCode) {
         type: q.type,
         typeLabel: QUESTION_TYPES[q.type],
         typeSettings: publicTypeSettings_(q),
-        images: q.images
+        images: q.images,
+        purpose: q.purpose
       };
     });
 }
@@ -3574,7 +3588,8 @@ function createQuestion(data) {
       q.assessment,
       q.type,
       JSON.stringify(q.typeSettings),
-      JSON.stringify(q.images)
+      JSON.stringify(q.images),
+      q.purpose
     ]], QUESTION_HEADERS.length);
 
     sheet.getRange(rowNumber, QCOL.DEADLINE).setNumberFormat('yyyy/mm/dd hh:mm');
@@ -3741,6 +3756,11 @@ function updateQuestion(data) {
         .setValues(cells_([[q.type, JSON.stringify(q.typeSettings)]]));
     }
 
+    if (q.hasPurpose) {
+      ensureQuestionColumns_(sheet);
+      sheet.getRange(rowNumber, QCOL.PURPOSE).setValue(q.purpose);
+    }
+
     if (q.hasImages) {
       ensureQuestionColumns_(sheet);
       sheet.getRange(rowNumber, QCOL.IMAGES).setValue(JSON.stringify(q.images));
@@ -3860,7 +3880,8 @@ function copyQuestions(questionIds, targetCourseId) {
         q.assessment,
         q.type,
         JSON.stringify(q.typeSettings),
-        JSON.stringify(q.images)
+        JSON.stringify(q.images),
+        q.purpose
       ];
     });
 
@@ -3974,7 +3995,8 @@ function getTeacherQuestions(courseId) {
         assessment: q.assessment,
         type: q.type,
         typeSettings: q.typeSettings,
-        images: q.images
+        images: q.images,
+        purpose: q.purpose
       };
     })
     .reverse();
